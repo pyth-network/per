@@ -789,10 +789,12 @@ mod tests {
                 express_relay::id()
             });
 
+        let bids_pending = bids.clone();
         auction_service
             .expect_get_pending_bids()
             .return_once(move |_| {
-                bids.unwrap_or(vec![BidParams::default()])
+                bids_pending
+                    .unwrap_or(vec![BidParams::default()])
                     .into_iter()
                     .map(make_test_bid)
                     .collect()
@@ -821,7 +823,7 @@ mod tests {
                 ))
             });
 
-        auction_service.expect_add_auction().returning(|_| {
+        auction_service.expect_add_auction().returning(move |_| {
             Ok(Auction {
                 id:                  DEFAULT_AUCTION_ID,
                 chain_id:            DEFAULT_CHAIN_ID.to_string(),
@@ -831,7 +833,12 @@ mod tests {
                 bid_collection_time: OffsetDateTime::from_unix_timestamp(1200).unwrap(),
                 submission_time:     None,
                 tx_hash:             None,
-                bids:                vec![],
+                bids:                bids
+                    .clone()
+                    .unwrap_or(vec![BidParams::default()])
+                    .into_iter()
+                    .map(make_test_bid)
+                    .collect(),
             })
         });
 
@@ -855,8 +862,8 @@ mod tests {
 
     #[derive(Clone, Default)]
     struct QuoteSequenceParams {
-        auction_service: AuctionServiceSequenceParams,
-        metadata:        Option<ExpressRelayMetadata>,
+        auction_service_sequence: AuctionServiceSequenceParams,
+        metadata:                 Option<ExpressRelayMetadata>,
     }
 
     struct QuoteSequence {
@@ -869,7 +876,7 @@ mod tests {
 
     async fn setup_basic_sequence(params: QuoteSequenceParams) -> QuoteSequence {
         let QuoteSequenceParams {
-            auction_service: auction_service_params,
+            auction_service_sequence: auction_service_params,
             metadata,
         } = params;
 
@@ -937,7 +944,7 @@ mod tests {
             token_program_user,
             token_program_searcher,
         } = setup_basic_sequence(QuoteSequenceParams {
-            auction_service: AuctionServiceSequenceParams {
+            auction_service_sequence: AuctionServiceSequenceParams {
                 bids: Some(vec![BidParams {
                     id: Some(Uuid::from_u128(1)),
                     signature: Some(vec![win_sig]),
@@ -966,7 +973,7 @@ mod tests {
                     update.new_status,
                     BidStatusSvm::AwaitingSignature {
                         auction: BidStatusAuction {
-                            id:      Uuid::from_u128(4242),
+                            id:      DEFAULT_AUCTION_ID,
                             tx_hash: win_sig,
                         },
                     }
@@ -1009,12 +1016,33 @@ mod tests {
             .await
             .expect("Failed to submit quote");
 
-        assert_eq!(quote.reference_id, Uuid::from_u128(4242));
+        assert_eq!(quote.reference_id, DEFAULT_AUCTION_ID);
         assert_eq!(
             quote.searcher_token,
             TokenAmountSvm {
                 token:  searcher_token,
                 amount: 101,
+            }
+        );
+        assert_eq!(
+            quote.user_token,
+            TokenAmountSvm {
+                token:  user_token,
+                amount: 1,
+            }
+        );
+        assert_eq!(
+            quote.referrer_fee,
+            TokenAmountSvm {
+                token:  user_token,
+                amount: 0,
+            }
+        );
+        assert_eq!(
+            quote.platform_fee,
+            TokenAmountSvm {
+                token:  user_token,
+                amount: 0,
             }
         );
         assert_eq!(quote.transaction, None);
@@ -1064,7 +1092,7 @@ mod tests {
             token_program_user,
             token_program_searcher,
         } = setup_basic_sequence(QuoteSequenceParams {
-            auction_service: AuctionServiceSequenceParams {
+            auction_service_sequence: AuctionServiceSequenceParams {
                 bids: Some(Vec::new()),
                 ..Default::default()
             },
@@ -1111,6 +1139,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_quote_indicative_searcher_lowest_wins() {
         let win_sig = Signature::new_unique();
+        let lose_sig = Signature::new_unique();
 
         let QuoteSequence {
             service,
@@ -1118,11 +1147,12 @@ mod tests {
             token_program_user,
             token_program_searcher,
         } = setup_basic_sequence(QuoteSequenceParams {
-            auction_service: AuctionServiceSequenceParams {
+            auction_service_sequence: AuctionServiceSequenceParams {
                 bids: Some(vec![
                     BidParams {
                         id: Some(Uuid::from_u128(1)),
                         amount: Some(100),
+                        signature: Some(vec![lose_sig]),
                         ..Default::default()
                     },
                     BidParams {
@@ -1141,18 +1171,30 @@ mod tests {
 
         auction_service
             .expect_update_bid_status()
-            .times(1)
+            .times(2)
             .returning(move |update| {
-                assert_eq!(update.bid.id, Uuid::from_u128(2));
-                assert_eq!(
-                    update.new_status,
-                    BidStatusSvm::AwaitingSignature {
-                        auction: BidStatusAuction {
-                            id:      Uuid::from_u128(4242),
-                            tx_hash: win_sig,
-                        },
-                    }
-                );
+                if update.bid.id == Uuid::from_u128(2) {
+                    assert_eq!(
+                        update.new_status,
+                        BidStatusSvm::AwaitingSignature {
+                            auction: BidStatusAuction {
+                                id:      DEFAULT_AUCTION_ID,
+                                tx_hash: win_sig,
+                            },
+                        }
+                    );
+                } else {
+                    assert_eq!(
+                        update.new_status,
+                        BidStatusSvm::Lost {
+                            auction: Some(BidStatusAuction {
+                                id:      DEFAULT_AUCTION_ID,
+                                // signature is just in the parameters, it doesnt actually get updated in the DB
+                                tx_hash: win_sig,
+                            }),
+                        }
+                    );
+                }
 
                 Ok(true)
             });
@@ -1190,6 +1232,10 @@ mod tests {
             })
             .await
             .expect("Failed to submit quote");
+
+        // flush rest of the updates
+        service.task_tracker.close();
+        service.task_tracker.wait().await;
     }
 
     #[tokio::test]
@@ -1200,7 +1246,7 @@ mod tests {
             token_program_user,
             token_program_searcher,
         } = setup_basic_sequence(QuoteSequenceParams {
-            auction_service: AuctionServiceSequenceParams {
+            auction_service_sequence: AuctionServiceSequenceParams {
                 swap_args: Some(SwapArgs {
                     deadline:         10,
                     amount_searcher:  20000,
