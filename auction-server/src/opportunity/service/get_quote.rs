@@ -8,6 +8,7 @@ use {
     crate::{
         api::RestError,
         auction::{
+            self,
             entities::{
                 Auction,
                 BidPaymentInstructionType,
@@ -23,10 +24,12 @@ use {
                     get_current_time_rounded_with_offset,
                     BID_MINIMUM_LIFE_TIME_SVM_OTHER,
                 },
-                Service as AuctionService,
             },
         },
-        kernel::entities::PermissionKeySvm,
+        kernel::entities::{
+            PermissionKeySvm,
+            Svm,
+        },
         opportunity::{
             entities::{
                 self,
@@ -55,7 +58,6 @@ use {
     time::OffsetDateTime,
     tokio::time::sleep,
 };
-
 // FeeToken and TokenSpecified combinations possible and how they are handled:
 // --------------------------------------------------------------------------------------------
 // FeeToken=SearcherToken, TokenSpecified=SearcherTokenSpecified
@@ -506,10 +508,11 @@ impl Service<ChainTypeSvm> {
                 tracing::error!("Failed to verify swap instruction: {:?}", e);
                 RestError::TemporarilyUnavailable
             })?;
-        let swap_data = AuctionService::extract_swap_data(&swap_instruction).map_err(|e| {
-            tracing::error!("Failed to extract swap data: {:?}", e);
-            RestError::TemporarilyUnavailable
-        })?;
+        let swap_data = auction::service::Service::<Svm>::extract_swap_data(&swap_instruction)
+            .map_err(|e| {
+                tracing::error!("Failed to extract swap data: {:?}", e);
+                RestError::TemporarilyUnavailable
+            })?;
         let deadline = swap_data.deadline;
 
         // Bids are not empty
@@ -541,9 +544,9 @@ impl Service<ChainTypeSvm> {
                     async move {
                         auction_service
                             .update_bid_status(UpdateBidStatusInput {
-                                new_status: AuctionService::get_new_status(
+                                new_status: auction::service::Service::<Svm>::get_new_status(
                                     &bid,
-                                    &vec![winner_bid],
+                                    &[winner_bid],
                                     BidStatusAuction {
                                         tx_hash: signature,
                                         id:      auction.id,
@@ -678,8 +681,250 @@ impl Service<ChainTypeSvm> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    #![allow(clippy::needless_update)]
 
+    use {
+        super::*,
+        crate::{
+            auction,
+            auction::{
+                entities::{
+                    BidChainDataSvm,
+                    BidStatusSvm,
+                },
+                service::{
+                    MockService as MockAuctionService,
+                    StatefulMockAuctionService,
+                },
+            },
+            kernel::{
+                entities::Svm,
+                traced_sender_svm::tests::MockRpcClient,
+            },
+            opportunity::{
+                entities::{
+                    QuoteCreate,
+                    QuoteTokens,
+                    ReferralFeeInfo,
+                },
+                repository::MockDatabase,
+            },
+        },
+        anchor_lang::{
+            AnchorSerialize,
+            Discriminator,
+        },
+        express_relay::{
+            state::ExpressRelayMetadata,
+            SwapArgs,
+        },
+        solana_sdk::{
+            instruction::CompiledInstruction,
+            signature::Signature,
+            transaction::VersionedTransaction,
+        },
+        uuid::Uuid,
+    };
+
+    // The default test auction id
+    const DEFAULT_AUCTION_ID: Uuid = Uuid::from_u128(4242);
+    // Default chain id
+    const DEFAULT_CHAIN_ID: &str = "solana";
+
+
+    #[derive(Clone, Default)]
+    struct BidParams {
+        id:        Option<Uuid>,
+        amount:    Option<u64>,
+        signature: Option<Vec<Signature>>,
+    }
+
+    fn make_test_bid(params: BidParams) -> auction::entities::Bid<Svm> {
+        let BidParams {
+            id,
+            signature,
+            amount,
+        } = params;
+
+        auction::entities::Bid::<Svm> {
+            id:              id.unwrap_or(Uuid::from_u128(1)),
+            chain_id:        DEFAULT_CHAIN_ID.to_string(),
+            initiation_time: OffsetDateTime::from_unix_timestamp(1200).unwrap(),
+            profile_id:      None,
+            amount:          amount.unwrap_or(100),
+            status:          BidStatusSvm::Pending,
+            chain_data:      BidChainDataSvm {
+                transaction:                  VersionedTransaction {
+                    signatures: signature.unwrap_or(vec![Signature::new_unique()]),
+                    message:    Default::default(),
+                },
+                bid_payment_instruction_type: BidPaymentInstructionType::SubmitBid,
+                router:                       Default::default(),
+                permission_account:           Default::default(),
+            },
+        }
+    }
+
+    #[derive(Clone, Default)]
+    struct AuctionServiceSequenceParams {
+        bids:            Option<Vec<BidParams>>,
+        swap_args:       Option<SwapArgs>,
+        skip_bid_update: bool,
+    }
+
+    fn setup_mock_auction_service(
+        params: AuctionServiceSequenceParams,
+    ) -> StatefulMockAuctionService<Svm> {
+        let mut auction_service = StatefulMockAuctionService::<Svm>::default();
+        let AuctionServiceSequenceParams {
+            bids,
+            swap_args,
+            skip_bid_update,
+        } = params;
+
+        auction_service
+            .expect_get_express_relay_program_id()
+            .returning(|| {
+                // relay program id
+                express_relay::id()
+            });
+
+        let bids_pending = bids.clone();
+        auction_service
+            .expect_get_pending_bids()
+            .return_once(move |_| {
+                bids_pending
+                    .unwrap_or(vec![BidParams::default()])
+                    .into_iter()
+                    .map(make_test_bid)
+                    .collect()
+            });
+
+        auction_service
+            .expect_extract_express_relay_instruction()
+            .return_once(move |_, _| {
+                let swap_args = swap_args.unwrap_or(SwapArgs {
+                    deadline:         1,
+                    amount_searcher:  100,
+                    amount_user:      1,
+                    referral_fee_bps: 0,
+                    fee_token:        FeeToken::User,
+                });
+                let mut data = express_relay::instruction::Swap::DISCRIMINATOR.to_vec();
+                data.append(&mut swap_args.try_to_vec().unwrap());
+
+                Ok((
+                    1,
+                    CompiledInstruction {
+                        program_id_index: 0,
+                        accounts: vec![],
+                        data,
+                    },
+                ))
+            });
+
+        auction_service.expect_add_auction().returning(move |_| {
+            Ok(Auction {
+                id:                  DEFAULT_AUCTION_ID,
+                chain_id:            DEFAULT_CHAIN_ID.to_string(),
+                permission_key:      PermissionKeySvm([0; 65]),
+                creation_time:       OffsetDateTime::from_unix_timestamp(1300).unwrap(),
+                conclusion_time:     None,
+                bid_collection_time: OffsetDateTime::from_unix_timestamp(1200).unwrap(),
+                submission_time:     None,
+                tx_hash:             None,
+                bids:                bids
+                    .clone()
+                    .unwrap_or(vec![BidParams::default()])
+                    .into_iter()
+                    .map(make_test_bid)
+                    .collect(),
+            })
+        });
+
+        if !skip_bid_update {
+            auction_service
+                .expect_update_bid_status()
+                .returning(|_| Ok(true));
+        }
+
+        auction_service
+            .expect_sign_bid_and_submit_auction()
+            .returning(|_, _| {
+                Ok(VersionedTransaction {
+                    signatures: vec![Signature::new_unique()],
+                    message:    Default::default(),
+                })
+            });
+
+        auction_service
+    }
+
+    #[derive(Clone, Default)]
+    struct QuoteSequenceParams {
+        auction_service_sequence: AuctionServiceSequenceParams,
+        metadata:                 Option<ExpressRelayMetadata>,
+    }
+
+    struct QuoteSequence {
+        service:         Service<ChainTypeSvm>,
+        auction_service: StatefulMockAuctionService<Svm>,
+
+        token_program_user:     Pubkey,
+        token_program_searcher: Pubkey,
+    }
+
+    async fn setup_basic_sequence(params: QuoteSequenceParams) -> QuoteSequence {
+        let QuoteSequenceParams {
+            auction_service_sequence: auction_service_params,
+            metadata,
+        } = params;
+
+        let chain_id = DEFAULT_CHAIN_ID.to_string();
+        let rpc_client = MockRpcClient::default();
+        let mut mock_db = MockDatabase::default();
+        mock_db.expect_add_opportunity().returning(|_| Ok(()));
+        mock_db.expect_remove_opportunity().returning(|_, _| Ok(()));
+
+        let test_token_program_user = Pubkey::new_unique();
+        let test_token_program_searcher = Pubkey::new_unique();
+        let (mut service, _) =
+            Service::<ChainTypeSvm>::new_with_mocks_svm(chain_id.clone(), mock_db, rpc_client);
+        service
+            .config
+            .get_mut(&chain_id)
+            .unwrap()
+            .accepted_token_programs
+            .extend([test_token_program_user, test_token_program_searcher]);
+
+        service
+            .repo
+            .cache_express_relay_metadata(metadata.unwrap_or_default())
+            .await;
+
+        let auction_service = setup_mock_auction_service(auction_service_params);
+
+        QuoteSequence {
+            service,
+            auction_service,
+            token_program_user: test_token_program_user,
+            token_program_searcher: test_token_program_searcher,
+        }
+    }
+
+    fn inject_auction_service(
+        service: &Service<ChainTypeSvm>,
+        auction_service_in_call: StatefulMockAuctionService<Svm>,
+    ) {
+        let auction_service = MockAuctionService::<Svm>::new(auction_service_in_call);
+
+        let config = service
+            .get_config(&(DEFAULT_CHAIN_ID.to_string()))
+            .expect("Failed to get opportunity service evm config");
+        config
+            .auction_service_container
+            .inject_mock_service(auction_service);
+    }
 
     #[test]
     fn test_indicative_price_taker() {
@@ -687,5 +932,378 @@ mod tests {
         let formatted_key = x.to_string();
         assert_eq!(&formatted_key[0..4], "Pric");
         assert!(is_indicative_price_taker(&x));
+    }
+
+    #[tokio::test]
+    async fn test_get_quote_indicative_happy_path() {
+        let win_sig = Signature::new_unique();
+
+        let QuoteSequence {
+            service,
+            mut auction_service,
+            token_program_user,
+            token_program_searcher,
+        } = setup_basic_sequence(QuoteSequenceParams {
+            auction_service_sequence: AuctionServiceSequenceParams {
+                bids: Some(vec![BidParams {
+                    id: Some(Uuid::from_u128(1)),
+                    signature: Some(vec![win_sig]),
+                    ..Default::default()
+                }]),
+                swap_args: Some(SwapArgs {
+                    deadline:         10,
+                    amount_searcher:  101,
+                    amount_user:      1,
+                    referral_fee_bps: 0,
+                    fee_token:        FeeToken::User,
+                }),
+                skip_bid_update: true,
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .await;
+
+        auction_service
+            .expect_update_bid_status()
+            .times(1)
+            .returning(move |update| {
+                assert_eq!(update.bid.id, Uuid::from_u128(1));
+                assert_eq!(
+                    update.new_status,
+                    BidStatusSvm::AwaitingSignature {
+                        auction: BidStatusAuction {
+                            id:      DEFAULT_AUCTION_ID,
+                            tx_hash: win_sig,
+                        },
+                    }
+                );
+
+                Ok(true)
+            });
+
+        inject_auction_service(&service, auction_service);
+
+        let user_token = Pubkey::new_unique();
+        let searcher_token = Pubkey::new_unique();
+        service
+            .repo
+            .cache_token_program(searcher_token, token_program_user)
+            .await;
+        service
+            .repo
+            .cache_token_program(user_token, token_program_searcher)
+            .await;
+
+        let quote = service
+            .get_quote(GetQuoteInput {
+                quote_create: QuoteCreate {
+                    user_wallet_address: None,
+                    tokens:              QuoteTokens::UserTokenSpecified {
+                        user_token: TokenAmountSvm {
+                            token:  user_token,
+                            amount: 2,
+                        },
+                        searcher_token,
+                    },
+                    referral_fee_info:   None,
+                    chain_id:            DEFAULT_CHAIN_ID.to_string(),
+                    memo:                None,
+                    cancellable:         true,
+                    minimum_lifetime:    None,
+                },
+            })
+            .await
+            .expect("Failed to submit quote");
+
+        assert_eq!(quote.reference_id, DEFAULT_AUCTION_ID);
+        assert_eq!(
+            quote.searcher_token,
+            TokenAmountSvm {
+                token:  searcher_token,
+                amount: 101,
+            }
+        );
+        assert_eq!(
+            quote.user_token,
+            TokenAmountSvm {
+                token:  user_token,
+                amount: 1,
+            }
+        );
+        assert_eq!(
+            quote.referrer_fee,
+            TokenAmountSvm {
+                token:  user_token,
+                amount: 0,
+            }
+        );
+        assert_eq!(
+            quote.platform_fee,
+            TokenAmountSvm {
+                token:  user_token,
+                amount: 0,
+            }
+        );
+        assert_eq!(quote.transaction, None);
+    }
+
+    #[tokio::test]
+    async fn test_get_quote_indicative_invalid_referral_fee() {
+        let QuoteSequence {
+            service,
+            auction_service,
+            token_program_user: _,
+            token_program_searcher: _,
+        } = setup_basic_sequence(QuoteSequenceParams::default()).await;
+        inject_auction_service(&service, auction_service);
+
+        let result = service
+            .get_quote(GetQuoteInput {
+                quote_create: QuoteCreate {
+                    user_wallet_address: None,
+                    tokens:              QuoteTokens::UserTokenSpecified {
+                        user_token:     TokenAmountSvm {
+                            token:  Pubkey::new_unique(),
+                            amount: 2,
+                        },
+                        searcher_token: Pubkey::new_unique(),
+                    },
+                    referral_fee_info:   Some(ReferralFeeInfo {
+                        router:           Pubkey::new_unique(),
+                        referral_fee_bps: 20_000,
+                    }),
+                    chain_id:            DEFAULT_CHAIN_ID.to_string(),
+                    memo:                None,
+                    cancellable:         true,
+                    minimum_lifetime:    None,
+                },
+            })
+            .await;
+
+        assert_eq!(
+            result,
+            Err(RestError::BadParameters(
+                "Referral fee bps higher than 10000".to_string()
+            ))
+        );
+    }
+
+    #[tokio::test]
+    async fn test_get_quote_indicative_no_bids() {
+        let QuoteSequence {
+            service,
+            auction_service,
+            token_program_user,
+            token_program_searcher,
+        } = setup_basic_sequence(QuoteSequenceParams {
+            auction_service_sequence: AuctionServiceSequenceParams {
+                bids: Some(Vec::new()),
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .await;
+        inject_auction_service(&service, auction_service);
+
+        let user_token = Pubkey::new_unique();
+        let searcher_token = Pubkey::new_unique();
+        service
+            .repo
+            .cache_token_program(searcher_token, token_program_user)
+            .await;
+        service
+            .repo
+            .cache_token_program(user_token, token_program_searcher)
+            .await;
+
+        let result = service
+            .get_quote(GetQuoteInput {
+                quote_create: QuoteCreate {
+                    user_wallet_address: None,
+                    tokens:              QuoteTokens::UserTokenSpecified {
+                        user_token: TokenAmountSvm {
+                            token:  user_token,
+                            amount: 2,
+                        },
+                        searcher_token,
+                    },
+                    referral_fee_info:   None,
+                    chain_id:            DEFAULT_CHAIN_ID.to_string(),
+                    memo:                None,
+                    cancellable:         true,
+                    minimum_lifetime:    None,
+                },
+            })
+            .await;
+
+        // no bids were submitted
+        assert_eq!(result, Err(RestError::QuoteNotFound));
+    }
+
+    #[tokio::test]
+    async fn test_get_quote_indicative_searcher_lowest_wins() {
+        let win_sig = Signature::new_unique();
+        let lose_sig = Signature::new_unique();
+
+        let QuoteSequence {
+            service,
+            mut auction_service,
+            token_program_user,
+            token_program_searcher,
+        } = setup_basic_sequence(QuoteSequenceParams {
+            auction_service_sequence: AuctionServiceSequenceParams {
+                bids: Some(vec![
+                    BidParams {
+                        id: Some(Uuid::from_u128(1)),
+                        amount: Some(100),
+                        signature: Some(vec![lose_sig]),
+                        ..Default::default()
+                    },
+                    BidParams {
+                        id: Some(Uuid::from_u128(2)),
+                        amount: Some(10),
+                        signature: Some(vec![win_sig]),
+                        ..Default::default()
+                    },
+                ]),
+                skip_bid_update: true,
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .await;
+
+        auction_service
+            .expect_update_bid_status()
+            .times(2)
+            .returning(move |update| {
+                if update.bid.id == Uuid::from_u128(2) {
+                    assert_eq!(
+                        update.new_status,
+                        BidStatusSvm::AwaitingSignature {
+                            auction: BidStatusAuction {
+                                id:      DEFAULT_AUCTION_ID,
+                                tx_hash: win_sig,
+                            },
+                        }
+                    );
+                } else {
+                    assert_eq!(
+                        update.new_status,
+                        BidStatusSvm::Lost {
+                            auction: Some(BidStatusAuction {
+                                id:      DEFAULT_AUCTION_ID,
+                                // signature is just in the parameters, it doesnt actually get updated in the DB
+                                tx_hash: win_sig,
+                            }),
+                        }
+                    );
+                }
+
+                Ok(true)
+            });
+
+        inject_auction_service(&service, auction_service);
+
+        let user_token = Pubkey::new_unique();
+        let searcher_token = Pubkey::new_unique();
+        service
+            .repo
+            .cache_token_program(searcher_token, token_program_user)
+            .await;
+        service
+            .repo
+            .cache_token_program(user_token, token_program_searcher)
+            .await;
+
+        service
+            .get_quote(GetQuoteInput {
+                quote_create: QuoteCreate {
+                    user_wallet_address: None,
+                    tokens:              QuoteTokens::SearcherTokenSpecified {
+                        searcher_token: TokenAmountSvm {
+                            token:  searcher_token,
+                            amount: 2,
+                        },
+                        user_token,
+                    },
+                    referral_fee_info:   None,
+                    chain_id:            DEFAULT_CHAIN_ID.to_string(),
+                    memo:                None,
+                    cancellable:         true,
+                    minimum_lifetime:    None,
+                },
+            })
+            .await
+            .expect("Failed to submit quote");
+
+        // flush rest of the updates
+        service.task_tracker.close();
+        service.task_tracker.wait().await;
+    }
+
+    #[tokio::test]
+    async fn test_get_quote_indicative_fee_estimation() {
+        let QuoteSequence {
+            service,
+            auction_service,
+            token_program_user,
+            token_program_searcher,
+        } = setup_basic_sequence(QuoteSequenceParams {
+            auction_service_sequence: AuctionServiceSequenceParams {
+                swap_args: Some(SwapArgs {
+                    deadline:         10,
+                    amount_searcher:  20000,
+                    amount_user:      2000,
+                    referral_fee_bps: 15,
+                    fee_token:        FeeToken::User,
+                }),
+                ..Default::default()
+            },
+            metadata: Some(ExpressRelayMetadata {
+                swap_platform_fee_bps: 10,
+                split_relayer: 5000,
+                ..Default::default()
+            }),
+            ..Default::default()
+        })
+        .await;
+        inject_auction_service(&service, auction_service);
+
+        let user_token = Pubkey::new_unique();
+        let searcher_token = Pubkey::new_unique();
+        service
+            .repo
+            .cache_token_program(searcher_token, token_program_user)
+            .await;
+        service
+            .repo
+            .cache_token_program(user_token, token_program_searcher)
+            .await;
+
+        let quote = service
+            .get_quote(GetQuoteInput {
+                quote_create: QuoteCreate {
+                    user_wallet_address: None,
+                    tokens:              QuoteTokens::UserTokenSpecified {
+                        user_token: TokenAmountSvm {
+                            token:  user_token,
+                            amount: 2000,
+                        },
+                        searcher_token,
+                    },
+                    referral_fee_info:   None,
+                    chain_id:            DEFAULT_CHAIN_ID.to_string(),
+                    memo:                None,
+                    cancellable:         true,
+                    minimum_lifetime:    None,
+                },
+            })
+            .await
+            .expect("Failed to submit quote");
+
+        assert_eq!(quote.referrer_fee.amount, 0);
+        assert_eq!(quote.platform_fee.amount, 2);
     }
 }

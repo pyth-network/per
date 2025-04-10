@@ -272,6 +272,127 @@ pub enum ServiceEnum {
     Svm(Service<Svm>),
 }
 
+#[cfg(test)]
+pub use {
+    mock_service::MockService,
+    mock_service::MockServiceInner as StatefulMockAuctionService,
+};
+
+#[cfg(test)]
+mod mock_service {
+    use {
+        super::*,
+        crate::{
+            api::RestError,
+            kernel::{
+                contracts::{
+                    MulticallData,
+                    MulticallStatus,
+                },
+                entities::PermissionKey,
+            },
+        },
+        ethers::contract::FunctionCall,
+        mockall::mock,
+        solana_sdk::{
+            instruction::CompiledInstruction,
+            transaction::VersionedTransaction,
+        },
+    };
+
+    #[derive(Clone)]
+    pub struct MockService<T: ChainTrait>(pub Arc<StatefulMockAuctionService<T>>);
+
+    impl<T: ChainTrait> MockService<T> {
+        pub fn new(mock: StatefulMockAuctionService<T>) -> Self {
+            Self(Arc::new(mock))
+        }
+    }
+
+    impl<T: ChainTrait> std::ops::Deref for MockService<T> {
+        type Target = StatefulMockAuctionService<T>;
+        fn deref(&self) -> &Self::Target {
+            &self.0
+        }
+    }
+
+    mock! {
+        pub ServiceInner<T: ChainTrait> {
+            pub fn new(
+                db: DB,
+                config: Config<T::ConfigType>,
+                opportunity_service: Arc<OpportunityService<T::OpportunityServiceType>>,
+                task_tracker: TaskTracker,
+                event_sender: broadcast::Sender<UpdateEvent>,
+            ) -> Self;
+
+            pub fn get_express_relay_program_id(&self) -> Pubkey;
+
+            pub async fn add_auction(
+                &self,
+                input: add_auction::AddAuctionInput<T>,
+            ) -> Result<entities::Auction<T>, RestError>;
+
+            pub async fn cancel_bid_for_lock(
+                &self,
+                input: cancel_bid::CancelBidInput,
+                lock: entities::BidLock,
+            ) -> Result<(), RestError>;
+
+            pub async fn conclude_auction_with_statuses(
+                &self,
+                input: conclude_auction::ConcludeAuctionWithStatusesInput<T>,
+            ) -> anyhow::Result<()>;
+
+            pub async fn get_pending_bids(
+                &self,
+                input: get_pending_bids::GetLiveBidsInput<T::BidChainDataType>,
+            ) -> Vec<entities::Bid<T>>;
+
+            pub fn extract_express_relay_instruction(
+                &self,
+                transaction: VersionedTransaction,
+                instruction_type: entities::BidPaymentInstructionType,
+            ) -> Result<(usize, CompiledInstruction), RestError> ;
+
+            pub async fn update_bid_status(
+                &self,
+                input: update_bid_status::UpdateBidStatusInput<T>,
+            ) -> Result<bool, RestError>;
+
+            pub async fn handle_bid(
+                &self,
+                input: handle_bid::HandleBidInput<T>,
+            ) -> Result<entities::Bid<T>, RestError>;
+
+            pub fn get_simulation_call(
+                &self,
+                permission_key: PermissionKey,
+                multicall_data: Vec<MulticallData>,
+            ) -> FunctionCall<Arc<Provider<TracedClient>>, Provider<TracedClient>, Vec<MulticallStatus>>;
+
+            pub async fn sign_bid_and_submit_auction(
+                &self,
+                bid: entities::Bid<Svm>,
+                auction: entities::Auction<Svm>,
+            ) -> Result<VersionedTransaction, RestError>;
+
+            pub fn extract_swap_data(
+                instruction: &CompiledInstruction,
+            ) -> Result<express_relay::SwapArgs, RestError>;
+
+            pub fn get_new_status(
+                bid: &entities::Bid<Svm>,
+                submitted_bids: &[entities::Bid<Svm>],
+                bid_status_auction: entities::BidStatusAuction<entities::BidStatusSvm>,
+            ) -> entities::BidStatusSvm;
+        }
+
+        impl<T: ChainTrait> Clone for ServiceInner<T> {
+            fn clone(&self) -> Self;
+        }
+    }
+}
 
 #[cfg(test)]
 pub mod tests {

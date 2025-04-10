@@ -1,3 +1,5 @@
+#[double]
+use crate::auction::service::Service as AuctionService;
 use {
     super::repository::{
         Database,
@@ -34,6 +36,7 @@ use {
         types::Address,
     },
     futures::future::try_join_all,
+    mockall_double::double,
     solana_client::{
         nonblocking::rpc_client::RpcClient,
         rpc_client::RpcClientConfig,
@@ -46,7 +49,6 @@ use {
         collections::HashMap,
         sync::Arc,
     },
-    tokio::sync::RwLock,
     tokio_util::task::TaskTracker,
 };
 #[cfg(test)]
@@ -76,7 +78,7 @@ mod unwrap_referral_fee_info;
 
 /// Store for the injectable auction service
 pub struct AuctionServiceContainer<C: ChainTrait> {
-    service: ArcSwap<Option<auction_service::Service<C>>>,
+    service: ArcSwap<Option<AuctionService<C>>>,
 }
 
 impl<C: ChainTrait> AuctionServiceContainer<C> {
@@ -86,12 +88,26 @@ impl<C: ChainTrait> AuctionServiceContainer<C> {
         }
     }
 
+    #[allow(unused_variables)]
     pub fn inject_service(&self, service: auction_service::Service<C>) {
+        #[cfg(not(test))]
+        {
+            self.service.swap(Arc::new(Some(service)));
+        }
+
+        #[cfg(test)]
+        {
+            panic!("inject_service should not be called in tests");
+        }
+    }
+
+    #[cfg(test)]
+    pub fn inject_mock_service(&self, service: AuctionService<C>) {
         self.service.swap(Arc::new(Some(service)));
     }
 
     /// Resolve the stored service
-    fn get_service(&self) -> auction_service::Service<C> {
+    fn get_service(&self) -> AuctionService<C> {
         self.service
             .load()
             .as_ref()
@@ -305,9 +321,11 @@ pub mod tests {
             },
             kernel::traced_sender_svm::tests::MockRpcClient,
             opportunity::repository::MockDatabase,
-            server::setup_metrics_recorder,
         },
-        tokio::sync::broadcast::Receiver,
+        tokio::sync::{
+            broadcast::Receiver,
+            RwLock,
+        },
     };
 
     impl Service<ChainTypeSvm> {
@@ -330,13 +348,12 @@ pub mod tests {
             chains_svm.insert(chain_id.clone(), config_svm);
 
             let store = Arc::new(Store {
-                db:               DB::connect_lazy("https://test").unwrap(),
-                chains_evm:       HashMap::new(),
-                chains_svm:       HashMap::new(),
-                ws:               ws::WsState::new("X-Forwarded-For".to_string(), 100),
-                secret_key:       "test".to_string(),
-                access_tokens:    RwLock::new(HashMap::new()),
-                metrics_recorder: setup_metrics_recorder().unwrap(),
+                db:            DB::connect_lazy("https://test").unwrap(),
+                chains_evm:    HashMap::new(),
+                chains_svm:    HashMap::new(),
+                ws:            ws::WsState::new("X-Forwarded-For".to_string(), 100),
+                secret_key:    "test".to_string(),
+                access_tokens: RwLock::new(HashMap::new()),
             });
 
             let ws_receiver = store.ws.broadcast_receiver.resubscribe();

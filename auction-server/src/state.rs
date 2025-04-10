@@ -129,14 +129,17 @@ impl ChainStoreSvm {
     }
 }
 
-pub struct Store {
-    pub chains_evm:       HashMap<ChainId, Arc<ChainStoreEvm>>,
-    pub chains_svm:       HashMap<ChainId, Arc<ChainStoreSvm>>,
-    pub ws:               WsState,
-    pub db:               sqlx::PgPool,
-    pub secret_key:       String,
-    pub access_tokens:    RwLock<HashMap<models::AccessTokenToken, models::Profile>>,
+pub struct ServerState {
     pub metrics_recorder: PrometheusHandle,
+}
+
+pub struct Store {
+    pub chains_evm:    HashMap<ChainId, Arc<ChainStoreEvm>>,
+    pub chains_svm:    HashMap<ChainId, Arc<ChainStoreSvm>>,
+    pub ws:            WsState,
+    pub db:            sqlx::PgPool,
+    pub secret_key:    String,
+    pub access_tokens: RwLock<HashMap<models::AccessTokenToken, models::Profile>>,
 }
 
 pub struct StoreNew {
