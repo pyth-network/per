@@ -170,26 +170,41 @@ pub async fn get_opportunities(
         })
         .await;
 
-    if opportunities_evm.is_err() && opportunities_svm.is_err() {
-        // TODO better error handling, if the chain_id is svm and we have some serious error there, we would just return chain_id is not found on evm side
-        Err(opportunities_evm.expect_err("Failed to get error from opportunities_evm"))
+    if opportunities_evm == Err(RestError::InvalidChainId)
+        && opportunities_svm == Err(RestError::InvalidChainId)
+    {
+        Err(RestError::InvalidChainId)
     } else {
         let mut opportunities: Vec<Opportunity> = vec![];
-        if let Ok(opportunities_evm) = opportunities_evm {
-            opportunities.extend(
-                opportunities_evm
-                    .into_iter()
-                    .map(|o| o.into())
-                    .collect::<Vec<Opportunity>>(),
-            );
+
+        match opportunities_evm {
+            Ok(opportunities_evm) => {
+                opportunities.extend(
+                    opportunities_evm
+                        .into_iter()
+                        .map(|o| o.into())
+                        .collect::<Vec<Opportunity>>(),
+                );
+            }
+            Err(RestError::InvalidChainId) => {}
+            Err(error) => {
+                return Err(error);
+            }
         }
-        if let Ok(opportunities_svm) = opportunities_svm {
-            opportunities.extend(
-                opportunities_svm
-                    .into_iter()
-                    .map(|o| o.into())
-                    .collect::<Vec<Opportunity>>(),
-            );
+
+        match opportunities_svm {
+            Ok(opportunities_svm) => {
+                opportunities.extend(
+                    opportunities_svm
+                        .into_iter()
+                        .map(|o| o.into())
+                        .collect::<Vec<Opportunity>>(),
+                );
+            }
+            Err(RestError::InvalidChainId) => {}
+            Err(error) => {
+                return Err(error);
+            }
         }
 
         opportunities.sort_by_key(|a| a.creation_time());
