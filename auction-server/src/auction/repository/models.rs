@@ -95,6 +95,8 @@ pub enum BidStatus {
     Failed,
     Expired,
     Cancelled,
+    SubmissionFailedCancelled,
+    SubmissionFailedDeadlinePassed,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -233,6 +235,12 @@ impl ModelTrait<Evm> for Evm {
             BidStatus::Failed => Err(anyhow::anyhow!("Evm bid cannot be failed")),
             BidStatus::Expired => Err(anyhow::anyhow!("Evm bid cannot be expired")),
             BidStatus::Cancelled => Err(anyhow::anyhow!("Evm bid cannot be cancelled")),
+            BidStatus::SubmissionFailedCancelled => Err(anyhow::anyhow!(
+                "Evm bid cannot be submission failed cancelled"
+            )),
+            BidStatus::SubmissionFailedDeadlinePassed => Err(anyhow::anyhow!(
+                "Evm bid cannot be submission failed deadline passed"
+            )),
         }
     }
     fn convert_bid_status(status: &entities::BidStatusEvm) -> BidStatus {
@@ -432,6 +440,24 @@ impl ModelTrait<Svm> for Svm {
                     id:      auction.id,
                 },
             }),
+            (BidStatus::SubmissionFailedCancelled, Some(auction)) => {
+                Ok(entities::BidStatusSvm::SubmissionFailed {
+                    auction: entities::BidStatusAuction {
+                        tx_hash: sig,
+                        id:      auction.id,
+                    },
+                    reason:  entities::BidSubmissionFailedReason::Cancelled,
+                })
+            }
+            (BidStatus::SubmissionFailedDeadlinePassed, Some(auction)) => {
+                Ok(entities::BidStatusSvm::SubmissionFailed {
+                    auction: entities::BidStatusAuction {
+                        tx_hash: sig,
+                        id:      auction.id,
+                    },
+                    reason:  entities::BidSubmissionFailedReason::DeadlinePassed,
+                })
+            }
         }
     }
 
@@ -448,6 +474,14 @@ impl ModelTrait<Svm> for Svm {
             entities::BidStatusSvm::Failed { .. } => BidStatus::Failed,
             entities::BidStatusSvm::Expired { .. } => BidStatus::Expired,
             entities::BidStatusSvm::Cancelled { .. } => BidStatus::Cancelled,
+            entities::BidStatusSvm::SubmissionFailed { reason, .. } => match reason {
+                entities::BidSubmissionFailedReason::Cancelled => {
+                    BidStatus::SubmissionFailedCancelled
+                }
+                entities::BidSubmissionFailedReason::DeadlinePassed => {
+                    BidStatus::SubmissionFailedDeadlinePassed
+                }
+            },
         }
     }
 
@@ -573,6 +607,33 @@ impl ModelTrait<Svm> for Svm {
                 bid.id,
                 BidStatus::AwaitingSignature as _,
             )),
+            entities::BidStatusSvm::SubmissionFailed { auction, reason } => {
+                Ok(match reason {
+                    entities::BidSubmissionFailedReason::Cancelled => {
+                        sqlx::query!(
+                            "UPDATE bid SET status = $1, conclusion_time = $2, auction_id = $3 WHERE id = $4 AND status = $5",
+                            BidStatus::SubmissionFailedCancelled as _,
+                            PrimitiveDateTime::new(now.date(), now.time()),
+                            auction.id,
+                            bid.id,
+                            BidStatus::Cancelled as _,
+                        )
+                    },
+                    &entities::BidSubmissionFailedReason::DeadlinePassed => {
+                        sqlx::query!(
+                            "UPDATE bid SET status = $1, conclusion_time = $2, auction_id = $3 WHERE id = $4 AND status IN ($5, $6, $7)",
+                            BidStatus::SubmissionFailedDeadlinePassed as _,
+                            PrimitiveDateTime::new(now.date(), now.time()),
+                            auction.id,
+                            bid.id,
+                            BidStatus::AwaitingSignature as _,
+                            BidStatus::SentToUserForSubmission as _,
+                            BidStatus::Cancelled as _,
+                        )
+                    }
+                })
+
+            },
         }
     }
 }

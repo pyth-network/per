@@ -16,9 +16,11 @@
                 "won",
                 "expired",
                 "failed",
-                "awaiting_signature",
                 "cancelled",
-                "sent_to_user_for_submission"
+                "awaiting_signature",
+                "sent_to_user_for_submission",
+                "submission_failed_cancelled",
+                "submission_failed_deadline_passed"
               ]
             }
           }
@@ -36,9 +38,11 @@
                 "won",
                 "expired",
                 "failed",
-                "awaiting_signature",
                 "cancelled",
-                "sent_to_user_for_submission"
+                "awaiting_signature",
+                "sent_to_user_for_submission",
+                "submission_failed_cancelled",
+                "submission_failed_deadline_passed"
               ]
             }
           }
@@ -54,9 +58,11 @@
                 "won",
                 "expired",
                 "failed",
-                "awaiting_signature",
                 "cancelled",
-                "sent_to_user_for_submission"
+                "awaiting_signature",
+                "sent_to_user_for_submission",
+                "submission_failed_cancelled",
+                "submission_failed_deadline_passed"
               ]
             }
           }

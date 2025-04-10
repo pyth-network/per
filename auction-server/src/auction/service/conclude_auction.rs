@@ -50,7 +50,7 @@ where
             .get_in_memory_auction_by_id(input.auction.id)
             .await
         {
-            if auction.bids.iter().all(|bid| bid.status.is_finalized()) {
+            if auction.bids.iter().all(|bid| bid.status.is_concluded()) {
                 self.repo
                     .conclude_auction(auction.id)
                     .await
@@ -82,7 +82,7 @@ where
             let bids: Vec<entities::Bid<T>> = auction
                 .bids
                 .iter()
-                .filter(|bid| !bid.status.is_finalized())
+                .filter(|bid| !bid.status.is_concluded())
                 .cloned()
                 .collect();
             let bid_statuses = self

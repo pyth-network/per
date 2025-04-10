@@ -68,7 +68,7 @@ pub trait BidStatus:
     fn is_sent_to_user_for_submission(&self) -> bool;
     fn is_submitted(&self) -> bool;
     fn is_cancelled(&self) -> bool;
-    fn is_finalized(&self) -> bool;
+    fn is_concluded(&self) -> bool;
     fn new_lost() -> Self;
 
     fn get_auction_id(&self) -> Option<AuctionId>;
@@ -78,6 +78,12 @@ pub trait BidStatus:
 pub struct BidStatusAuction<T: BidStatus> {
     pub id:      AuctionId,
     pub tx_hash: T::TxHash,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum BidSubmissionFailedReason {
+    Cancelled,
+    DeadlinePassed,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -106,6 +112,10 @@ pub enum BidStatusSvm {
     },
     Cancelled {
         auction: BidStatusAuction<Self>,
+    },
+    SubmissionFailed {
+        auction: BidStatusAuction<Self>,
+        reason:  BidSubmissionFailedReason,
     },
 }
 
@@ -149,7 +159,7 @@ impl BidStatus for BidStatusSvm {
         matches!(self, BidStatusSvm::Cancelled { .. })
     }
 
-    fn is_finalized(&self) -> bool {
+    fn is_concluded(&self) -> bool {
         matches!(
             self,
             BidStatusSvm::Lost { .. }
@@ -157,6 +167,7 @@ impl BidStatus for BidStatusSvm {
                 | BidStatusSvm::Failed { .. }
                 | BidStatusSvm::Expired { .. }
                 | BidStatusSvm::Cancelled { .. }
+                | BidStatusSvm::SubmissionFailed { .. }
         )
     }
 
@@ -175,6 +186,7 @@ impl BidStatus for BidStatusSvm {
             BidStatusSvm::Failed { auction } => Some(auction.id),
             BidStatusSvm::Expired { auction } => Some(auction.id),
             BidStatusSvm::Cancelled { auction } => Some(auction.id),
+            BidStatusSvm::SubmissionFailed { auction, .. } => Some(auction.id),
         }
     }
 }
@@ -202,7 +214,7 @@ impl BidStatus for BidStatusEvm {
         false
     }
 
-    fn is_finalized(&self) -> bool {
+    fn is_concluded(&self) -> bool {
         matches!(self, BidStatusEvm::Lost { .. } | BidStatusEvm::Won { .. })
     }
 

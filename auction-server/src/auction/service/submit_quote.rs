@@ -36,7 +36,7 @@ pub struct SubmitQuoteInput {
 const MIN_DEADLINE_BUFFER_SECS: i64 = 2;
 
 impl Service<Svm> {
-    async fn get_bid_to_submit(
+    async fn get_winner_bid(
         &self,
         auction_id: entities::AuctionId,
     ) -> Result<(entities::Auction<Svm>, entities::Bid<Svm>), RestError> {
@@ -48,21 +48,25 @@ impl Service<Svm> {
         let winner_bid = auction
             .bids
             .iter()
-            .find(|bid| bid.status.is_awaiting_signature() || bid.status.is_sent_to_user_for_submission() || bid.status.is_submitted() || bid.status.is_cancelled())
+            .find(|bid| {
+                bid.status.is_awaiting_signature()
+                    || bid.status.is_sent_to_user_for_submission()
+                    || bid.status.is_submitted()
+                    || bid.status.is_cancelled()
+            })
             .cloned()
-            .ok_or(RestError::BadParameters("This quote has already been submitted and finalized on-chain. No further changes are allowed.".to_string()))?;
+            .ok_or(RestError::BadParameters(
+                "This quote has already been finalized. No further changes are allowed."
+                    .to_string(),
+            ))?;
 
-        if winner_bid.status.is_cancelled() {
-            Err(RestError::BadParameters(
-                "This quote has already been cancelled.".to_string(),
-            ))
-        } else if winner_bid.status.is_submitted() {
-            Err(RestError::BadParameters(
+        if winner_bid.status.is_submitted() {
+            return Err(RestError::BadParameters(
                 "Quote is already submitted on-chain.".to_string(),
-            ))
-        } else {
-            Ok((auction, winner_bid))
+            ));
         }
+
+        Ok((auction, winner_bid))
     }
 
     pub async fn sign_bid_and_submit_auction(
@@ -90,16 +94,32 @@ impl Service<Svm> {
     #[tracing::instrument(skip_all, err(level = tracing::Level::TRACE))]
     async fn submit_auction_bid_for_lock(
         &self,
-        bid: entities::Bid<Svm>,
+        signed_bid: entities::Bid<Svm>,
         auction: entities::Auction<Svm>,
         lock: entities::BidLock,
     ) -> Result<(), RestError> {
         let _lock = lock.lock().await;
 
-        // Make sure the bid is still awaiting signature, we also get the latest saved version of the auction
-        let (auction, _) = self.get_bid_to_submit(auction.id).await?;
+        // Make sure the bid is still not cancelled, we also get the latest saved version of the auction
+        let (auction, bid_latest_version) = self.get_winner_bid(auction.id).await?;
+        if bid_latest_version.status.is_cancelled() {
+            self.update_bid_status(UpdateBidStatusInput {
+                bid:        bid_latest_version.clone(),
+                new_status: entities::BidStatusSvm::SubmissionFailed {
+                    auction: entities::BidStatusAuction {
+                        id:      auction.id,
+                        tx_hash: bid_latest_version.chain_data.transaction.signatures[0],
+                    },
+                    reason:  entities::BidSubmissionFailedReason::Cancelled,
+                },
+            })
+            .await?;
+            return Err(RestError::BadParameters(
+                "This quote has already been cancelled.".to_string(),
+            ));
+        }
 
-        let tx_hash = bid.chain_data.transaction.signatures[0];
+        let tx_hash = signed_bid.chain_data.transaction.signatures[0];
         let auction = self
             .repo
             .submit_auction(auction, tx_hash)
@@ -109,7 +129,7 @@ impl Service<Svm> {
                 RestError::TemporarilyUnavailable
             })?;
         self.update_bid_status(UpdateBidStatusInput {
-            bid:        bid.clone(),
+            bid:        signed_bid.clone(),
             new_status: entities::BidStatusSvm::Submitted {
                 auction: entities::BidStatusAuction {
                     id: auction.id,
@@ -122,15 +142,15 @@ impl Service<Svm> {
         // Send transaction after updating bid status to make sure the bid is not cancellable anymore
         // If we submit the transaction before updating the bid status, the DB update can be failed and the bid can be cancelled later.
         // This will cause the transaction to be submitted but the bid to be cancelled.
-        self.send_transaction(&bid).await;
+        self.send_transaction(&signed_bid).await;
         Ok(())
     }
 
-    fn check_deadline_buffer(
+    fn is_within_deadline_buffer(
         &self,
         chain_id: ChainId,
         swap_args: express_relay::SwapArgs,
-    ) -> Result<(), RestError> {
+    ) -> bool {
         let deadline_buffer_secs = swap_args.deadline - OffsetDateTime::now_utc().unix_timestamp();
 
         metrics::histogram!(
@@ -139,24 +159,22 @@ impl Service<Svm> {
         )
         .record(deadline_buffer_secs as f64);
 
-        if deadline_buffer_secs < MIN_DEADLINE_BUFFER_SECS {
-            metrics::counter!(
-                SUBMIT_QUOTE_DEADLINE_TOTAL,
-                &[
-                    ("chain_id", chain_id.clone()),
-                    ("result", "error".to_string()),
-                ]
-            )
-            .increment(1);
-            return Err(RestError::BadParameters("Quote is expired.".to_string()));
-        }
+        let result = if deadline_buffer_secs >= MIN_DEADLINE_BUFFER_SECS {
+            "success"
+        } else {
+            "error"
+        };
 
         metrics::counter!(
             SUBMIT_QUOTE_DEADLINE_TOTAL,
-            &[("chain_id", chain_id), ("result", "success".to_string()),]
+            &[
+                ("chain_id", chain_id.clone()),
+                ("result", result.to_string()),
+            ]
         )
         .increment(1);
-        Ok(())
+
+        deadline_buffer_secs >= MIN_DEADLINE_BUFFER_SECS
     }
 
     #[tracing::instrument(skip_all, err(level = tracing::Level::TRACE), fields(bid_id, auction_id = %input.auction_id))]
@@ -164,7 +182,7 @@ impl Service<Svm> {
         &self,
         input: SubmitQuoteInput,
     ) -> Result<VersionedTransaction, RestError> {
-        let (auction, winner_bid) = self.get_bid_to_submit(input.auction_id).await?;
+        let (auction, winner_bid) = self.get_winner_bid(input.auction_id).await?;
 
         let mut bid = winner_bid.clone();
         tracing::Span::current().record("bid_id", bid.id.to_string());
@@ -181,7 +199,21 @@ impl Service<Svm> {
         let swap_args = Self::extract_swap_data(&swap_instruction)
             .map_err(|_| RestError::BadParameters("Invalid quote.".to_string()))?;
 
-        self.check_deadline_buffer(auction.chain_id.clone(), swap_args)?;
+        if !self.is_within_deadline_buffer(bid.chain_id.clone(), swap_args) {
+            let tx_hash = bid.chain_data.transaction.signatures[0];
+            self.update_bid_status(UpdateBidStatusInput {
+                bid,
+                new_status: entities::BidStatusSvm::SubmissionFailed {
+                    auction: entities::BidStatusAuction {
+                        id: auction.id,
+                        tx_hash,
+                    },
+                    reason:  entities::BidSubmissionFailedReason::DeadlinePassed,
+                },
+            })
+            .await?;
+            return Err(RestError::BadParameters("Quote is expired.".to_string()));
+        }
 
         if !input.user_signature.verify(
             &user_wallet.to_bytes(),
