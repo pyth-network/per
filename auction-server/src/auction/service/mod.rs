@@ -273,23 +273,10 @@ pub enum ServiceEnum {
 }
 
 #[cfg(test)]
-pub use mock_service::MockServiceInner as StatefulMockAuctionService;
-
-#[derive(Clone)]
-pub struct MockService<T: ChainTrait>(pub Arc<StatefulMockAuctionService<T>>);
-
-impl<T: ChainTrait> MockService<T> {
-    pub fn new(mock: StatefulMockAuctionService<T>) -> Self {
-        Self(Arc::new(mock))
-    }
-}
-
-impl<T: ChainTrait> std::ops::Deref for MockService<T> {
-    type Target = StatefulMockAuctionService<T>;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
+pub use {
+    mock_service::MockService,
+    mock_service::MockServiceInner as StatefulMockAuctionService,
+};
 
 #[cfg(test)]
 mod mock_service {
@@ -312,6 +299,22 @@ mod mock_service {
             transaction::VersionedTransaction,
         },
     };
+
+    #[derive(Clone)]
+    pub struct MockService<T: ChainTrait>(pub Arc<StatefulMockAuctionService<T>>);
+
+    impl<T: ChainTrait> MockService<T> {
+        pub fn new(mock: StatefulMockAuctionService<T>) -> Self {
+            Self(Arc::new(mock))
+        }
+    }
+
+    impl<T: ChainTrait> std::ops::Deref for MockService<T> {
+        type Target = StatefulMockAuctionService<T>;
+        fn deref(&self) -> &Self::Target {
+            &self.0
+        }
+    }
 
     mock! {
         pub ServiceInner<T: ChainTrait> {

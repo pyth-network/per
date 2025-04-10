@@ -1081,7 +1081,12 @@ mod tests {
             })
             .await;
 
-        assert!(matches!(result, Err(RestError::BadParameters(..))));
+        assert_eq!(
+            result,
+            Err(RestError::BadParameters(
+                "Referral fee bps higher than 10000".to_string()
+            ))
+        );
     }
 
     #[tokio::test]
