@@ -9,7 +9,6 @@ use {
                 is_indicative_price_taker,
                 GetQuoteInput,
             },
-            handle_opportunity_bid::HandleOpportunityBidInput,
             remove_opportunities::RemoveOpportunitiesInput,
         },
     },
@@ -24,7 +23,6 @@ use {
     },
     axum::{
         extract::{
-            Path,
             Query,
             State,
         },
@@ -36,12 +34,9 @@ use {
         opportunity::{
             GetOpportunitiesQueryParams,
             Opportunity,
-            OpportunityBidEvm,
-            OpportunityBidResult,
             OpportunityCreate,
             OpportunityDelete,
             OpportunityDeleteSvm,
-            OpportunityId,
             ProgramSvm,
             Quote,
             QuoteCreate,
@@ -50,7 +45,6 @@ use {
         ErrorBodyResponse,
     },
     std::sync::Arc,
-    time::OffsetDateTime,
 };
 
 fn get_program(auth: &Auth) -> Result<ProgramSvm, RestError> {
@@ -67,38 +61,6 @@ fn get_program(auth: &Auth) -> Result<ProgramSvm, RestError> {
         }
         Auth::Admin => Err(RestError::Forbidden),
         Auth::Unauthorized => Err(RestError::Unauthorized),
-    }
-}
-
-/// Bid on opportunity.
-#[utoipa::path(post, path = "/v1/opportunities/{opportunity_id}/bids", request_body = OpportunityBidEvm,
-params(("opportunity_id" = String, description = "Opportunity id to bid on")), responses(
-(status = 200, description = "Bid Result", body = OpportunityBidResult, example = json ! ({"status": "OK"})),
-(status = 400, response = ErrorBodyResponse),
-(status = 404, description = "Opportunity or chain id was not found", body = ErrorBodyResponse),
-),)]
-pub async fn opportunity_bid(
-    auth: Auth,
-    State(store): State<Arc<StoreNew>>,
-    Path(opportunity_id): Path<OpportunityId>,
-    Json(opportunity_bid): Json<OpportunityBidEvm>,
-) -> Result<Json<OpportunityBidResult>, RestError> {
-    match store
-        .opportunity_service_evm
-        .handle_opportunity_bid(HandleOpportunityBidInput {
-            opportunity_id,
-            opportunity_bid,
-            initiation_time: OffsetDateTime::now_utc(),
-            auth,
-        })
-        .await
-    {
-        Ok(id) => Ok(OpportunityBidResult {
-            status: "OK".to_string(),
-            id,
-        }
-        .into()),
-        Err(e) => Err(e),
     }
 }
 
@@ -259,7 +221,6 @@ pub fn get_routes(store: Arc<StoreNew>) -> Router<Arc<StoreNew>> {
     WrappedRouter::new(store)
         .route(Route::PostOpportunity, post_opportunity)
         .route(Route::PostQuote, post_quote)
-        .route(Route::OpportunityBid, opportunity_bid)
         .route(Route::GetOpportunities, get_opportunities)
         .route(Route::DeleteOpportunities, delete_opportunities)
         .router

@@ -62,7 +62,6 @@ pub mod get_config;
 pub mod get_live_opportunities;
 pub mod get_opportunities;
 pub mod get_quote;
-pub mod handle_opportunity_bid;
 pub mod remove_invalid_or_expired_opportunities;
 pub mod remove_opportunities;
 pub mod verification;
@@ -393,10 +392,6 @@ mock! {
             input: get_opportunities::GetOpportunitiesInput,
         ) -> Result<Vec<<T::InMemoryStore as InMemoryStore>::Opportunity>, crate::api::RestError>;
         pub async fn get_quote(&self, input: get_quote::GetQuoteInput) -> Result<crate::opportunity::entities::Quote, crate::api::RestError>;
-        pub async fn handle_opportunity_bid(
-            &self,
-            input: handle_opportunity_bid::HandleOpportunityBidInput,
-        ) -> Result<uuid::Uuid, crate::api::RestError>;
     }
     impl<T: ChainType + 'static> verification::Verification<T> for Service<T> {
         async fn verify_opportunity(
