@@ -2,7 +2,6 @@ use {
     super::{
         entities::{
             self,
-            BidChainData,
         },
         service::{
             cancel_bid::CancelBidInput,
@@ -10,8 +9,6 @@ use {
             get_bids::GetBidsInput,
             handle_bid::HandleBidInput,
             submit_quote::SubmitQuoteInput,
-            verification::Verification,
-            ChainTrait,
             Service,
             ServiceEnum,
         },
@@ -30,7 +27,6 @@ use {
         state::StoreNew,
     },
     axum::{
-        async_trait,
         extract::{
             Path,
             Query,
@@ -65,10 +61,7 @@ use {
         ErrorBodyResponse,
     },
     sqlx::types::time::OffsetDateTime,
-    std::{
-        fmt::Debug,
-        sync::Arc,
-    },
+    std::sync::Arc,
 };
 
 /// Bid on a specific permission key for a specific chain.
@@ -373,7 +366,7 @@ impl From<entities::BidStatusSvm> for BidStatusSvm {
     }
 }
 
-fn get_core_fields<T: ChainTrait>(bid: &entities::Bid<T>) -> BidCoreFields {
+fn get_core_fields(bid: &entities::Bid) -> BidCoreFields {
     BidCoreFields {
         id:              bid.id,
         chain_id:        bid.chain_id.clone(),
@@ -382,8 +375,8 @@ fn get_core_fields<T: ChainTrait>(bid: &entities::Bid<T>) -> BidCoreFields {
     }
 }
 
-impl From<entities::Bid<Svm>> for Bid {
-    fn from(bid: entities::Bid<Svm>) -> Self {
+impl From<entities::Bid> for Bid {
+    fn from(bid: entities::Bid) -> Self {
         Bid::Svm(BidSvm {
             core_fields:    get_core_fields(&bid),
             permission_key: express_relay_api_types::PermissionKeySvm(
@@ -402,16 +395,9 @@ impl From<entities::BidStatusSvm> for BidStatus {
     }
 }
 
-#[async_trait]
-trait ApiTrait<T: ChainTrait>
-where
-    Service<T>: Verification<T>,
-    entities::Bid<T>: Into<Bid>,
-{
-    type BidCreateType: Clone + Debug + Send + Sync;
-
+impl Svm {
     async fn handle_bid(
-        service: &Service<T>,
+        service: &Service,
         bid_create: &BidCreate,
         profile: Option<models::Profile>,
     ) -> Result<Json<BidResult>, RestError> {
@@ -426,7 +412,7 @@ where
     }
 
     async fn get_bid_status(
-        service: &Service<T>,
+        service: &Service,
         bid_id: entities::BidId,
     ) -> Result<Json<BidStatus>, RestError> {
         let bid: Bid = service.get_bid(GetBidInput { bid_id }).await?.into();
@@ -434,7 +420,7 @@ where
     }
 
     async fn get_bids_by_time(
-        service: &Service<T>,
+        service: &Service,
         profile: models::Profile,
         from_time: Option<OffsetDateTime>,
     ) -> Result<Json<Bids>, RestError> {
@@ -449,31 +435,20 @@ where
     fn get_bid_create_entity(
         bid: &BidCreate,
         profile: Option<models::Profile>,
-    ) -> Result<entities::BidCreate<T>, RestError>;
-}
-
-impl ApiTrait<Svm> for Svm {
-    type BidCreateType = BidCreateSvm;
-
-    fn get_bid_create_entity(
-        bid: &BidCreate,
-        profile: Option<models::Profile>,
-    ) -> Result<entities::BidCreate<Svm>, RestError> {
+    ) -> Result<entities::BidCreate, RestError> {
         match bid {
-            BidCreate::Svm(BidCreateSvm::OnChain(bid_create_svm)) => {
-                Ok(entities::BidCreate::<Svm> {
-                    chain_id: bid_create_svm.chain_id.clone(),
-                    profile,
-                    initiation_time: OffsetDateTime::now_utc(),
-                    chain_data: entities::BidChainDataCreateSvm::OnChain(
-                        entities::BidChainDataOnChainCreateSvm {
-                            transaction: bid_create_svm.transaction.clone(),
-                            slot:        bid_create_svm.slot,
-                        },
-                    ),
-                })
-            }
-            BidCreate::Svm(BidCreateSvm::Swap(bid_create_svm)) => Ok(entities::BidCreate::<Svm> {
+            BidCreate::Svm(BidCreateSvm::OnChain(bid_create_svm)) => Ok(entities::BidCreate {
+                chain_id: bid_create_svm.chain_id.clone(),
+                profile,
+                initiation_time: OffsetDateTime::now_utc(),
+                chain_data: entities::BidChainDataCreateSvm::OnChain(
+                    entities::BidChainDataOnChainCreateSvm {
+                        transaction: bid_create_svm.transaction.clone(),
+                        slot:        bid_create_svm.slot,
+                    },
+                ),
+            }),
+            BidCreate::Svm(BidCreateSvm::Swap(bid_create_svm)) => Ok(entities::BidCreate {
                 chain_id: bid_create_svm.chain_id.clone(),
                 profile,
                 initiation_time: OffsetDateTime::now_utc(),

@@ -1,8 +1,5 @@
 use {
-    super::{
-        entities,
-        service::ChainTrait,
-    },
+    super::entities,
     crate::kernel::entities::ChainId,
     axum_prometheus::metrics,
     solana_sdk::pubkey::Pubkey,
@@ -42,8 +39,8 @@ mod submit_auction;
 mod update_bid_status;
 mod update_in_memory_auction;
 
-pub use models::*;
 use crate::kernel::entities::PermissionKeySvm;
+pub use models::*;
 
 #[derive(Debug, Default)]
 pub struct ChainStoreSvm {

@@ -2,7 +2,6 @@ use {
     super::{
         auction_manager::AuctionManager,
         update_bid_status::UpdateBidStatusInput,
-        ChainTrait,
         Service,
     },
     crate::auction::entities::{
@@ -21,8 +20,7 @@ pub struct ConcludeAuctionWithStatusesInput {
     pub bid_statuses: Vec<(entities::BidStatusSvm, entities::Bid)>,
 }
 
-impl Service
-{
+impl Service {
     #[tracing::instrument(skip_all, fields(auction_id, bid_ids, bid_statuses))]
     pub async fn conclude_auction_with_statuses(
         &self,
@@ -76,7 +74,7 @@ impl Service
     async fn conclude_auction(&self, input: ConcludeAuctionInput) -> anyhow::Result<()> {
         let auction = input.auction;
         tracing::info!(chain_id = self.config.chain_id, auction_id = ?auction.id, permission_key = auction.permission_key.to_string(), "Concluding auction");
-        if let Some(tx_hash) = auction.tx_hash.clone() {
+        if let Some(tx_hash) = auction.tx_hash {
             let bids: Vec<entities::Bid> = auction
                 .bids
                 .iter()

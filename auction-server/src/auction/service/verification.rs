@@ -1,8 +1,5 @@
 use {
-    super::{
-        ChainTrait,
-        Service,
-    },
+    super::Service,
     crate::{
         api::{
             InstructionError,
@@ -12,7 +9,6 @@ use {
         auction::{
             entities::{
                 self,
-                BidChainData,
                 BidChainDataCreateSvm,
                 BidChainDataSwapCreateSvm,
                 BidPaymentInstructionType,
@@ -93,18 +89,12 @@ pub struct VerifyBidInput {
     pub bid_create: entities::BidCreate,
 }
 
-pub type VerificationResult= (
-    entities::BidChainDataSvm,
-    entities::BidAmountSvm,
-);
+pub type VerificationResult = (entities::BidChainDataSvm, entities::BidAmountSvm);
 
 #[async_trait]
 pub trait Verification {
     /// Verify the bid, and extract the chain data from the bid.
-    async fn verify_bid(
-        &self,
-        input: VerifyBidInput,
-    ) -> Result<VerificationResult, RestError>;
+    async fn verify_bid(&self, input: VerifyBidInput) -> Result<VerificationResult, RestError>;
 }
 
 #[derive(Debug, Clone)]
@@ -170,7 +160,7 @@ pub fn get_current_time_rounded_with_offset(offset: Duration) -> OffsetDateTime 
         + offset
 }
 
-impl Service<Svm> {
+impl Service {
     //TODO: merge this logic with simulator logic
     async fn query_lookup_table(&self, table: &Pubkey, index: usize) -> Result<Pubkey, RestError> {
         if let Some(addresses) = self.repo.get_lookup_table(table).await {
@@ -1297,7 +1287,7 @@ impl Service<Svm> {
     #[tracing::instrument(skip_all, err(level = tracing::Level::TRACE))]
     async fn verify_signatures(
         &self,
-        bid: &entities::BidCreate<Svm>,
+        bid: &entities::BidCreate,
         chain_data: &entities::BidChainDataSvm,
         submit_type: &SubmitType,
     ) -> Result<(), RestError> {
@@ -1351,7 +1341,7 @@ impl Service<Svm> {
     #[tracing::instrument(skip_all, err(level = tracing::Level::TRACE))]
     pub async fn simulate_swap_bid(
         &self,
-        bid: &entities::BidCreate<Svm>,
+        bid: &entities::BidCreate,
         swap_instruction_index: usize,
     ) -> Result<(), RestError> {
         let tx = bid.chain_data.get_transaction();
@@ -1394,7 +1384,7 @@ impl Service<Svm> {
     }
 
     #[tracing::instrument(skip_all, err(level = tracing::Level::TRACE))]
-    pub async fn simulate_bid(&self, bid: &entities::BidCreate<Svm>) -> Result<(), RestError> {
+    pub async fn simulate_bid(&self, bid: &entities::BidCreate) -> Result<(), RestError> {
         const RETRY_LIMIT: usize = 5;
         const RETRY_DELAY: Duration = Duration::from_millis(100);
         let mut retry_count = 0;
@@ -1500,10 +1490,7 @@ impl Service<Svm> {
 #[async_trait]
 impl Verification for Service {
     #[tracing::instrument(skip_all, err(level = tracing::Level::TRACE))]
-    async fn verify_bid(
-        &self,
-        input: VerifyBidInput,
-    ) -> Result<VerificationResult, RestError> {
+    async fn verify_bid(&self, input: VerifyBidInput) -> Result<VerificationResult, RestError> {
         let bid = input.bid_create;
         if let BidChainDataCreateSvm::Swap(chain_data) = &bid.chain_data {
             tracing::Span::current()
@@ -1601,10 +1588,7 @@ mod tests {
                 },
             },
             kernel::{
-                entities::{
-                    ChainId,
-                    Svm,
-                },
+                entities::ChainId,
                 traced_sender_svm::tests::MockRpcClient,
             },
             opportunity::{
@@ -2085,7 +2069,7 @@ mod tests {
         )
     }
 
-    fn get_service(mock_simulation: bool) -> (super::Service<Svm>, TestOpportunities) {
+    fn get_service(mock_simulation: bool) -> (super::Service, TestOpportunities) {
         let chain_id = "solana".to_string();
         let mut rpc_client = MockRpcClient::default();
         if mock_simulation {
@@ -2108,7 +2092,7 @@ mod tests {
 
         let broadcaster_client = MockRpcClient::default();
         let (opportunity_service, opportunities) = get_opportunity_service(chain_id.clone());
-        let db = MockDatabase::<Svm>::default();
+        let db = MockDatabase::default();
         let service = super::Service::new_with_mocks_svm(
             chain_id.clone(),
             db,
@@ -2157,14 +2141,14 @@ mod tests {
     }
 
     async fn get_verify_bid_result(
-        service: Service<Svm>,
+        service: Service,
         searcher: Keypair,
         instructions: Vec<Instruction>,
         opportunity: OpportunitySvm,
-    ) -> Result<VerificationResult<Svm>, RestError> {
+    ) -> Result<VerificationResult, RestError> {
         let mut transaction = Transaction::new_with_payer(&instructions, Some(&searcher.pubkey()));
         transaction.partial_sign(&[searcher], Hash::default());
-        let bid_create = BidCreate::<Svm> {
+        let bid_create = BidCreate {
             chain_id:        service.config.chain_id.clone(),
             initiation_time: OffsetDateTime::now_utc(),
             profile:         None,
@@ -2197,7 +2181,7 @@ mod tests {
         let mut transaction = Transaction::new_with_payer(&[instruction], Some(&searcher.pubkey()));
         transaction.partial_sign(&[searcher], Hash::default());
 
-        let bid_create = BidCreate::<Svm> {
+        let bid_create = BidCreate {
             chain_id:        service.config.chain_id.clone(),
             initiation_time: OffsetDateTime::now_utc(),
             profile:         None,
@@ -2246,7 +2230,7 @@ mod tests {
         ); // <- relayer signer is the fee payer
         transaction.partial_sign(&[searcher], Hash::default());
 
-        let bid_create = BidCreate::<Svm> {
+        let bid_create = BidCreate {
             chain_id:        service.config.chain_id.clone(),
             initiation_time: OffsetDateTime::now_utc(),
             profile:         None,
@@ -2286,7 +2270,7 @@ mod tests {
         let mut transaction = Transaction::new_with_payer(&[instruction], Some(&searcher.pubkey()));
         transaction.partial_sign(&[searcher], Hash::default());
 
-        let bid_create = BidCreate::<Svm> {
+        let bid_create = BidCreate {
             chain_id:        service.config.chain_id.clone(),
             initiation_time: OffsetDateTime::now_utc(),
             profile:         None,
@@ -3364,7 +3348,7 @@ mod tests {
             Some(&searcher.pubkey()),
         );
         transaction.partial_sign(&[searcher], Hash::default());
-        let bid_create = BidCreate::<Svm> {
+        let bid_create = BidCreate {
             chain_id:        service.config.chain_id.clone(),
             initiation_time: OffsetDateTime::now_utc(),
             profile:         None,
@@ -3443,7 +3427,7 @@ mod tests {
             Some(&searcher.pubkey()),
         );
         transaction.partial_sign(&[searcher], Hash::default());
-        let bid_create = BidCreate::<Svm> {
+        let bid_create = BidCreate {
             chain_id:        service.config.chain_id.clone(),
             initiation_time: OffsetDateTime::now_utc(),
             profile:         None,
@@ -3679,7 +3663,7 @@ mod tests {
             Some(&searcher.pubkey()),
         );
         transaction.partial_sign(&[searcher], Hash::default());
-        let bid_create = BidCreate::<Svm> {
+        let bid_create = BidCreate {
             chain_id:        service.config.chain_id.clone(),
             initiation_time: OffsetDateTime::now_utc(),
             profile:         None,
@@ -3762,7 +3746,7 @@ mod tests {
         let mut transaction = Transaction::new_with_payer(&[instruction], Some(&searcher.pubkey()));
         transaction.partial_sign(&[searcher], Hash::default());
 
-        let bid_create = BidCreate::<Svm> {
+        let bid_create = BidCreate {
             chain_id:        service.config.chain_id.clone(),
             initiation_time: OffsetDateTime::now_utc(),
             profile:         None,
@@ -3803,7 +3787,7 @@ mod tests {
         .unwrap();
         let transaction = Transaction::new_with_payer(&[instruction], Some(&searcher.pubkey()));
 
-        let bid_create = BidCreate::<Svm> {
+        let bid_create = BidCreate {
             chain_id:        service.config.chain_id.clone(),
             initiation_time: OffsetDateTime::now_utc(),
             profile:         None,
@@ -3851,7 +3835,7 @@ mod tests {
         let mut transaction = Transaction::new_with_payer(&[instruction], Some(&searcher.pubkey()));
         transaction.partial_sign(&[searcher], Hash::default());
 
-        let bid_create = BidCreate::<Svm> {
+        let bid_create = BidCreate {
             chain_id:        service.config.chain_id.clone(),
             initiation_time: OffsetDateTime::now_utc(),
             profile:         None,
@@ -3894,7 +3878,7 @@ mod tests {
             Transaction::new_with_payer(&[instruction], Some(&program.user_wallet_address));
         transaction.partial_sign(&[searcher], Hash::default());
 
-        let bid_create = BidCreate::<Svm> {
+        let bid_create = BidCreate {
             chain_id:        service.config.chain_id.clone(),
             initiation_time: OffsetDateTime::now_utc(),
             profile:         None,
@@ -3951,7 +3935,7 @@ mod tests {
         let mut transaction = Transaction::new_with_payer(&[instruction], Some(&searcher.pubkey()));
         transaction.partial_sign(&[searcher], Hash::default());
 
-        let bid_create = BidCreate::<Svm> {
+        let bid_create = BidCreate {
             chain_id:        service.config.chain_id.clone(),
             initiation_time: OffsetDateTime::now_utc(),
             profile:         None,
@@ -3976,7 +3960,7 @@ mod tests {
     #[tokio::test]
     async fn test_verify_bid_when_duplicate() {
         let (mut service, opportunities) = get_service(true);
-        let mut db = MockDatabase::<Svm>::default();
+        let mut db = MockDatabase::default();
         db.expect_add_bid().returning(|_| Ok(()));
         let service_inner = Arc::get_mut(&mut service.0).unwrap();
         service_inner.repo = Arc::new(Repository::new(db, service_inner.config.chain_id.clone()));
@@ -3996,7 +3980,7 @@ mod tests {
         let mut transaction = Transaction::new_with_payer(&[instruction], Some(&searcher.pubkey()));
         transaction.partial_sign(&[searcher], Hash::default());
 
-        let bid_create = BidCreate::<Svm> {
+        let bid_create = BidCreate {
             chain_id:        service.config.chain_id.clone(),
             initiation_time: OffsetDateTime::now_utc(),
             profile:         None,
@@ -4124,7 +4108,7 @@ mod tests {
             Some(&searcher.pubkey()),
         );
         transaction.partial_sign(&[searcher], Hash::default());
-        let bid_create = BidCreate::<Svm> {
+        let bid_create = BidCreate {
             chain_id:        service.config.chain_id.clone(),
             initiation_time: OffsetDateTime::now_utc(),
             profile:         None,
@@ -4265,7 +4249,7 @@ mod tests {
             Some(&searcher.pubkey()),
         );
         transaction.partial_sign(&[searcher], Hash::default());
-        let bid_create = BidCreate::<Svm> {
+        let bid_create = BidCreate {
             chain_id:        service.config.chain_id.clone(),
             initiation_time: OffsetDateTime::now_utc(),
             profile:         None,
@@ -5041,7 +5025,7 @@ mod tests {
         let mut transaction = Transaction::new_with_payer(&[instruction], Some(&searcher.pubkey()));
         transaction.partial_sign(&[searcher], Hash::default());
 
-        let bid_create = BidCreate::<Svm> {
+        let bid_create = BidCreate {
             chain_id:        service.config.chain_id.clone(),
             initiation_time: OffsetDateTime::now_utc(),
             profile:         None,

@@ -1,8 +1,6 @@
 use {
     super::Repository,
-    crate::auction::{
-        entities,
-    },
+    crate::auction::entities,
 };
 
 impl Repository {

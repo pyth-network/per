@@ -1,18 +1,16 @@
 use {
     super::Repository,
-    crate::auction::{
-        entities,
-        service::ChainTrait,
-    },
+    crate::auction::entities,
+    solana_sdk::signature::Signature,
 };
 
-impl<T: ChainTrait> Repository<T> {
+impl Repository {
     #[tracing::instrument(skip_all, name = "submit_auction_repo", fields(auction_id, tx_hash))]
     pub async fn submit_auction(
         &self,
-        auction: entities::Auction<T>,
-        transaction_hash: entities::TxHash<T>,
-    ) -> anyhow::Result<entities::Auction<T>> {
+        auction: entities::Auction,
+        transaction_hash: Signature,
+    ) -> anyhow::Result<entities::Auction> {
         tracing::Span::current().record("auction_id", auction.id.to_string());
         tracing::Span::current().record("tx_hash", format!("{:?}", transaction_hash));
 

@@ -1,8 +1,5 @@
 use {
-    super::{
-        ChainTrait,
-        Service,
-    },
+    super::Service,
     crate::{
         auction::entities::{
             self,
@@ -10,7 +7,7 @@ use {
             BidStatus,
             BidStatusAuction,
         },
-        kernel::entities::Svm,
+        kernel::entities::PermissionKeySvm,
         opportunity::{
             self,
             service::get_live_opportunities::GetLiveOpportunitiesInput,
@@ -59,7 +56,6 @@ use {
         Interval,
     },
 };
-use crate::kernel::entities::PermissionKeySvm;
 
 /// The trait for handling the auction for the service.
 #[async_trait]
@@ -82,10 +78,7 @@ pub trait AuctionManager {
     async fn get_trigger_stream<'a>(client: &'a Self::WsClient) -> Result<Self::TriggerStream<'a>>;
 
     /// Get the winner bids for the auction. Sorting bids by bid amount and simulating the bids to determine the winner bids.
-    async fn get_winner_bids(
-        &self,
-        auction: &entities::Auction,
-    ) -> Result<Vec<entities::Bid>>;
+    async fn get_winner_bids(&self, auction: &entities::Auction) -> Result<Vec<entities::Bid>>;
     /// Submit the bids for the auction on the chain.
     async fn submit_bids(
         &self,
@@ -102,10 +95,8 @@ pub trait AuctionManager {
     ) -> Result<Vec<Option<entities::BidStatusSvm>>>;
 
     /// Check if the auction winner transaction should be submitted on chain for the permission key.
-    async fn get_submission_state(
-        &self,
-        permission_key: &PermissionKeySvm,
-    ) -> entities::SubmitType;
+    async fn get_submission_state(&self, permission_key: &PermissionKeySvm)
+        -> entities::SubmitType;
 
     /// Get the new status for the bid based on the auction result.
     fn get_new_status(
@@ -177,10 +168,7 @@ impl AuctionManager for Service {
     }
 
     #[tracing::instrument(skip_all, fields(auction_id, bid_ids))]
-    async fn get_winner_bids(
-        &self,
-        auction: &entities::Auction,
-    ) -> Result<Vec<entities::Bid>> {
+    async fn get_winner_bids(&self, auction: &entities::Auction) -> Result<Vec<entities::Bid>> {
         tracing::Span::current().record("auction_id", auction.id.to_string());
         tracing::Span::current().record(
             "bid_ids",
@@ -332,7 +320,7 @@ impl AuctionManager for Service {
 
     async fn get_submission_state(
         &self,
-        permission_key: &entities::PermissionKey<Svm>,
+        permission_key: &PermissionKeySvm,
     ) -> entities::SubmitType {
         match entities::BidChainDataSvm::get_bid_payment_instruction_type(permission_key) {
             Some(BidPaymentInstructionType::Swap) => {

@@ -3,12 +3,11 @@ use mockall::automock;
 use {
     super::entities::{
         self,
-        BidChainData,
         BidStatus as _,
     },
     crate::{
         api::RestError,
-        auction::service::ChainTrait,
+        auction::entities::BidStatusSvm,
         kernel::{
             db::DB,
             entities::{
@@ -25,7 +24,6 @@ use {
         Bytes,
     },
     serde::{
-        de::DeserializeOwned,
         Deserialize,
         Serialize,
     },
@@ -56,7 +54,6 @@ use {
     },
     tracing::instrument,
 };
-use crate::auction::entities::BidStatusSvm;
 
 #[derive(Clone, Debug, PartialEq, PartialOrd, sqlx::Type)]
 #[sqlx(type_name = "chain_type", rename_all = "lowercase")]
@@ -119,50 +116,14 @@ pub struct BidMetadataSvm {
     pub transaction: VersionedTransaction,
 }
 
-pub trait ModelTrait<T: ChainTrait> {
-    type BidMetadataType: Debug
-        + Clone
-        + Serialize
-        + DeserializeOwned
-        + Send
-        + Sync
-        + Unpin
-        + 'static;
-
-    fn get_chain_type() -> ChainType;
-    fn get_bid_bundle_index(bid: &Bid<T>) -> Option<u32>;
-    fn get_bid_status_auction_entity(
-        auction: Option<Auction>,
-    ) -> anyhow::Result<Option<entities::BidStatusAuction<T::BidStatusType>>>;
-    fn get_bid_amount_entity(bid: &Bid<T>) -> anyhow::Result<T::BidAmountType>;
-    fn get_bid_status_entity(
-        bid: &Bid<T>,
-        auction: Option<Auction>,
-    ) -> anyhow::Result<T::BidStatusType>;
-
-    fn convert_bid_status(status: &T::BidStatusType) -> BidStatus;
-    fn get_chain_data_entity(bid: &Bid<T>) -> anyhow::Result<T::BidChainDataType>;
-
-    fn convert_permission_key(permission_key: &entities::PermissionKey<T>) -> Vec<u8>;
-    fn convert_amount(amount: &T::BidAmountType) -> BigDecimal;
-
-    fn get_metadata(chain_data: &T::BidChainDataType) -> Self::BidMetadataType;
-    fn get_update_bid_query(
-        bid: &entities::Bid<T>,
-        new_status: T::BidStatusType,
-    ) -> anyhow::Result<Query<'_, Postgres, PgArguments>>;
-}
-
-impl ModelTrait<Svm> for Svm {
-    type BidMetadataType = BidMetadataSvm;
-
+impl Svm {
     fn get_chain_type() -> ChainType {
         ChainType::Svm
     }
 
     fn get_bid_status_auction_entity(
         auction: Option<Auction>,
-    ) -> anyhow::Result<Option<entities::BidStatusAuction<entities::BidStatusSvm>>> {
+    ) -> anyhow::Result<Option<entities::BidStatusAuction>> {
         if let Some(auction) = auction {
             if let Some(tx_hash) = auction.tx_hash {
                 let slice: [u8; 64] = tx_hash.try_into().map_err(|e| {
@@ -177,11 +138,7 @@ impl ModelTrait<Svm> for Svm {
         Ok(None)
     }
 
-    fn get_bid_bundle_index(_bid: &Bid<Svm>) -> Option<u32> {
-        None
-    }
-
-    fn get_bid_amount_entity(bid: &Bid<Svm>) -> anyhow::Result<entities::BidAmountSvm> {
+    fn get_bid_amount_entity(bid: &Bid) -> anyhow::Result<entities::BidAmountSvm> {
         bid.bid_amount
             .to_string()
             .parse()
@@ -191,7 +148,7 @@ impl ModelTrait<Svm> for Svm {
     /// In SVM, the tx_hash is the signature of the transaction if the bid is submitted
     /// otherwise it is the signature of the transaction that caused the bid to be lost
     fn get_bid_status_entity(
-        bid: &Bid<Svm>,
+        bid: &Bid,
         auction: Option<Auction>,
     ) -> anyhow::Result<entities::BidStatusSvm> {
         let sig = *Self::get_chain_data_entity(bid)?
@@ -300,7 +257,7 @@ impl ModelTrait<Svm> for Svm {
         }
     }
 
-    fn get_chain_data_entity(bid: &Bid<Svm>) -> anyhow::Result<entities::BidChainDataSvm> {
+    fn get_chain_data_entity(bid: &Bid) -> anyhow::Result<entities::BidChainDataSvm> {
         // The permission keys that are 64 bytes are the ones that are for submit_bid type.
         // These are stored in the database before adding the bid instruction type to the permission key svm.
         let slice: [u8; 65] =
@@ -335,7 +292,7 @@ impl ModelTrait<Svm> for Svm {
         })
     }
 
-    fn convert_permission_key(permission_key: &entities::PermissionKey<Svm>) -> Vec<u8> {
+    fn convert_permission_key(permission_key: &PermissionKeySvm) -> Vec<u8> {
         permission_key.0.to_vec()
     }
 
@@ -343,15 +300,15 @@ impl ModelTrait<Svm> for Svm {
         (*amount).into()
     }
 
-    fn get_metadata(chain_data: &<Svm as ChainTrait>::BidChainDataType) -> BidMetadataSvm {
+    fn get_metadata(chain_data: &entities::BidChainDataSvm) -> BidMetadataSvm {
         BidMetadataSvm {
             transaction: chain_data.transaction.clone(),
         }
     }
 
     fn get_update_bid_query(
-        bid: &entities::Bid<Svm>,
-        new_status: <Svm as ChainTrait>::BidStatusType,
+        bid: &entities::Bid,
+        new_status: entities::BidStatusSvm,
     ) -> anyhow::Result<Query<'_, Postgres, PgArguments>> {
         let now = OffsetDateTime::now_utc();
         match &new_status {
@@ -517,11 +474,7 @@ pub trait Database: Debug + Send + Sync + 'static {
     async fn add_auction(&self, auction: &entities::Auction) -> anyhow::Result<()>;
     async fn add_bid(&self, bid: &Bid) -> Result<(), RestError>;
     async fn conclude_auction(&self, auction_id: entities::AuctionId) -> anyhow::Result<()>;
-    async fn get_bid(
-        &self,
-        bid_id: entities::BidId,
-        chain_id: ChainId,
-    ) -> Result<Bid, RestError>;
+    async fn get_bid(&self, bid_id: entities::BidId, chain_id: ChainId) -> Result<Bid, RestError>;
     async fn get_auction(&self, auction_id: entities::AuctionId) -> Result<Auction, RestError>;
     async fn get_auctions_by_bids(&self, bids: &[Bid]) -> Result<Vec<Auction>, RestError>;
     async fn get_bids(
@@ -560,9 +513,9 @@ impl Database for DB {
             "INSERT INTO auction (id, creation_time, permission_key, chain_id, chain_type, bid_collection_time, tx_hash) VALUES ($1, $2, $3, $4, $5, $6, $7)",
             auction.id,
             PrimitiveDateTime::new(auction.creation_time.date(), auction.creation_time.time()),
-            T::convert_permission_key(&auction.permission_key),
+            Svm::convert_permission_key(&auction.permission_key),
             auction.chain_id,
-            T::get_chain_type() as _,
+            Svm::get_chain_type() as _,
             PrimitiveDateTime::new(auction.bid_collection_time.date(), auction.bid_collection_time.time()),
             auction.tx_hash.clone().map(|tx_hash| BidStatusSvm::convert_tx_hash(&tx_hash)),
         )
@@ -644,11 +597,7 @@ impl Database for DB {
         ),
         skip_all
     )]
-    async fn get_bid(
-        &self,
-        bid_id: entities::BidId,
-        chain_id: ChainId,
-    ) -> Result<Bid, RestError> {
+    async fn get_bid(&self, bid_id: entities::BidId, chain_id: ChainId) -> Result<Bid, RestError> {
         sqlx::query_as("SELECT * FROM bid WHERE id = $1 AND chain_id = $2")
             .bind(bid_id)
             .bind(&chain_id)
@@ -772,7 +721,7 @@ impl Database for DB {
     ) -> anyhow::Result<Option<entities::Auction>> {
         let mut auction = auction.clone();
         let now = OffsetDateTime::now_utc();
-        auction.tx_hash = Some(transaction_hash.clone());
+        auction.tx_hash = Some(*transaction_hash);
         auction.submission_time = Some(now);
         let result = sqlx::query!("UPDATE auction SET submission_time = $1, tx_hash = $2 WHERE id = $3 AND submission_time IS NULL",
             PrimitiveDateTime::new(now.date(), now.time()),

@@ -1,22 +1,16 @@
 #[double]
 use crate::opportunity::service::Service as OpportunityService;
 use {
-    super::{
-        entities,
-        repository::{
-            self,
-            Repository,
-        },
+    super::repository::{
+        self,
+        Repository,
     },
     crate::{
         api::ws::UpdateEvent,
         auction::service::simulator::Simulator,
         kernel::{
             db::DB,
-            entities::{
-                ChainId,
-                Svm,
-            },
+            entities::ChainId,
         },
         opportunity::service as opportunity_service,
     },
@@ -32,10 +26,7 @@ use {
         pubkey::Pubkey,
         signature::Keypair,
     },
-    std::{
-        fmt::Debug,
-        sync::Arc,
-    },
+    std::sync::Arc,
     tokio::sync::broadcast::{
         self,
         Sender,
@@ -102,32 +93,6 @@ pub struct Config {
     pub chain_config: ConfigSvm,
 }
 
-pub trait ChainTrait:
-    Sync + Send + 'static + Debug + Clone + PartialEq + repository::ModelTrait<Self>
-{
-    type ConfigType: Send + Sync;
-    type OpportunityServiceType: opportunity_service::ChainType;
-
-    type BidStatusType: entities::BidStatus;
-    type BidChainDataType: entities::BidChainData;
-    type BidAmountType: Send + Sync + Debug + Clone + PartialEq;
-    type BidChainDataCreateType: Clone + Debug + Send + Sync;
-
-    type ChainStore: Send + Sync + Default + Debug;
-}
-
-impl ChainTrait for Svm {
-    type ConfigType = ConfigSvm;
-    type OpportunityServiceType = opportunity_service::ChainTypeSvm;
-
-    type BidStatusType = entities::BidStatusSvm;
-    type BidChainDataType = entities::BidChainDataSvm;
-    type BidAmountType = entities::BidAmountSvm;
-    type BidChainDataCreateType = entities::BidChainDataCreateSvm;
-
-    type ChainStore = repository::ChainStoreSvm;
-}
-
 pub struct ServiceInner {
     opportunity_service: Arc<OpportunityService<opportunity_service::ChainTypeSvm>>,
     config:              Config,
@@ -138,7 +103,7 @@ pub struct ServiceInner {
 
 #[derive(Clone)]
 pub struct Service(Arc<ServiceInner>);
-impl<T: ChainTrait> std::ops::Deref for Service {
+impl std::ops::Deref for Service {
     type Target = ServiceInner;
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -149,7 +114,7 @@ impl Service {
     pub fn new(
         db: DB,
         config: Config,
-        opportunity_service: Arc<OpportunityService<T::OpportunityServiceType>>,
+        opportunity_service: Arc<OpportunityService<ChainTypeSvm>>,
         task_tracker: TaskTracker,
         event_sender: broadcast::Sender<UpdateEvent>,
     ) -> Self {
@@ -168,6 +133,7 @@ pub enum ServiceEnum {
     Svm(Service),
 }
 
+use crate::opportunity::service::ChainTypeSvm;
 #[cfg(test)]
 pub use {
     mock_service::MockService,
@@ -178,7 +144,10 @@ pub use {
 mod mock_service {
     use {
         super::*,
-        crate::api::RestError,
+        crate::{
+            api::RestError,
+            auction::entities,
+        },
         mockall::mock,
         solana_sdk::{
             instruction::CompiledInstruction,
@@ -207,7 +176,7 @@ mod mock_service {
             pub fn new(
                 db: DB,
                 config: Config,
-                opportunity_service: Arc<OpportunityService<T::OpportunityServiceType>>,
+                opportunity_service: Arc<OpportunityService<ChainTypeSvm>>,
                 task_tracker: TaskTracker,
                 event_sender: broadcast::Sender<UpdateEvent>,
             ) -> Self;
@@ -264,11 +233,11 @@ mod mock_service {
             pub fn get_new_status(
                 bid: &entities::Bid,
                 submitted_bids: &[entities::Bid],
-                bid_status_auction: entities::BidStatusAuction<entities::BidStatusSvm>,
+                bid_status_auction: entities::BidStatusAuction,
             ) -> entities::BidStatusSvm;
         }
 
-        impl<T: ChainTrait> Clone for ServiceInner<T> {
+        impl Clone for ServiceInner {
             fn clone(&self) -> Self;
         }
     }
@@ -291,10 +260,7 @@ pub mod tests {
                 Repository,
             },
             kernel::{
-                entities::{
-                    ChainId,
-                    Svm,
-                },
+                entities::ChainId,
                 traced_sender_svm::{
                     tests::MockRpcClient,
                     TracedSenderSvm,
@@ -319,15 +285,15 @@ pub mod tests {
         tokio_util::task::TaskTracker,
     };
 
-    impl Service<Svm> {
+    impl Service {
         pub fn new_with_mocks_svm(
             chain_id: ChainId,
-            db: impl Database<Svm>,
+            db: impl Database,
             opportunity_service: MockOpportunityService<ChainTypeSvm>,
             rpc_client: MockRpcClient,
             broadcaster_client: MockRpcClient,
         ) -> Self {
-            Service::<Svm>(Arc::new(ServiceInner::<Svm> {
+            Service(Arc::new(ServiceInner {
                 opportunity_service: Arc::new(opportunity_service),
                 config:              Config {
                     chain_id:     chain_id.clone(),

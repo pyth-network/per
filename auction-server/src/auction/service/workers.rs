@@ -1,7 +1,6 @@
 use {
     super::{
         auction_manager::AuctionManager,
-        ChainTrait,
         Service,
     },
     crate::{
@@ -10,7 +9,6 @@ use {
             entities,
             service::conclude_auction::ConcludeAuctionWithStatusesInput,
         },
-        kernel::entities::Svm,
         server::{
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
@@ -52,7 +50,7 @@ impl Service {
         let mut exit_check_interval = tokio::time::interval(EXIT_CHECK_INTERVAL);
 
         let ws_client = self.get_ws_client().await?;
-        let mut stream = Service::<Svm>::get_trigger_stream(&ws_client).await?;
+        let mut stream = Service::get_trigger_stream(&ws_client).await?;
 
         while !SHOULD_EXIT.load(Ordering::Acquire) {
             tokio::select! {
@@ -75,7 +73,7 @@ impl Service {
 
     pub async fn conclude_auction_for_log(
         &self,
-        auction: entities::Auction<Svm>,
+        auction: entities::Auction,
         log: RpcLogsResponse,
     ) -> Result<()> {
         let signature = Signature::from_str(&log.signature)?;

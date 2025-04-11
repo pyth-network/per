@@ -5,12 +5,8 @@ use {
     },
     crate::{
         api::RestError,
-        auction::{
-            entities::{
-                self,
-                BidChainData,
-            },
-            service::ChainTrait,
+        auction::entities::{
+            self,
         },
     },
 };

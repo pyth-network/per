@@ -1,8 +1,5 @@
 use {
-    crate::{
-        auction::entities::Bid,
-        kernel::entities::Svm,
-    },
+    crate::auction::entities::Bid,
     futures::future::join_all,
     litesvm::{
         types::{

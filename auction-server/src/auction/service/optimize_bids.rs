@@ -1,9 +1,6 @@
 use {
     super::Service,
-    crate::{
-        auction::entities::Bid,
-        kernel::entities::Svm,
-    },
+    crate::auction::entities::Bid,
     solana_client::rpc_response::RpcResult,
 };
 

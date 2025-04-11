@@ -1,13 +1,10 @@
 use {
     super::Repository,
-    crate::auction::{
-        entities,
-        service::ChainTrait,
-    },
+    crate::auction::entities,
     std::sync::Arc,
 };
 
-impl<T: ChainTrait> Repository<T> {
+impl Repository {
     pub async fn remove_in_memory_bid_lock(&self, key: &entities::BidId) {
         let mut mutex_guard = self.in_memory_store.bid_lock.lock().await;
         let bid_lock = mutex_guard.get(key);

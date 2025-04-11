@@ -16,17 +16,13 @@ pub struct HandleBidInput {
     pub bid_create: entities::BidCreate,
 }
 
-impl Service
-{
+impl Service {
     #[tracing::instrument(
         skip_all,
         fields(bid_id, profile_name, permission_key, opportunity_id),
         err(level = tracing::Level::TRACE)
     )]
-    pub async fn handle_bid(
-        &self,
-        input: HandleBidInput,
-    ) -> Result<entities::Bid, RestError> {
+    pub async fn handle_bid(&self, input: HandleBidInput) -> Result<entities::Bid, RestError> {
         if let Some(profile) = &input.bid_create.profile {
             tracing::Span::current().record("profile_name", &profile.name);
         }

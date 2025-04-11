@@ -1,13 +1,13 @@
-use solana_sdk::signature::Signature;
 use {
     super::bid::{
         Bid,
-        BidChainData,
         BidStatus,
     },
-    crate::{
-        kernel::entities::ChainId,
+    crate::kernel::entities::{
+        ChainId,
+        PermissionKeySvm,
     },
+    solana_sdk::signature::Signature,
     std::{
         sync::Arc,
         time::Duration,
@@ -16,7 +16,6 @@ use {
     tokio::sync::Mutex,
     uuid::Uuid,
 };
-use crate::kernel::entities::PermissionKeySvm;
 
 pub type AuctionId = Uuid;
 pub type AuctionLock = Arc<Mutex<()>>;

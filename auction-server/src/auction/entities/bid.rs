@@ -1,10 +1,8 @@
 use {
     super::AuctionId,
     crate::{
-        auction::service::ChainTrait,
         kernel::entities::{
             ChainId,
-            PermissionKey as PermissionKeyEvm,
             PermissionKeySvm,
         },
         models::{
@@ -12,11 +10,6 @@ use {
             ProfileId,
         },
         opportunity::entities::OpportunityId,
-    },
-    ethers::types::{
-        Address,
-        Bytes,
-        U256,
     },
     express_relay_api_types::bid as api,
     solana_sdk::{
@@ -31,7 +24,6 @@ use {
             Display,
             Formatter,
         },
-        hash::Hash,
         sync::Arc,
     },
     strum::FromRepr,
@@ -180,15 +172,6 @@ pub struct Bid {
     pub chain_data: BidChainDataSvm,
 }
 
-pub type PermissionKey<T> = <<T as ChainTrait>::BidChainDataType as BidChainData>::PermissionKey;
-pub type TxHash<T> = <<T as ChainTrait>::BidStatusType as BidStatus>::TxHash;
-
-pub trait BidChainData: Send + Sync + Clone + Debug + PartialEq {
-    type PermissionKey: Send + Sync + Debug + Hash + Eq + Clone + Display;
-
-    fn get_permission_key(&self) -> Self::PermissionKey;
-}
-
 #[derive(Clone, Debug, PartialEq)]
 pub struct BidChainDataSvm {
     pub transaction:                  VersionedTransaction,
@@ -197,31 +180,13 @@ pub struct BidChainDataSvm {
     pub permission_account:           Pubkey,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct BidChainDataEvm {
-    pub target_contract: Address,
-    pub target_calldata: Bytes,
-    pub gas_limit:       U256,
-    pub permission_key:  Bytes,
-}
-
-impl BidChainData for BidChainDataSvm {
-    type PermissionKey = PermissionKeySvm;
-
-    fn get_permission_key(&self) -> Self::PermissionKey {
+impl BidChainDataSvm {
+    pub fn get_permission_key(&self) -> PermissionKeySvm {
         let mut permission_key = [0; 65];
         permission_key[0] = self.bid_payment_instruction_type.clone().into();
         permission_key[1..33].copy_from_slice(&self.router.to_bytes());
         permission_key[33..].copy_from_slice(&self.permission_account.to_bytes());
         PermissionKeySvm(permission_key)
-    }
-}
-
-impl BidChainData for BidChainDataEvm {
-    type PermissionKey = PermissionKeyEvm;
-
-    fn get_permission_key(&self) -> Self::PermissionKey {
-        self.permission_key.clone()
     }
 }
 

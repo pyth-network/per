@@ -1,9 +1,7 @@
 use {
     super::Repository,
-    crate::auction::{
-        entities::{
-            self,
-        },
+    crate::auction::entities::{
+        self,
     },
 };
 

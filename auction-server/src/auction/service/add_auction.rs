@@ -1,8 +1,5 @@
 use {
-    super::{
-        auction_manager::AuctionManager,
-        Service,
-    },
+    super::Service,
     crate::{
         api::RestError,
         auction::entities,
@@ -13,8 +10,7 @@ pub struct AddAuctionInput {
     pub auction: entities::Auction,
 }
 
-impl Service
-{
+impl Service {
     pub async fn add_auction(
         &self,
         input: AddAuctionInput,

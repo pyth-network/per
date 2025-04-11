@@ -1,15 +1,15 @@
 use {
     super::Repository,
-    crate::auction::{
-        entities,
-        service::ChainTrait,
+    crate::{
+        auction::entities,
+        kernel::entities::PermissionKeySvm,
     },
 };
 
-impl<T: ChainTrait> Repository<T> {
+impl Repository {
     pub async fn get_or_create_in_memory_auction_lock(
         &self,
-        key: entities::PermissionKey<T>,
+        key: PermissionKeySvm,
     ) -> entities::AuctionLock {
         self.in_memory_store
             .auction_lock

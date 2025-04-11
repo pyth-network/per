@@ -10,13 +10,11 @@ use {
     crate::{
         auction::service::{
             self as auction_service,
-            ChainTrait,
         },
         kernel::{
             entities::{
                 ChainId,
                 ChainType as ChainTypeEnum,
-                Svm,
             },
             traced_sender_svm::TracedSenderSvm,
         },

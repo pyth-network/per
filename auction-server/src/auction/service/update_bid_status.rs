@@ -1,8 +1,5 @@
 use {
-    super::{
-        ChainTrait,
-        Service,
-    },
+    super::Service,
     crate::{
         api::{
             ws::UpdateEvent,
@@ -20,10 +17,7 @@ pub struct UpdateBidStatusInput {
 
 impl Service {
     #[tracing::instrument(skip_all, fields(bid_id, status), err(level = tracing::Level::TRACE))]
-    pub async fn update_bid_status(
-        &self,
-        input: UpdateBidStatusInput,
-    ) -> Result<bool, RestError> {
+    pub async fn update_bid_status(&self, input: UpdateBidStatusInput) -> Result<bool, RestError> {
         tracing::Span::current().record("bid_id", input.bid.id.to_string());
         tracing::Span::current().record("status", format!("{:?}", input.new_status));
 
