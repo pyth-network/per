@@ -10,10 +10,7 @@ use {
             entities,
             service::conclude_auction::ConcludeAuctionWithStatusesInput,
         },
-        kernel::entities::{
-            Evm,
-            Svm,
-        },
+        kernel::entities::Svm,
         server::{
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
@@ -23,8 +20,6 @@ use {
         anyhow,
         Result,
     },
-    axum_prometheus::metrics,
-    ethers::providers::Middleware,
     express_relay_api_types::SvmChainUpdate,
     futures::future::join_all,
     solana_client::{
@@ -47,10 +42,12 @@ use {
     tokio_stream::StreamExt,
 };
 
-impl<T: ChainTrait> Service<T>
-where
-    Service<T>: AuctionManager<T>,
+impl<T: ChainTrait> Service<T> where Service<T>: AuctionManager<T>
 {
+}
+
+const GET_LATEST_BLOCKHASH_INTERVAL_SVM: Duration = Duration::from_secs(5);
+impl Service<Svm> {
     pub async fn run_submission_loop(&self) -> Result<()> {
         tracing::info!(
             chain_id = self.config.chain_id,
@@ -59,7 +56,7 @@ where
         let mut exit_check_interval = tokio::time::interval(EXIT_CHECK_INTERVAL);
 
         let ws_client = self.get_ws_client().await?;
-        let mut stream = Service::get_trigger_stream(&ws_client).await?;
+        let mut stream = Service::<Svm>::get_trigger_stream(&ws_client).await?;
 
         while !SHOULD_EXIT.load(Ordering::Acquire) {
             tokio::select! {
@@ -79,54 +76,7 @@ where
         tracing::info!("Shutting down transaction submitter...");
         Ok(())
     }
-}
 
-impl Service<Evm> {
-    pub async fn run_tracker_loop(&self) -> Result<()> {
-        tracing::info!(chain_id = self.config.chain_id, "Starting tracker...");
-
-        let mut exit_check_interval = tokio::time::interval(EXIT_CHECK_INTERVAL);
-
-        // this should be replaced by a subscription to the chain and trigger on new blocks
-        let mut submission_interval = tokio::time::interval(Duration::from_secs(10));
-        let relayer_address = self
-            .config
-            .chain_config
-            .express_relay
-            .contract
-            .get_relayer_address();
-        while !SHOULD_EXIT.load(Ordering::Acquire) {
-            tokio::select! {
-                _ = submission_interval.tick() => {
-                    match self.config.chain_config.provider.get_balance(relayer_address, None).await {
-                        Ok(r) => {
-                            // This conversion to u128 is fine as the total balance will never cross the limits
-                            // of u128 practically.
-                            // The f64 conversion is made to be able to serve metrics within the constraints of Prometheus.
-                            // The balance is in wei, so we need to divide by 1e18 to convert it to eth.
-                            let balance = r.as_u128() as f64 / 1e18;
-                            let label = [
-                                ("chain_id", self.config.chain_id.clone()),
-                                ("address", format!("{:?}", relayer_address)),
-                            ];
-                            metrics::gauge!("relayer_balance", &label).set(balance);
-                        }
-                        Err(e) => {
-                            tracing::error!("Error while getting balance. error: {:?}", e);
-                        }
-                    };
-                }
-                _ = exit_check_interval.tick() => {
-                }
-            }
-        }
-        tracing::info!("Shutting down tracker...");
-        Ok(())
-    }
-}
-
-const GET_LATEST_BLOCKHASH_INTERVAL_SVM: Duration = Duration::from_secs(5);
-impl Service<Svm> {
     pub async fn conclude_auction_for_log(
         &self,
         auction: entities::Auction<Svm>,
