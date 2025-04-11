@@ -12,17 +12,10 @@ use {
             SignerMiddleware,
             TransformerMiddleware,
         },
-        providers::{
-            Middleware,
-            Provider,
-        },
-        signers::{
-            LocalWallet,
-            Signer,
-        },
+        providers::Provider,
+        signers::LocalWallet,
         types::{
             transaction::eip2718::TypedTransaction,
-            Address,
             Bytes,
             TransactionRequest,
             H160,
@@ -77,7 +70,6 @@ impl Transformer for LegacyTxTransformer {
     }
 }
 
-pub type ExpressRelayContractEvm = ExpressRelay<Provider<TracedClient>>;
 pub type SignableProvider = TransformerMiddleware<
     GasOracleMiddleware<
         NonceManagerMiddleware<SignerMiddleware<Provider<TracedClient>, LocalWallet>>,
@@ -86,9 +78,3 @@ pub type SignableProvider = TransformerMiddleware<
     LegacyTxTransformer,
 >;
 pub type SignableExpressRelayContract = ExpressRelay<SignableProvider>;
-
-impl SignableExpressRelayContract {
-    pub fn get_relayer_address(&self) -> Address {
-        self.client().inner().inner().inner().signer().address()
-    }
-}

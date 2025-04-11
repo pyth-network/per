@@ -24,7 +24,6 @@ use {
         },
         kernel::entities::{
             ChainId,
-            Evm,
             Svm,
         },
         models,
@@ -49,7 +48,6 @@ use {
             BidCoreFields,
             BidCreate,
             BidCreateSvm,
-            BidEvm,
             BidId,
             BidResult,
             BidStatus,
@@ -402,20 +400,6 @@ fn get_core_fields<T: ChainTrait>(bid: &entities::Bid<T>) -> BidCoreFields {
         chain_id:        bid.chain_id.clone(),
         initiation_time: bid.initiation_time,
         profile_id:      bid.profile_id,
-    }
-}
-
-impl From<entities::Bid<Evm>> for Bid {
-    fn from(bid: entities::Bid<Evm>) -> Self {
-        Bid::Evm(BidEvm {
-            core_fields:     get_core_fields(&bid),
-            status:          bid.status.into(),
-            permission_key:  bid.chain_data.get_permission_key(),
-            target_contract: bid.chain_data.target_contract,
-            target_calldata: bid.chain_data.target_calldata,
-            gas_limit:       bid.chain_data.gas_limit,
-            bid_amount:      bid.amount,
-        })
     }
 }
 

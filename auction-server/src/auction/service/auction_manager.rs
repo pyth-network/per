@@ -10,13 +10,7 @@ use {
             BidStatus,
             BidStatusAuction,
         },
-        kernel::{
-            contracts::MulticallIssuedFilter,
-            entities::{
-                Evm,
-                Svm,
-            },
-        },
+        kernel::entities::Svm,
         opportunity::{
             self,
             service::get_live_opportunities::GetLiveOpportunitiesInput,
@@ -26,22 +20,7 @@ use {
     anyhow::Result,
     axum::async_trait,
     axum_prometheus::metrics,
-    ethers::{
-        contract::EthEvent,
-        providers::{
-            Middleware,
-            Provider,
-            SubscriptionStream,
-            Ws,
-        },
-        types::{
-            Block,
-            Bytes,
-            TransactionReceipt,
-            H256,
-            U256,
-        },
-    },
+    ethers::types::Bytes,
     futures::{
         future::join_all,
         Stream,
@@ -79,7 +58,6 @@ use {
         interval,
         Interval,
     },
-    uuid::Uuid,
 };
 
 /// The trait for handling the auction for the service.
@@ -140,196 +118,6 @@ pub trait AuctionManager<T: ChainTrait> {
 
     /// Get the conclusion interval for the auction.
     fn get_conclusion_interval() -> Interval;
-}
-
-// While we are submitting bids together, increasing this number will have the following effects:
-// 1. There will be more gas required for the transaction, which will result in a higher minimum bid amount.
-// 2. The transaction size limit will be reduced for each bid.
-// 3. Gas consumption limit will decrease for the bid
-pub const TOTAL_BIDS_PER_AUCTION_EVM: usize = 3;
-const EXTRA_GAS_FOR_SUBMISSION: u32 = 500 * 1000;
-const BID_MAXIMUM_LIFE_TIME_EVM: Duration = Duration::from_secs(600);
-
-#[async_trait]
-impl AuctionManager<Evm> for Service<Evm> {
-    type Trigger = Block<H256>;
-    type TriggerStream<'a> = SubscriptionStream<'a, Ws, Block<H256>>;
-    type WsClient = Provider<Ws>;
-    type ConclusionResult = TransactionReceipt;
-
-    const AUCTION_MINIMUM_LIFETIME: Duration = Duration::from_secs(1);
-
-    async fn get_ws_client(&self) -> Result<Self::WsClient> {
-        let ws = Ws::connect(self.config.chain_config.ws_address.clone()).await?;
-        Ok(Provider::new(ws))
-    }
-
-    async fn get_trigger_stream<'a>(client: &'a Self::WsClient) -> Result<Self::TriggerStream<'a>> {
-        let block_stream = client.subscribe_blocks().await?;
-        Ok(block_stream)
-    }
-
-    #[tracing::instrument(skip_all, fields(auction_id, bid_ids, simulation_result))]
-    async fn get_winner_bids(
-        &self,
-        auction: &entities::Auction<Evm>,
-    ) -> Result<Vec<entities::Bid<Evm>>> {
-        tracing::Span::current().record("auction_id", auction.id.to_string());
-
-        // TODO How we want to perform simulation, pruning, and determination
-        if auction.bids.is_empty() {
-            return Ok(vec![]);
-        }
-
-        let mut bids = auction.bids.clone();
-        tracing::Span::current().record(
-            "bid_ids",
-            tracing::field::display(entities::BidContainerTracing(&bids)),
-        );
-        bids.sort_by(|a, b| b.amount.cmp(&a.amount));
-        let bids: Vec<entities::Bid<Evm>> =
-            bids.into_iter().take(TOTAL_BIDS_PER_AUCTION_EVM).collect();
-        let simulation_result = self
-            .get_simulation_call(
-                auction.permission_key.clone(),
-                bids.clone()
-                    .into_iter()
-                    .map(|b| (b, false).into())
-                    .collect(),
-            )
-            .await?;
-
-        tracing::Span::current().record("simulation_result", format!("{:?}", simulation_result));
-
-        match simulation_result
-            .iter()
-            .position(|status| status.external_success)
-        {
-            Some(index) => Ok(bids.into_iter().skip(index).collect()),
-            None => Ok(vec![]),
-        }
-    }
-
-    #[tracing::instrument(skip_all, fields(tx_hash))]
-    async fn submit_bids(
-        &self,
-        permission_key: entities::PermissionKey<Evm>,
-        bids: Vec<entities::Bid<Evm>>,
-    ) -> Result<entities::TxHash<Evm>> {
-        let gas_estimate = bids
-            .iter()
-            .fold(U256::zero(), |sum, b| sum + b.chain_data.gas_limit);
-        let tx_hash = self
-            .config
-            .chain_config
-            .express_relay
-            .contract
-            .multicall(
-                permission_key,
-                bids.into_iter().map(|b| (b, false).into()).collect(),
-            )
-            .gas(gas_estimate + EXTRA_GAS_FOR_SUBMISSION)
-            .send()
-            .await?
-            .tx_hash();
-        tracing::Span::current().record("tx_hash", format!("{:?}", tx_hash));
-        Ok(tx_hash)
-    }
-
-    #[tracing::instrument(skip_all, fields(bid_ids, tx_hash, auction_id, result))]
-    async fn get_bid_results(
-        &self,
-        bids: Vec<entities::Bid<Evm>>,
-        bid_status_auction: entities::BidStatusAuction<entities::BidStatusEvm>,
-    ) -> Result<Vec<Option<entities::BidStatusEvm>>> {
-        tracing::Span::current().record(
-            "bid_ids",
-            tracing::field::display(entities::BidContainerTracing(&bids)),
-        );
-        tracing::Span::current().record("tx_hash", format!("{:?}", bid_status_auction.tx_hash));
-        tracing::Span::current().record("auction_id", bid_status_auction.id.to_string());
-
-        let receipt = self
-            .config
-            .chain_config
-            .provider
-            .get_transaction_receipt(bid_status_auction.tx_hash)
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to get transaction receipt: {:?}", e))?;
-
-        match receipt {
-            Some(receipt) => {
-                let decoded_logs = Self::decode_logs_for_receipt(&receipt);
-                tracing::Span::current().record("result", format!("{:?}", decoded_logs));
-                Ok(bids
-                    .iter()
-                    .map(|b| {
-                        Some(
-                            match decoded_logs
-                                .iter()
-                                .find(|decoded_log| Uuid::from_bytes(decoded_log.bid_id) == b.id)
-                            {
-                                Some(decoded_log) => {
-                                    match decoded_log.multicall_status.external_success {
-                                        true => entities::BidStatusEvm::Won {
-                                            index:   decoded_log.multicall_index.as_u32(),
-                                            auction: bid_status_auction.clone(),
-                                        },
-                                        false =>
-                                        // TODO: add BidStatusEvm::Failed for when the bid gets submitted but fails on-chain
-                                        {
-                                            entities::BidStatusEvm::Lost {
-                                                index:   Some(decoded_log.multicall_index.as_u32()),
-                                                auction: Some(bid_status_auction.clone()),
-                                            }
-                                        }
-                                    }
-                                }
-                                None => entities::BidStatusEvm::Lost {
-                                    auction: Some(bid_status_auction.clone()),
-                                    index:   None,
-                                },
-                            },
-                        )
-                    })
-                    .collect())
-            }
-            None => Ok(vec![None; bids.len()]),
-        }
-    }
-
-    async fn get_submission_state(
-        &self,
-        _permission_key: &entities::PermissionKey<Evm>,
-    ) -> entities::SubmitType {
-        entities::SubmitType::ByServer
-    }
-
-    fn get_new_status(
-        bid: &entities::Bid<Evm>,
-        submitted_bids: &[entities::Bid<Evm>],
-        bid_status_auction: entities::BidStatusAuction<entities::BidStatusEvm>,
-    ) -> entities::BidStatusEvm {
-        let index = submitted_bids.iter().position(|b| b.id == bid.id);
-        match index {
-            Some(index) => entities::BidStatusEvm::Submitted {
-                auction: bid_status_auction,
-                index:   index as u32,
-            },
-            None => entities::BidStatusEvm::Lost {
-                auction: Some(bid_status_auction),
-                index:   None,
-            },
-        }
-    }
-
-    fn is_auction_expired(auction: &entities::Auction<Evm>) -> bool {
-        auction.creation_time + BID_MAXIMUM_LIFE_TIME_EVM < OffsetDateTime::now_utc()
-    }
-
-    fn get_conclusion_interval() -> Interval {
-        interval(Duration::from_secs(4))
-    }
 }
 
 const BID_MAXIMUM_LIFE_TIME_SVM: Duration = Duration::from_secs(120);
@@ -761,16 +549,5 @@ impl Service<Svm> {
             }
         });
         tx.signatures[0]
-    }
-}
-
-impl Service<Evm> {
-    fn decode_logs_for_receipt(receipt: &TransactionReceipt) -> Vec<MulticallIssuedFilter> {
-        receipt
-            .logs
-            .clone()
-            .into_iter()
-            .filter_map(|log| MulticallIssuedFilter::decode_log(&log.into()).ok())
-            .collect()
     }
 }

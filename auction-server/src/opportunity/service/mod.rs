@@ -4,7 +4,6 @@ use {
     super::repository::{
         Database,
         InMemoryStore,
-        InMemoryStoreEvm,
         InMemoryStoreSvm,
         Repository,
     },
@@ -17,10 +16,8 @@ use {
             entities::{
                 ChainId,
                 ChainType as ChainTypeEnum,
-                Evm,
                 Svm,
             },
-            traced_client::TracedClient,
             traced_sender_svm::TracedSenderSvm,
         },
         state::{
@@ -29,10 +26,6 @@ use {
         },
     },
     arc_swap::ArcSwap,
-    ethers::{
-        providers::Provider,
-        types::Address,
-    },
     mockall_double::double,
     solana_client::{
         nonblocking::rpc_client::RpcClient,
@@ -65,11 +58,7 @@ pub mod verification;
 
 mod get_express_relay_metadata;
 mod get_quote_request_account_balances;
-mod get_spoof_info;
 mod get_token_program;
-mod make_adapter_calldata;
-mod make_opportunity_execution_params;
-mod make_permitted_tokens;
 mod unwrap_referral_fee_info;
 
 /// Store for the injectable auction service
@@ -114,17 +103,6 @@ impl<C: ChainTrait> AuctionServiceContainer<C> {
 }
 
 // NOTE: Do not implement debug here. it has a circular reference to auction_service
-pub struct ConfigEvm {
-    pub adapter_factory_contract:  Address,
-    pub adapter_bytecode_hash:     [u8; 32],
-    pub chain_id_num:              u64,
-    pub permit2:                   Address,
-    pub provider:                  Provider<TracedClient>,
-    pub weth:                      Address,
-    pub auction_service_container: AuctionServiceContainer<Evm>,
-}
-
-// NOTE: Do not implement debug here. it has a circular reference to auction_service
 pub struct ConfigSvm {
     pub rpc_client:                RpcClient,
     pub accepted_token_programs:   Vec<Pubkey>,
@@ -135,12 +113,7 @@ pub struct ConfigSvm {
 #[allow(dead_code)]
 pub trait Config: Send + Sync {}
 
-impl Config for ConfigEvm {
-}
 impl Config for ConfigSvm {
-}
-
-impl ConfigEvm {
 }
 
 impl ConfigSvm {
@@ -179,17 +152,7 @@ pub trait ChainType: Send + Sync {
     fn get_type() -> ChainTypeEnum;
 }
 
-pub struct ChainTypeEvm;
 pub struct ChainTypeSvm;
-
-impl ChainType for ChainTypeEvm {
-    type Config = ConfigEvm;
-    type InMemoryStore = InMemoryStoreEvm;
-
-    fn get_type() -> ChainTypeEnum {
-        ChainTypeEnum::Evm
-    }
-}
 
 impl ChainType for ChainTypeSvm {
     type Config = ConfigSvm;
