@@ -117,13 +117,11 @@ pub async fn post_opportunity(
     Json(params): Json<OpportunityCreate>,
 ) -> Result<Json<Opportunity>, RestError> {
     let opportunity_with_metadata: Opportunity = match params {
-        OpportunityCreate::Evm(params) => store
-            .opportunity_service_evm
-            .add_opportunity(AddOpportunityInput {
-                opportunity: params.into(),
-            })
-            .await?
-            .into(),
+        OpportunityCreate::Evm(_) => {
+            return Err(RestError::BadParameters(
+                "EVM chain_id is not supported".to_string(),
+            ))
+        }
         OpportunityCreate::Svm(params) => {
             if get_program(&auth)? != params.get_program() {
                 return Err(RestError::Forbidden);
@@ -157,49 +155,25 @@ pub async fn get_opportunities(
     State(store): State<Arc<StoreNew>>,
     query_params: Query<GetOpportunitiesQueryParams>,
 ) -> Result<axum::Json<Vec<Opportunity>>, RestError> {
-    let opportunities_evm = store
-        .opportunity_service_evm
-        .get_opportunities(GetOpportunitiesInput {
-            query_params: query_params.clone().0,
-        })
-        .await;
     let opportunities_svm = store
         .opportunity_service_svm
         .get_opportunities(GetOpportunitiesInput {
             query_params: query_params.clone().0,
         })
-        .await;
+        .await?;
 
-    if opportunities_evm.is_err() && opportunities_svm.is_err() {
-        // TODO better error handling, if the chain_id is svm and we have some serious error there, we would just return chain_id is not found on evm side
-        Err(opportunities_evm.expect_err("Failed to get error from opportunities_evm"))
-    } else {
-        let mut opportunities: Vec<Opportunity> = vec![];
-        if let Ok(opportunities_evm) = opportunities_evm {
-            opportunities.extend(
-                opportunities_evm
-                    .into_iter()
-                    .map(|o| o.into())
-                    .collect::<Vec<Opportunity>>(),
-            );
-        }
-        if let Ok(opportunities_svm) = opportunities_svm {
-            opportunities.extend(
-                opportunities_svm
-                    .into_iter()
-                    .map(|o| o.into())
-                    .collect::<Vec<Opportunity>>(),
-            );
-        }
+    let mut opportunities: Vec<Opportunity> = opportunities_svm
+        .into_iter()
+        .map(|o| o.into())
+        .collect::<Vec<Opportunity>>();
 
-        opportunities.sort_by_key(|a| a.creation_time());
-        Ok(Json(
-            opportunities
-                .into_iter()
-                .take(std::cmp::min(query_params.limit, OPPORTUNITY_PAGE_SIZE_CAP))
-                .collect(),
-        ))
-    }
+    opportunities.sort_by_key(|a| a.creation_time());
+    Ok(Json(
+        opportunities
+            .into_iter()
+            .take(std::cmp::min(query_params.limit, OPPORTUNITY_PAGE_SIZE_CAP))
+            .collect(),
+    ))
 }
 
 const MEMO_MAX_LENGTH: usize = 100;
