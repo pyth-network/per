@@ -463,6 +463,13 @@ export interface components {
           result: string;
           /** @enum {string} */
           type: "cancelled";
+        }
+      | {
+          reason: components["schemas"]["SubmissionFailedReason"];
+          /** @example Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg */
+          result: string;
+          /** @enum {string} */
+          type: "submission_failed";
         };
     BidStatusWithId: {
       bid_status: components["schemas"]["BidStatus"];
@@ -1121,6 +1128,8 @@ export interface components {
           /** @enum {string} */
           side: "output";
         };
+    /** @enum {string} */
+    SubmissionFailedReason: "cancelled" | "deadline_passed";
     /** @description Parameters needed to submit a quote from server. */
     SubmitQuote: {
       /**

@@ -10,6 +10,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - The minimum lifetime of swap quotes is now configurable. Users can provide a `minimum_lifetime` which represents for how long the quote they receive should be valid and defaults to the old value of 10 seconds. Searchers receive a `minimum_deadline` as a timestamp in the opportunity parameters that they should use as the deadline for their quotes. [482](https://github.com/pyth-network/per/pull/482)
 - Now the user can request non-cancellable quotes: these are quotes where the searcher can't call `cancel_bid` while the server is waiting for the user signature. These opportunities have the flag `cancellable` set to false in the opportunity parameters. [481](https://github.com/pyth-network/per/pull/481)
+- A new status `submission_failed` has been added to bids. This status is used when a user tries to submit a bid on-chain, but the submission fails. It includes a `reason` field to explain why the submission did not succeed. The possible reasons are:
+  - `cancelled`: The bid was cancelled by the owner before the user could submit it on-chain.
+  - `deadline_passed`: The user attempted to submit the bid too late, after the bid deadline had already passed. [489](https://github.com/pyth-network/per/pull/489)
 
 ## [Rust: 0.8.0, Python 0.23.0, Javascript 0.24.0] - 2025-04-08
 
