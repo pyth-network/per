@@ -7,7 +7,6 @@ use {
     express_relay_api_types::{
         bid::{
             BidCreate,
-            BidCreateEvm,
             BidCreateOnChainSvm,
             BidCreateSvm,
             BidCreateSwapSvm,
@@ -79,7 +78,6 @@ use {
     url::Url,
 };
 
-pub mod evm;
 pub mod svm;
 
 pub struct ClientInner {
@@ -87,7 +85,6 @@ pub struct ClientInner {
     ws_url:   Url,
     api_key:  Option<String>,
     client:   reqwest::Client,
-    evm:      evm::Evm,
 }
 
 #[derive(Clone)]
@@ -576,26 +573,6 @@ impl Client {
                 ws_url,
                 api_key: config.api_key,
                 client: reqwest::Client::new(),
-                evm: evm::Evm::new(None),
-            }),
-        })
-    }
-
-    /// Creates a new HTTP client with the provided configuration and EVM configuration.
-    /// This is for developers who want to use a custom EVM configuration.
-    /// Do not use this method unless you are sure about the configuration.
-    pub fn try_new_with_evm_config(
-        config: ClientConfig,
-        evm_config: HashMap<String, evm::Config>,
-    ) -> Result<Self, ClientError> {
-        let (http_url, ws_url) = Self::get_urls(config.clone())?;
-        Ok(Self {
-            inner: Arc::new(ClientInner {
-                http_url,
-                ws_url,
-                api_key: config.api_key,
-                client: reqwest::Client::new(),
-                evm: evm::Evm::new(Some(evm_config)),
             }),
         })
     }
@@ -696,34 +673,6 @@ pub trait Biddable {
         opportunity: Self,
         params: Self::Params,
     ) -> Result<BidCreate, ClientError>;
-}
-
-impl Biddable for api_types::opportunity::OpportunityEvm {
-    type Params = evm::NewBidParams;
-
-    fn new_bid(
-        client: &Client,
-        opportunity: Self,
-        params: Self::Params,
-    ) -> Result<BidCreate, ClientError> {
-        let opportunity_params = evm::get_params(opportunity.clone());
-        let config = client
-            .inner
-            .evm
-            .get_config(opportunity_params.chain_id.as_str())?;
-        let bid = BidCreateEvm {
-            permission_key:  opportunity_params.permission_key,
-            chain_id:        opportunity_params.chain_id,
-            target_contract: config.adapter_factory_contract,
-            amount:          params.bid_params.amount,
-            target_calldata: client.inner.evm.make_adapter_calldata(
-                opportunity.clone(),
-                params.bid_params,
-                params.wallet,
-            )?,
-        };
-        Ok(BidCreate::Evm(bid))
-    }
 }
 
 impl Biddable for api_types::opportunity::OpportunitySvm {

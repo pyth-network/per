@@ -24,11 +24,6 @@ use {
             ws::ServerUpdateResponse,
             SvmChainUpdate,
         },
-        ethers::{
-            signers::LocalWallet,
-            types::U256,
-        },
-        evm,
         solana_sdk::{
             compute_budget::ComputeBudgetInstruction,
             signature::Keypair,
@@ -52,16 +47,10 @@ use {
     tokio_stream::StreamExt,
 };
 
-async fn random() -> U256 {
-    let mut rng = rand::thread_rng();
-    U256::from(rng.gen::<u128>())
-}
-
 #[derive(Clone)]
 pub struct SimpleSearcher {
     client:          Client,
     ws_client:       WsClient,
-    private_key_evm: Option<String>,
     private_key_svm: Option<String>,
     chain_ids:       Vec<String>,
     svm_update_map:  HashMap<String, SvmChainUpdate>,
@@ -70,22 +59,14 @@ pub struct SimpleSearcher {
 }
 
 const SVM_BID_AMOUNT: u64 = 10_000_000;
-const EVM_BID_AMOUNT: i128 = 5_000_000_000_000_000_000_i128;
 
 impl SimpleSearcher {
     pub async fn try_new(
         client: Client,
         chain_ids: Vec<String>,
-        private_key_evm: Option<String>,
         private_key_svm: Option<String>,
         svm_rpc_url: Option<String>,
     ) -> Result<Self> {
-        if let Some(private_key) = private_key_evm.clone() {
-            private_key
-                .parse::<LocalWallet>()
-                .map_err(|e| anyhow!("Invalid evm private key: {}", e))?;
-        }
-
         if let Some(private_key) = private_key_svm.clone() {
             Keypair::from_base58_string(private_key.as_str());
         }
@@ -99,7 +80,6 @@ impl SimpleSearcher {
         Ok(Self {
             client,
             ws_client,
-            private_key_evm,
             private_key_svm,
             chain_ids,
             svm_update_map: HashMap::new(),
@@ -137,8 +117,7 @@ impl SimpleSearcher {
         // For the sake of this example, we will always bid
         let private_key = match opportunity {
             Opportunity::Evm(_) => {
-                println!("EVM opportunity Received");
-                self.private_key_evm.clone()
+                unimplemented!()
             }
             Opportunity::Svm(_) => {
                 println!("SVM opportunity Received");
@@ -160,20 +139,8 @@ impl SimpleSearcher {
 
     async fn submit_bid(&self, opportunity: Opportunity, private_key: String) -> Result<()> {
         let bid = match opportunity.clone() {
-            opportunity::Opportunity::Evm(opportunity) => {
-                let wallet = private_key.parse::<LocalWallet>().map_err(|e| {
-                    eprintln!("Failed to parse evm private key: {:?}", e);
-                    anyhow!("Failed to parse evm private key")
-                })?;
-                let deadline = (OffsetDateTime::now_utc() + Duration::days(1)).unix_timestamp();
-                let bid_params = evm::BidParams {
-                    amount:   U256::from(EVM_BID_AMOUNT),
-                    nonce:    random().await,
-                    deadline: U256::from(deadline),
-                };
-                self.client
-                    .new_bid(opportunity, evm::NewBidParams { bid_params, wallet })
-                    .await
+            opportunity::Opportunity::Evm(_) => {
+                unimplemented!()
             }
             opportunity::Opportunity::Svm(opportunity) => {
                 let svm_update = self
