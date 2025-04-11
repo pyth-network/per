@@ -10,13 +10,11 @@ use {
     crate::{
         auction::service::{
             self as auction_service,
-            ChainTrait,
         },
         kernel::{
             entities::{
                 ChainId,
                 ChainType as ChainTypeEnum,
-                Svm,
             },
             traced_sender_svm::TracedSenderSvm,
         },
@@ -62,11 +60,11 @@ mod get_token_program;
 mod unwrap_referral_fee_info;
 
 /// Store for the injectable auction service
-pub struct AuctionServiceContainer<C: ChainTrait> {
-    service: ArcSwap<Option<AuctionService<C>>>,
+pub struct AuctionServiceContainer {
+    service: ArcSwap<Option<AuctionService>>,
 }
 
-impl<C: ChainTrait> AuctionServiceContainer<C> {
+impl AuctionServiceContainer {
     pub fn new() -> Self {
         Self {
             service: ArcSwap::new(Arc::new(None)),
@@ -74,7 +72,7 @@ impl<C: ChainTrait> AuctionServiceContainer<C> {
     }
 
     #[allow(unused_variables)]
-    pub fn inject_service(&self, service: auction_service::Service<C>) {
+    pub fn inject_service(&self, service: auction_service::Service) {
         #[cfg(not(test))]
         {
             self.service.swap(Arc::new(Some(service)));
@@ -87,12 +85,12 @@ impl<C: ChainTrait> AuctionServiceContainer<C> {
     }
 
     #[cfg(test)]
-    pub fn inject_mock_service(&self, service: AuctionService<C>) {
+    pub fn inject_mock_service(&self, service: AuctionService) {
         self.service.swap(Arc::new(Some(service)));
     }
 
     /// Resolve the stored service
-    fn get_service(&self) -> AuctionService<C> {
+    fn get_service(&self) -> AuctionService {
         self.service
             .load()
             .as_ref()
@@ -107,7 +105,7 @@ pub struct ConfigSvm {
     pub rpc_client:                RpcClient,
     pub accepted_token_programs:   Vec<Pubkey>,
     pub ordered_fee_tokens:        Vec<Pubkey>,
-    pub auction_service_container: AuctionServiceContainer<Svm>,
+    pub auction_service_container: AuctionServiceContainer,
 }
 
 #[allow(dead_code)]

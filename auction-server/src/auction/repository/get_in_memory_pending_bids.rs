@@ -1,16 +1,16 @@
 use {
     super::Repository,
-    crate::auction::{
-        entities,
-        service::ChainTrait,
+    crate::{
+        auction::entities,
+        kernel::entities::PermissionKeySvm,
     },
     std::collections::HashMap,
 };
 
-impl<T: ChainTrait> Repository<T> {
+impl Repository {
     pub async fn get_in_memory_pending_bids(
         &self,
-    ) -> HashMap<entities::PermissionKey<T>, Vec<entities::Bid<T>>> {
+    ) -> HashMap<PermissionKeySvm, Vec<entities::Bid>> {
         self.in_memory_store.pending_bids.read().await.clone()
     }
 }

@@ -1,8 +1,5 @@
 use {
-    super::{
-        ChainTrait,
-        Service,
-    },
+    super::Service,
     crate::{
         auction::entities::{
             self,
@@ -10,7 +7,7 @@ use {
             BidStatus,
             BidStatusAuction,
         },
-        kernel::entities::Svm,
+        kernel::entities::PermissionKeySvm,
         opportunity::{
             self,
             service::get_live_opportunities::GetLiveOpportunitiesInput,
@@ -62,7 +59,7 @@ use {
 
 /// The trait for handling the auction for the service.
 #[async_trait]
-pub trait AuctionManager<T: ChainTrait> {
+pub trait AuctionManager {
     /// This is the type that is used to trigger the auction submission and conclusion.
     type Trigger: Debug + Clone;
     /// The trigger stream type when subscribing to new triggers on the ws client for the chain.
@@ -81,40 +78,35 @@ pub trait AuctionManager<T: ChainTrait> {
     async fn get_trigger_stream<'a>(client: &'a Self::WsClient) -> Result<Self::TriggerStream<'a>>;
 
     /// Get the winner bids for the auction. Sorting bids by bid amount and simulating the bids to determine the winner bids.
-    async fn get_winner_bids(
-        &self,
-        auction: &entities::Auction<T>,
-    ) -> Result<Vec<entities::Bid<T>>>;
+    async fn get_winner_bids(&self, auction: &entities::Auction) -> Result<Vec<entities::Bid>>;
     /// Submit the bids for the auction on the chain.
     async fn submit_bids(
         &self,
-        permission_key: entities::PermissionKey<T>,
-        bids: Vec<entities::Bid<T>>,
-    ) -> Result<entities::TxHash<T>>;
+        permission_key: PermissionKeySvm,
+        bids: Vec<entities::Bid>,
+    ) -> Result<Signature>;
     /// Get the on chain bid results for the bids.
     /// Order of the returned BidStatus is as same as the order of the bids.
     /// Returns None for each bid if the bid is not yet confirmed on chain.
     async fn get_bid_results(
         &self,
-        bids: Vec<entities::Bid<T>>,
-        bid_status_auction: entities::BidStatusAuction<T::BidStatusType>,
-    ) -> Result<Vec<Option<T::BidStatusType>>>;
+        bids: Vec<entities::Bid>,
+        bid_status_auction: entities::BidStatusAuction,
+    ) -> Result<Vec<Option<entities::BidStatusSvm>>>;
 
     /// Check if the auction winner transaction should be submitted on chain for the permission key.
-    async fn get_submission_state(
-        &self,
-        permission_key: &entities::PermissionKey<T>,
-    ) -> entities::SubmitType;
+    async fn get_submission_state(&self, permission_key: &PermissionKeySvm)
+        -> entities::SubmitType;
 
     /// Get the new status for the bid based on the auction result.
     fn get_new_status(
-        bid: &entities::Bid<T>,
-        winner_bids: &[entities::Bid<T>],
-        bid_status_auction: entities::BidStatusAuction<T::BidStatusType>,
-    ) -> T::BidStatusType;
+        bid: &entities::Bid,
+        winner_bids: &[entities::Bid],
+        bid_status_auction: entities::BidStatusAuction,
+    ) -> entities::BidStatusSvm;
 
     /// Check if the auction is expired based on the creation time of the auction.
-    fn is_auction_expired(auction: &entities::Auction<T>) -> bool;
+    fn is_auction_expired(auction: &entities::Auction) -> bool;
 
     /// Get the conclusion interval for the auction.
     fn get_conclusion_interval() -> Interval;
@@ -152,7 +144,7 @@ impl Stream for TriggerStreamSvm {
 }
 
 #[async_trait]
-impl AuctionManager<Svm> for Service<Svm> {
+impl AuctionManager for Service {
     type Trigger = u64;
     type TriggerStream<'a> = TriggerStreamSvm;
     type WsClient = PubsubClient;
@@ -176,10 +168,7 @@ impl AuctionManager<Svm> for Service<Svm> {
     }
 
     #[tracing::instrument(skip_all, fields(auction_id, bid_ids))]
-    async fn get_winner_bids(
-        &self,
-        auction: &entities::Auction<Svm>,
-    ) -> Result<Vec<entities::Bid<Svm>>> {
+    async fn get_winner_bids(&self, auction: &entities::Auction) -> Result<Vec<entities::Bid>> {
         tracing::Span::current().record("auction_id", auction.id.to_string());
         tracing::Span::current().record(
             "bid_ids",
@@ -202,9 +191,9 @@ impl AuctionManager<Svm> for Service<Svm> {
     #[tracing::instrument(skip_all, fields(tx_hash))]
     async fn submit_bids(
         &self,
-        _permission_key: entities::PermissionKey<Svm>,
-        bids: Vec<entities::Bid<Svm>>,
-    ) -> Result<entities::TxHash<Svm>> {
+        _permission_key: PermissionKeySvm,
+        bids: Vec<entities::Bid>,
+    ) -> Result<Signature> {
         if bids.is_empty() {
             return Err(anyhow::anyhow!("No bids to submit"));
         }
@@ -225,8 +214,8 @@ impl AuctionManager<Svm> for Service<Svm> {
     #[tracing::instrument(skip_all, fields(bid_ids, tx_hash, auction_id, bid_statuses))]
     async fn get_bid_results(
         &self,
-        bids: Vec<entities::Bid<Svm>>,
-        bid_status_auction: entities::BidStatusAuction<entities::BidStatusSvm>,
+        bids: Vec<entities::Bid>,
+        bid_status_auction: entities::BidStatusAuction,
     ) -> Result<Vec<Option<entities::BidStatusSvm>>> {
         tracing::Span::current().record(
             "bid_ids",
@@ -331,7 +320,7 @@ impl AuctionManager<Svm> for Service<Svm> {
 
     async fn get_submission_state(
         &self,
-        permission_key: &entities::PermissionKey<Svm>,
+        permission_key: &PermissionKeySvm,
     ) -> entities::SubmitType {
         match entities::BidChainDataSvm::get_bid_payment_instruction_type(permission_key) {
             Some(BidPaymentInstructionType::Swap) => {
@@ -357,9 +346,9 @@ impl AuctionManager<Svm> for Service<Svm> {
     }
 
     fn get_new_status(
-        bid: &entities::Bid<Svm>,
-        winner_bids: &[entities::Bid<Svm>],
-        bid_status_auction: entities::BidStatusAuction<entities::BidStatusSvm>,
+        bid: &entities::Bid,
+        winner_bids: &[entities::Bid],
+        bid_status_auction: entities::BidStatusAuction,
     ) -> entities::BidStatusSvm {
         if winner_bids.iter().any(|b| b.id == bid.id) {
             let auction = BidStatusAuction {
@@ -379,7 +368,7 @@ impl AuctionManager<Svm> for Service<Svm> {
         }
     }
 
-    fn is_auction_expired(auction: &entities::Auction<Svm>) -> bool {
+    fn is_auction_expired(auction: &entities::Auction) -> bool {
         auction.creation_time + BID_MAXIMUM_LIFE_TIME_SVM * 2 < OffsetDateTime::now_utc()
     }
 
@@ -394,8 +383,8 @@ const METRIC_LABEL_SUCCESS: &str = "success";
 const METRIC_LABEL_FAILED: &str = "failed";
 const METRIC_LABEL_EXPIRED: &str = "expired";
 
-impl Service<Svm> {
-    pub fn add_relayer_signature(&self, bid: &mut entities::Bid<Svm>) {
+impl Service {
+    pub fn add_relayer_signature(&self, bid: &mut entities::Bid) {
         let relayer = &self.config.chain_config.express_relay.relayer;
         let serialized_message = bid.chain_data.transaction.message.serialize();
         let relayer_signature_pos = bid
@@ -468,7 +457,7 @@ impl Service<Svm> {
     }
 
     #[tracing::instrument(skip_all, fields(bid_id, total_tries, tx_hash))]
-    async fn blocking_send_transaction(&self, bid: entities::Bid<Svm>, start: Instant) {
+    async fn blocking_send_transaction(&self, bid: entities::Bid, start: Instant) {
         let mut result_label = METRIC_LABEL_EXPIRED;
         let signature = bid.chain_data.transaction.signatures[0];
         tracing::Span::current().record("bid_id", bid.id.to_string());
@@ -525,7 +514,7 @@ impl Service<Svm> {
     ///
     /// If the first try fails, it will retry for multiple times.
     #[tracing::instrument(skip_all, fields(bid_id))]
-    pub async fn send_transaction(&self, bid: &entities::Bid<Svm>) -> Signature {
+    pub async fn send_transaction(&self, bid: &entities::Bid) -> Signature {
         tracing::Span::current().record("bid_id", bid.id.to_string());
         let start = Instant::now();
         let tx = &bid.chain_data.transaction;

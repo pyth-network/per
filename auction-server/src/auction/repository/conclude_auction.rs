@@ -1,14 +1,11 @@
 use {
     super::Repository,
-    crate::auction::{
-        entities::{
-            self,
-        },
-        service::ChainTrait,
+    crate::auction::entities::{
+        self,
     },
 };
 
-impl<T: ChainTrait> Repository<T> {
+impl Repository {
     #[tracing::instrument(skip_all, name = "conclude_auction_repo", fields(auction_id))]
     pub async fn conclude_auction(&self, auction_id: entities::AuctionId) -> anyhow::Result<()> {
         tracing::Span::current().record("auction_id", auction_id.to_string());

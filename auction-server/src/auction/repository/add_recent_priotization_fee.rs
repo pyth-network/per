@@ -1,16 +1,13 @@
 use {
     super::Repository,
-    crate::{
-        auction::{
-            repository::PrioritizationFeeSample,
-            service::update_recent_prioritization_fee::RECENT_FEES_SLOT_WINDOW,
-        },
-        kernel::entities::Svm,
+    crate::auction::{
+        repository::PrioritizationFeeSample,
+        service::update_recent_prioritization_fee::RECENT_FEES_SLOT_WINDOW,
     },
     time::OffsetDateTime,
 };
 
-impl Repository<Svm> {
+impl Repository {
     pub async fn add_recent_prioritization_fee(&self, fee: u64) {
         let mut write_guard = self
             .in_memory_store

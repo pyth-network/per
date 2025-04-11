@@ -1,16 +1,13 @@
 use {
-    super::{
-        ChainTrait,
-        Service,
-    },
-    crate::auction::entities::{
-        self,
-        BidStatus,
+    super::Service,
+    crate::{
+        auction::entities::BidStatus,
+        kernel::entities::PermissionKeySvm,
     },
 };
 
-impl<T: ChainTrait> Service<T> {
-    pub async fn get_permission_keys_for_auction(&self) -> Vec<entities::PermissionKey<T>> {
+impl Service {
+    pub async fn get_permission_keys_for_auction(&self) -> Vec<PermissionKeySvm> {
         let pending_bids = self.repo.get_in_memory_pending_bids().await;
         pending_bids
             .iter()

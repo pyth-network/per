@@ -1,27 +1,20 @@
 use {
-    super::{
-        auction_manager::AuctionManager,
-        ChainTrait,
-        Service,
-    },
+    super::Service,
     crate::{
         api::RestError,
         auction::entities,
     },
 };
 
-pub struct AddAuctionInput<T: ChainTrait> {
-    pub auction: entities::Auction<T>,
+pub struct AddAuctionInput {
+    pub auction: entities::Auction,
 }
 
-impl<T: ChainTrait> Service<T>
-where
-    Service<T>: AuctionManager<T>,
-{
+impl Service {
     pub async fn add_auction(
         &self,
-        input: AddAuctionInput<T>,
-    ) -> Result<entities::Auction<T>, RestError> {
+        input: AddAuctionInput,
+    ) -> Result<entities::Auction, RestError> {
         let auction = self.repo.add_auction(input.auction).await.map_err(|e| {
             tracing::error!(error = ?e, "Failed to add auction");
             RestError::TemporarilyUnavailable

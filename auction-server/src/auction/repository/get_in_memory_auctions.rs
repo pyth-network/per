@@ -1,13 +1,10 @@
 use {
     super::Repository,
-    crate::auction::{
-        entities,
-        service::ChainTrait,
-    },
+    crate::auction::entities,
 };
 
-impl<T: ChainTrait> Repository<T> {
-    pub async fn get_in_memory_auctions(&self) -> Vec<entities::Auction<T>> {
+impl Repository {
+    pub async fn get_in_memory_auctions(&self) -> Vec<entities::Auction> {
         self.in_memory_store
             .auctions
             .read()

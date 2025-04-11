@@ -1,8 +1,5 @@
 use {
-    super::{
-        ChainTrait,
-        Service,
-    },
+    super::Service,
     crate::{
         api::RestError,
         auction::entities,
@@ -16,9 +13,9 @@ pub struct GetBidsInput {
     pub from_time: Option<OffsetDateTime>,
 }
 
-impl<T: ChainTrait> Service<T> {
+impl Service {
     #[tracing::instrument(skip_all, err(level = tracing::Level::TRACE))]
-    pub async fn get_bids(&self, input: GetBidsInput) -> Result<Vec<entities::Bid<T>>, RestError> {
+    pub async fn get_bids(&self, input: GetBidsInput) -> Result<Vec<entities::Bid>, RestError> {
         self.repo.get_bids(input.profile.id, input.from_time).await
     }
 }

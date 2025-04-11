@@ -1,15 +1,12 @@
 use {
     super::Service,
-    crate::{
-        api::RestError,
-        kernel::entities::Svm,
-    },
+    crate::api::RestError,
     solana_client::rpc_response::RpcPrioritizationFee,
 };
 
 pub const RECENT_FEES_SLOT_WINDOW: usize = 12;
 
-impl Service<Svm> {
+impl Service {
     /// Returns an estimate of recent prioritization fees.
     /// For each of the last 150 slots, client returns the `config.prioritization_fee_percentile`th percentile
     /// of prioritization fees for transactions that landed in that slot.

@@ -6,7 +6,6 @@ use {
     crate::{
         api::RestError,
         auction::entities,
-        kernel::entities::Svm,
         models::Profile,
     },
 };
@@ -17,7 +16,7 @@ pub struct CancelBidInput {
     pub profile: Profile,
 }
 
-impl Service<Svm> {
+impl Service {
     #[tracing::instrument(skip_all, err(level = tracing::Level::TRACE))]
     async fn cancel_bid_for_lock(
         &self,

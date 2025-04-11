@@ -1,36 +1,36 @@
 use {
     super::{
         auction_manager::AuctionManager,
-        ChainTrait,
         Service,
     },
-    crate::auction::{
-        entities::{
-            self,
-            BidStatus,
+    crate::{
+        auction::{
+            entities::{
+                self,
+                BidStatus,
+                BidStatusSvm,
+            },
+            service::{
+                add_auction::AddAuctionInput,
+                update_bid_status::UpdateBidStatusInput,
+            },
         },
-        service::{
-            add_auction::AddAuctionInput,
-            update_bid_status::UpdateBidStatusInput,
-        },
+        kernel::entities::PermissionKeySvm,
     },
     futures::future::join_all,
     time::OffsetDateTime,
     tokio::sync::MutexGuard,
 };
 
-pub struct HandleAuctionInput<T: ChainTrait> {
-    pub permission_key: entities::PermissionKey<T>,
+pub struct HandleAuctionInput {
+    pub permission_key: PermissionKeySvm,
 }
 
-impl<T: ChainTrait> Service<T>
-where
-    Service<T>: AuctionManager<T>,
-{
+impl Service {
     #[tracing::instrument(skip_all, fields(auction_id, bid_ids, winner_bid_ids), err(level = tracing::Level::TRACE))]
     async fn submit_auction<'a>(
         &self,
-        auction: entities::Auction<T>,
+        auction: entities::Auction,
         _auction_mutex_guard: MutexGuard<'a, ()>,
     ) -> anyhow::Result<()> {
         tracing::Span::current().record("auction_id", auction.id.to_string());
@@ -57,7 +57,7 @@ where
             join_all(auction.bids.into_iter().map(|bid| {
                 self.update_bid_status(UpdateBidStatusInput {
                     bid,
-                    new_status: T::BidStatusType::new_lost(),
+                    new_status: BidStatusSvm::new_lost(),
                 })
             }))
             .await;
@@ -84,15 +84,15 @@ where
         {
             Ok(tx_hash) => {
                 tracing::debug!(tx_hash = ?tx_hash, "Submitted transaction");
-                let auction = self.repo.submit_auction(auction, tx_hash.clone()).await?;
+                let auction = self.repo.submit_auction(auction, tx_hash).await?;
                 join_all(auction.bids.iter().map(|bid| {
                     self.update_bid_status(UpdateBidStatusInput {
                         new_status: Service::get_new_status(
                             bid,
                             &winner_bids,
                             entities::BidStatusAuction {
-                                tx_hash: tx_hash.clone(),
-                                id:      auction.id,
+                                tx_hash,
+                                id: auction.id,
                             },
                         ),
                         bid:        bid.clone(),
@@ -110,7 +110,7 @@ where
     #[tracing::instrument(skip_all, fields(bid_ids, auction_id))]
     async fn submit_auction_for_lock(
         &self,
-        permission_key: &entities::PermissionKey<T>,
+        permission_key: &PermissionKeySvm,
         auction_lock: entities::AuctionLock,
     ) -> anyhow::Result<()> {
         let acquired_lock = auction_lock.lock().await;
@@ -135,7 +135,7 @@ where
         }
     }
 
-    pub async fn handle_auction(&self, input: HandleAuctionInput<T>) -> anyhow::Result<()> {
+    pub async fn handle_auction(&self, input: HandleAuctionInput) -> anyhow::Result<()> {
         tracing::info!(
             chain_id = self.config.chain_id,
             permission_key = input.permission_key.to_string(),
@@ -159,7 +159,7 @@ where
             }
             entities::SubmitType::Invalid => {
                 // Fetch all pending bids and mark them as lost
-                let bids: Vec<entities::Bid<T>> = self
+                let bids: Vec<entities::Bid> = self
                     .repo
                     .get_in_memory_pending_bids_by_permission_key(&permission_key)
                     .await
@@ -169,7 +169,7 @@ where
                 join_all(bids.into_iter().map(|bid| {
                     self.update_bid_status(UpdateBidStatusInput {
                         bid,
-                        new_status: T::BidStatusType::new_lost(),
+                        new_status: BidStatusSvm::new_lost(),
                     })
                 }))
                 .await;

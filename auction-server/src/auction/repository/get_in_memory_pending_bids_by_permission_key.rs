@@ -1,16 +1,16 @@
 use {
     super::Repository,
-    crate::auction::{
-        entities,
-        service::ChainTrait,
+    crate::{
+        auction::entities,
+        kernel::entities::PermissionKeySvm,
     },
 };
 
-impl<T: ChainTrait> Repository<T> {
+impl Repository {
     pub async fn get_in_memory_pending_bids_by_permission_key(
         &self,
-        permission_key: &<T::BidChainDataType as entities::BidChainData>::PermissionKey,
-    ) -> Vec<entities::Bid<T>> {
+        permission_key: &PermissionKeySvm,
+    ) -> Vec<entities::Bid> {
         self.in_memory_store
             .pending_bids
             .read()

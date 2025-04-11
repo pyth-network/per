@@ -1,20 +1,17 @@
 use {
     super::Repository,
-    crate::auction::{
-        entities::{
-            self,
-            BidStatus,
-        },
-        service::ChainTrait,
+    crate::auction::entities::{
+        self,
+        BidStatus,
     },
 };
 
-impl<T: ChainTrait> Repository<T> {
+impl Repository {
     // Find the in memory auction which contains the bid and update the bid status
     async fn update_in_memory_auction_bid(
         &self,
-        bid: &entities::Bid<T>,
-        new_status: T::BidStatusType,
+        bid: &entities::Bid,
+        new_status: entities::BidStatusSvm,
     ) {
         if let Some(auction_id) = new_status.get_auction_id() {
             let mut write_guard = self.in_memory_store.auctions.write().await;
@@ -30,8 +27,8 @@ impl<T: ChainTrait> Repository<T> {
     /// Update the status of a bid and return true if the bid was updated
     pub async fn update_bid_status(
         &self,
-        bid: entities::Bid<T>,
-        new_status: T::BidStatusType,
+        bid: entities::Bid,
+        new_status: entities::BidStatusSvm,
     ) -> anyhow::Result<bool> {
         let is_updated = self.db.update_bid_status(&bid, &new_status).await?;
         if is_updated && !new_status.is_pending() {

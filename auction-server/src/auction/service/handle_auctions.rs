@@ -1,16 +1,9 @@
 use {
-    super::{
-        auction_manager::AuctionManager,
-        ChainTrait,
-        Service,
-    },
+    super::Service,
     crate::auction::service::handle_auction::HandleAuctionInput,
 };
 
-impl<T: ChainTrait> Service<T>
-where
-    Service<T>: AuctionManager<T>,
-{
+impl Service {
     pub async fn handle_auctions(&self) {
         let permission_keys = self.get_permission_keys_for_auction().await;
 

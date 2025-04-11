@@ -1,23 +1,15 @@
 use {
     super::AuctionId,
     crate::{
-        auction::service::ChainTrait,
         kernel::entities::{
             ChainId,
-            PermissionKey as PermissionKeyEvm,
             PermissionKeySvm,
-            Svm,
         },
         models::{
             self,
             ProfileId,
         },
         opportunity::entities::OpportunityId,
-    },
-    ethers::types::{
-        Address,
-        Bytes,
-        U256,
     },
     express_relay_api_types::bid as api,
     solana_sdk::{
@@ -32,7 +24,6 @@ use {
             Display,
             Formatter,
         },
-        hash::Hash,
         sync::Arc,
     },
     strum::FromRepr,
@@ -70,9 +61,9 @@ pub trait BidStatus:
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct BidStatusAuction<T: BidStatus> {
+pub struct BidStatusAuction {
     pub id:      AuctionId,
-    pub tx_hash: T::TxHash,
+    pub tx_hash: Signature,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -85,31 +76,31 @@ pub enum BidSubmissionFailedReason {
 pub enum BidStatusSvm {
     Pending,
     AwaitingSignature {
-        auction: BidStatusAuction<Self>,
+        auction: BidStatusAuction,
     },
     SentToUserForSubmission {
-        auction: BidStatusAuction<Self>,
+        auction: BidStatusAuction,
     },
     Submitted {
-        auction: BidStatusAuction<Self>,
+        auction: BidStatusAuction,
     },
     Lost {
-        auction: Option<BidStatusAuction<Self>>,
+        auction: Option<BidStatusAuction>,
     },
     Won {
-        auction: BidStatusAuction<Self>,
+        auction: BidStatusAuction,
     },
     Failed {
-        auction: BidStatusAuction<Self>,
+        auction: BidStatusAuction,
     },
     Expired {
-        auction: BidStatusAuction<Self>,
+        auction: BidStatusAuction,
     },
     Cancelled {
-        auction: BidStatusAuction<Self>,
+        auction: BidStatusAuction,
     },
     SubmissionFailed {
-        auction: BidStatusAuction<Self>,
+        auction: BidStatusAuction,
         reason:  BidSubmissionFailedReason,
     },
 }
@@ -170,24 +161,15 @@ impl BidStatus for BidStatusSvm {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Bid<T: ChainTrait> {
+pub struct Bid {
     pub id:              BidId,
     pub chain_id:        ChainId,
     pub initiation_time: OffsetDateTime,
     pub profile_id:      Option<ProfileId>,
 
-    pub amount:     T::BidAmountType,
-    pub status:     T::BidStatusType,
-    pub chain_data: T::BidChainDataType,
-}
-
-pub type PermissionKey<T> = <<T as ChainTrait>::BidChainDataType as BidChainData>::PermissionKey;
-pub type TxHash<T> = <<T as ChainTrait>::BidStatusType as BidStatus>::TxHash;
-
-pub trait BidChainData: Send + Sync + Clone + Debug + PartialEq {
-    type PermissionKey: Send + Sync + Debug + Hash + Eq + Clone + Display;
-
-    fn get_permission_key(&self) -> Self::PermissionKey;
+    pub amount:     BidAmountSvm,
+    pub status:     BidStatusSvm,
+    pub chain_data: BidChainDataSvm,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -198,31 +180,13 @@ pub struct BidChainDataSvm {
     pub permission_account:           Pubkey,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct BidChainDataEvm {
-    pub target_contract: Address,
-    pub target_calldata: Bytes,
-    pub gas_limit:       U256,
-    pub permission_key:  Bytes,
-}
-
-impl BidChainData for BidChainDataSvm {
-    type PermissionKey = PermissionKeySvm;
-
-    fn get_permission_key(&self) -> Self::PermissionKey {
+impl BidChainDataSvm {
+    pub fn get_permission_key(&self) -> PermissionKeySvm {
         let mut permission_key = [0; 65];
         permission_key[0] = self.bid_payment_instruction_type.clone().into();
         permission_key[1..33].copy_from_slice(&self.router.to_bytes());
         permission_key[33..].copy_from_slice(&self.permission_account.to_bytes());
         PermissionKeySvm(permission_key)
-    }
-}
-
-impl BidChainData for BidChainDataEvm {
-    type PermissionKey = PermissionKeyEvm;
-
-    fn get_permission_key(&self) -> Self::PermissionKey {
-        self.permission_key.clone()
     }
 }
 
@@ -264,12 +228,12 @@ impl BidChainDataSvm {
 }
 
 #[derive(Clone, Debug)]
-pub struct BidCreate<T: ChainTrait> {
+pub struct BidCreate {
     pub chain_id:        ChainId,
     pub initiation_time: OffsetDateTime,
     pub profile:         Option<models::Profile>,
 
-    pub chain_data: T::BidChainDataCreateType,
+    pub chain_data: BidChainDataCreateSvm,
 }
 
 #[derive(Clone, Debug)]
@@ -302,15 +266,15 @@ impl BidChainDataCreateSvm {
 
 pub type BidAmountSvm = u64;
 
-impl PartialEq<Bid<Svm>> for BidCreate<Svm> {
-    fn eq(&self, other: &Bid<Svm>) -> bool {
+impl PartialEq<Bid> for BidCreate {
+    fn eq(&self, other: &Bid) -> bool {
         *self.chain_data.get_transaction() == other.chain_data.transaction
             && self.chain_id == other.chain_id
     }
 }
 
-pub struct BidContainerTracing<'a, T: ChainTrait>(pub &'a [Bid<T>]);
-impl<T: ChainTrait> Display for BidContainerTracing<'_, T> {
+pub struct BidContainerTracing<'a>(pub &'a [Bid]);
+impl Display for BidContainerTracing<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,

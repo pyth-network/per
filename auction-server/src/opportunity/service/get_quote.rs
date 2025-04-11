@@ -26,10 +26,7 @@ use {
                 },
             },
         },
-        kernel::entities::{
-            PermissionKeySvm,
-            Svm,
-        },
+        kernel::entities::PermissionKeySvm,
         opportunity::{
             entities::{
                 self,
@@ -508,8 +505,8 @@ impl Service<ChainTypeSvm> {
                 tracing::error!("Failed to verify swap instruction: {:?}", e);
                 RestError::TemporarilyUnavailable
             })?;
-        let swap_data = auction::service::Service::<Svm>::extract_swap_data(&swap_instruction)
-            .map_err(|e| {
+        let swap_data =
+            auction::service::Service::extract_swap_data(&swap_instruction).map_err(|e| {
                 tracing::error!("Failed to extract swap data: {:?}", e);
                 RestError::TemporarilyUnavailable
             })?;
@@ -544,7 +541,7 @@ impl Service<ChainTypeSvm> {
                     async move {
                         auction_service
                             .update_bid_status(UpdateBidStatusInput {
-                                new_status: auction::service::Service::<Svm>::get_new_status(
+                                new_status: auction::service::Service::get_new_status(
                                     &bid,
                                     &[winner_bid],
                                     BidStatusAuction {
@@ -697,10 +694,7 @@ mod tests {
                     StatefulMockAuctionService,
                 },
             },
-            kernel::{
-                entities::Svm,
-                traced_sender_svm::tests::MockRpcClient,
-            },
+            kernel::traced_sender_svm::tests::MockRpcClient,
             opportunity::{
                 entities::{
                     QuoteCreate,
@@ -739,14 +733,14 @@ mod tests {
         signature: Option<Vec<Signature>>,
     }
 
-    fn make_test_bid(params: BidParams) -> auction::entities::Bid<Svm> {
+    fn make_test_bid(params: BidParams) -> auction::entities::Bid {
         let BidParams {
             id,
             signature,
             amount,
         } = params;
 
-        auction::entities::Bid::<Svm> {
+        auction::entities::Bid {
             id:              id.unwrap_or(Uuid::from_u128(1)),
             chain_id:        DEFAULT_CHAIN_ID.to_string(),
             initiation_time: OffsetDateTime::from_unix_timestamp(1200).unwrap(),
@@ -774,8 +768,8 @@ mod tests {
 
     fn setup_mock_auction_service(
         params: AuctionServiceSequenceParams,
-    ) -> StatefulMockAuctionService<Svm> {
-        let mut auction_service = StatefulMockAuctionService::<Svm>::default();
+    ) -> StatefulMockAuctionService {
+        let mut auction_service = StatefulMockAuctionService::default();
         let AuctionServiceSequenceParams {
             bids,
             swap_args,
@@ -868,7 +862,7 @@ mod tests {
 
     struct QuoteSequence {
         service:         Service<ChainTypeSvm>,
-        auction_service: StatefulMockAuctionService<Svm>,
+        auction_service: StatefulMockAuctionService,
 
         token_program_user:     Pubkey,
         token_program_searcher: Pubkey,
@@ -914,9 +908,9 @@ mod tests {
 
     fn inject_auction_service(
         service: &Service<ChainTypeSvm>,
-        auction_service_in_call: StatefulMockAuctionService<Svm>,
+        auction_service_in_call: StatefulMockAuctionService,
     ) {
-        let auction_service = MockAuctionService::<Svm>::new(auction_service_in_call);
+        let auction_service = MockAuctionService::new(auction_service_in_call);
 
         let config = service
             .get_config(&(DEFAULT_CHAIN_ID.to_string()))

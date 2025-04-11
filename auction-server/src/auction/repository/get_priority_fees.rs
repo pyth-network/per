@@ -3,11 +3,10 @@ use {
         PrioritizationFeeSample,
         Repository,
     },
-    crate::kernel::entities::Svm,
     time::OffsetDateTime,
 };
 
-impl Repository<Svm> {
+impl Repository {
     pub async fn get_priority_fees(&self, after: OffsetDateTime) -> Vec<PrioritizationFeeSample> {
         self.in_memory_store
             .chain_store
