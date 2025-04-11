@@ -12,17 +12,14 @@ use {
             ConfigEvm,
             ConfigSvm,
         },
-        kernel::traced_client::TracedClient,
         models,
         opportunity::service as opportunity_service,
     },
-    anyhow::anyhow,
     axum_prometheus::metrics_exporter_prometheus::PrometheusHandle,
     base64::{
         engine::general_purpose::URL_SAFE_NO_PAD,
         Engine,
     },
-    ethers::providers::Provider,
     mockall_double::double,
     rand::Rng,
     solana_client::rpc_response::{
@@ -32,7 +29,6 @@ use {
     std::{
         collections::HashMap,
         sync::Arc,
-        time::Duration,
     },
     tokio::sync::{
         broadcast::{
@@ -55,32 +51,6 @@ pub type GetOrCreate<T> = (T, bool);
 pub struct ChainStoreEvm {}
 
 impl ChainStoreEvm {
-    pub fn get_chain_provider(
-        chain_id: &String,
-        chain_config: &ConfigEvm,
-    ) -> anyhow::Result<Provider<TracedClient>> {
-        let mut provider = TracedClient::new(
-            chain_id.clone(),
-            &chain_config.geth_rpc_addr,
-            chain_config.rpc_timeout,
-        )
-        .map_err(|err| {
-            tracing::error!(
-                "Failed to create provider for chain({chain_id}) at {rpc_addr}: {:?}",
-                err,
-                chain_id = chain_id,
-                rpc_addr = chain_config.geth_rpc_addr
-            );
-            anyhow!(
-                "Failed to connect to chain({chain_id}) at {rpc_addr}: {:?}",
-                err,
-                chain_id = chain_id,
-                rpc_addr = chain_config.geth_rpc_addr
-            )
-        })?;
-        provider.set_interval(Duration::from_secs(chain_config.poll_interval));
-        Ok(provider)
-    }
     pub async fn create_store(_chain_id: String, _config: ConfigEvm) -> anyhow::Result<Self> {
         Ok(Self {})
     }

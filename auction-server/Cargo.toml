@@ -41,7 +41,6 @@ tracing-opentelemetry = "0.24.0"
 opentelemetry = "0.23.0"
 opentelemetry_sdk = { version = "0.23.0", features = ["rt-tokio"] }
 opentelemetry-otlp = { version = "0.16.0" }
-gas-oracle = { path = "../gas-oracle" }
 serde_path_to_error = "0.1.16"
 solana-sdk = { workspace = true }
 solana-client = { workspace = true }
