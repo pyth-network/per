@@ -192,6 +192,7 @@ async fn websocket_handler(
 }
 
 #[derive(Clone, PartialEq, Debug)]
+#[allow(clippy::large_enum_variant)]
 pub enum UpdateEvent {
     NewOpportunity(Opportunity),
     BidStatusUpdate(BidStatusWithId),
@@ -597,10 +598,6 @@ impl Subscriber {
                     tracing::Span::current().record("name", "post_bid");
                     self.handle_post_bid(id, bid).await
                 }
-                ClientMessage::PostOpportunityBid {
-                    opportunity_bid: _,
-                    opportunity_id: _,
-                } => (),
                 ClientMessage::CancelBid { data } => {
                     tracing::Span::current().record("name", "cancel_bid");
                     self.handle_cancel_bid(id, data).await

@@ -4,15 +4,8 @@ use {
         profile::ProfileId,
         AccessLevel,
         ChainId,
-        PermissionKeyEvm,
         PermissionKeySvm,
         Routable,
-    },
-    ethers::types::{
-        Address,
-        Bytes,
-        H256,
-        U256,
     },
     serde::{
         Deserialize,
@@ -39,45 +32,6 @@ use {
 
 pub type BidId = Uuid;
 pub type BidAmountSvm = u64;
-pub type BidAmountEvm = U256;
-
-#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum BidStatusEvm {
-    /// The temporary state which means the auction for this bid is pending.
-    /// It will be updated to Lost or Submitted after the auction takes place.
-    #[schema(title = "Pending")]
-    Pending,
-    /// The bid is submitted to the chain, which is placed at the given index of the transaction with the given hash.
-    /// This state is temporary and will be updated to either lost or won after conclusion of the auction.
-    #[schema(title = "Submitted")]
-    Submitted {
-        #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = String)]
-        result: H256,
-        #[schema(example = 1, value_type = u32)]
-        index:  u32,
-    },
-    /// The bid lost the auction, which is concluded with the transaction with the given hash and index.
-    /// The result will be None if the auction was concluded off-chain and no auction was submitted to the chain.
-    /// The index will be None if the bid was not submitted to the chain and lost the auction by off-chain calculation.
-    /// There are cases where the result is not None and the index is None.
-    /// It is because other bids were selected for submission to the chain, but not this one.
-    #[schema(title = "Lost")]
-    Lost {
-        #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = Option<String>)]
-        result: Option<H256>,
-        #[schema(example = 1, value_type = Option<u32>)]
-        index:  Option<u32>,
-    },
-    /// The bid won the auction, which is concluded with the transaction with the given hash and index.
-    #[schema(title = "Won")]
-    Won {
-        #[schema(example = "0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3", value_type = String)]
-        result: H256,
-        #[schema(example = 1, value_type = u32)]
-        index:  u32,
-    },
-}
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 #[serde(rename_all = "snake_case")]
@@ -174,7 +128,6 @@ pub enum BidStatusSvm {
 #[serde(untagged)]
 pub enum BidStatus {
     Svm(BidStatusSvm),
-    Evm(BidStatusEvm),
 }
 
 #[derive(Serialize, Deserialize, ToResponse, ToSchema, Clone, Debug)]
@@ -225,73 +178,24 @@ pub struct BidSvm {
 }
 
 #[derive(Clone, Debug, ToSchema, Serialize, Deserialize)]
-pub struct BidEvm {
-    #[serde(flatten)]
-    #[schema(inline)]
-    pub core_fields:     BidCoreFields,
-    /// The latest status for bid.
-    pub status:          BidStatusEvm,
-    /// The contract address to call.
-    #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type = String)]
-    pub target_contract: Address,
-    /// Calldata for the contract call.
-    #[schema(example = "0xdeadbeef", value_type = String)]
-    pub target_calldata: Bytes,
-    /// The gas limit for the contract call.
-    #[schema(example = "2000000", value_type = String)]
-    #[serde(with = "crate::serde::u256")]
-    pub gas_limit:       U256,
-    /// Amount of bid in wei.
-    #[schema(example = "10", value_type = String)]
-    #[serde(with = "crate::serde::u256")]
-    pub bid_amount:      BidAmountEvm,
-    /// The permission key for bid.
-    #[schema(example = "0xdeadbeef", value_type = String)]
-    pub permission_key:  PermissionKeyEvm,
-}
-
-#[derive(Clone, Debug, ToSchema, Serialize, Deserialize)]
 #[serde(untagged)]
 #[allow(clippy::large_enum_variant)]
 pub enum Bid {
-    Evm(BidEvm),
     Svm(BidSvm),
 }
 
 impl Bid {
     pub fn get_initiation_time(&self) -> OffsetDateTime {
         match self {
-            Bid::Evm(bid) => bid.core_fields.initiation_time,
             Bid::Svm(bid) => bid.core_fields.initiation_time,
         }
     }
 
     pub fn get_status(&self) -> BidStatus {
         match self {
-            Bid::Evm(bid) => BidStatus::Evm(bid.status.clone()),
             Bid::Svm(bid) => BidStatus::Svm(bid.status.clone()),
         }
     }
-}
-
-#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
-pub struct BidCreateEvm {
-    /// The permission key to bid on.
-    #[schema(example = "0xdeadbeef", value_type = String)]
-    pub permission_key:  PermissionKeyEvm,
-    /// The chain id to bid on.
-    #[schema(example = "op_sepolia", value_type = String)]
-    pub chain_id:        ChainId,
-    /// The contract address to call.
-    #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type = String)]
-    pub target_contract: Address,
-    /// Calldata for the contract call.
-    #[schema(example = "0xdeadbeef", value_type = String)]
-    pub target_calldata: Bytes,
-    /// Amount of bid in wei.
-    #[schema(example = "10", value_type = String)]
-    #[serde(with = "crate::serde::u256")]
-    pub amount:          BidAmountEvm,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
@@ -314,6 +218,7 @@ pub struct BidCreateOnChainSvm {
 pub enum BidCreateSwapSvmTag {
     Swap,
 }
+
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub struct BidCreateSwapSvm {
     /// The chain id to bid on.
@@ -342,7 +247,6 @@ pub enum BidCreateSvm {
 #[derive(Serialize, Deserialize, ToSchema, Debug, Clone)]
 #[serde(untagged)] // Remove tags to avoid key-value wrapping
 pub enum BidCreate {
-    Evm(BidCreateEvm),
     Svm(BidCreateSvm),
 }
 
@@ -377,7 +281,6 @@ pub struct GetBidsByTimeQueryParams {
 impl BidCreate {
     pub fn get_chain_id(&self) -> ChainId {
         match self {
-            BidCreate::Evm(bid_create_evm) => bid_create_evm.chain_id.clone(),
             BidCreate::Svm(BidCreateSvm::Swap(bid_create_svm)) => bid_create_svm.chain_id.clone(),
             BidCreate::Svm(BidCreateSvm::OnChain(bid_create_svm)) => {
                 bid_create_svm.chain_id.clone()

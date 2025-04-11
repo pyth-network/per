@@ -51,7 +51,6 @@ use {
             BidId,
             BidResult,
             BidStatus,
-            BidStatusEvm,
             BidStatusSvm,
             BidSvm,
             Bids,
@@ -325,26 +324,6 @@ pub fn get_routes(store: Arc<StoreNew>) -> Router<Arc<StoreNew>> {
         .router
 }
 
-impl From<entities::BidStatusEvm> for BidStatusEvm {
-    fn from(status: entities::BidStatusEvm) -> Self {
-        match status {
-            entities::BidStatusEvm::Pending => BidStatusEvm::Pending,
-            entities::BidStatusEvm::Submitted { auction, index } => BidStatusEvm::Submitted {
-                result: auction.tx_hash,
-                index,
-            },
-            entities::BidStatusEvm::Lost { auction, index } => BidStatusEvm::Lost {
-                result: auction.map(|a| a.tx_hash),
-                index,
-            },
-            entities::BidStatusEvm::Won { auction, index } => BidStatusEvm::Won {
-                result: auction.tx_hash,
-                index,
-            },
-        }
-    }
-}
-
 impl From<entities::BidStatusSvm> for BidStatusSvm {
     fn from(status: entities::BidStatusSvm) -> Self {
         match status {
@@ -417,12 +396,6 @@ impl From<entities::Bid<Svm>> for Bid {
     }
 }
 
-impl From<entities::BidStatusEvm> for BidStatus {
-    fn from(bid: entities::BidStatusEvm) -> Self {
-        BidStatus::Evm(bid.into())
-    }
-}
-
 impl From<entities::BidStatusSvm> for BidStatus {
     fn from(bid: entities::BidStatusSvm) -> Self {
         BidStatus::Svm(bid.into())
@@ -492,26 +465,25 @@ impl ApiTrait<Svm> for Svm {
                     chain_id: bid_create_svm.chain_id.clone(),
                     profile,
                     initiation_time: OffsetDateTime::now_utc(),
-                    chain_data: entities::BidChainDataCreateSvm::OnChain(entities::BidChainDataOnChainCreateSvm {
-                        transaction: bid_create_svm.transaction.clone(),
-                        slot: bid_create_svm.slot,
-                    }),
-                })
-            },
-            BidCreate::Svm(BidCreateSvm::Swap(bid_create_svm)) => {
-                Ok(entities::BidCreate::<Svm> {
-                    chain_id: bid_create_svm.chain_id.clone(),
-                    profile,
-                    initiation_time: OffsetDateTime::now_utc(),
-                    chain_data: entities::BidChainDataCreateSvm::Swap(entities::BidChainDataSwapCreateSvm {
-                        transaction: bid_create_svm.transaction.clone(),
-                        opportunity_id: bid_create_svm.opportunity_id,
-                    }),
+                    chain_data: entities::BidChainDataCreateSvm::OnChain(
+                        entities::BidChainDataOnChainCreateSvm {
+                            transaction: bid_create_svm.transaction.clone(),
+                            slot:        bid_create_svm.slot,
+                        },
+                    ),
                 })
             }
-            _ => Err(RestError::BadParameters(
-                "Expected SVM chain_id. Ensure that the bid type matches the expected chain for the specified chain_id.".to_string()
-            )),
+            BidCreate::Svm(BidCreateSvm::Swap(bid_create_svm)) => Ok(entities::BidCreate::<Svm> {
+                chain_id: bid_create_svm.chain_id.clone(),
+                profile,
+                initiation_time: OffsetDateTime::now_utc(),
+                chain_data: entities::BidChainDataCreateSvm::Swap(
+                    entities::BidChainDataSwapCreateSvm {
+                        transaction:    bid_create_svm.transaction.clone(),
+                        opportunity_id: bid_create_svm.opportunity_id,
+                    },
+                ),
+            }),
         }
     }
 }

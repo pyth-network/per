@@ -13,7 +13,6 @@ use {
                 BidStatusSvm,
             },
             opportunity::{
-                self,
                 GetOpportunitiesQueryParams,
                 Opportunity,
                 OpportunityMode,
@@ -116,9 +115,6 @@ impl SimpleSearcher {
         // Assess the opportunity to see if it is worth bidding
         // For the sake of this example, we will always bid
         let private_key = match opportunity {
-            Opportunity::Evm(_) => {
-                unimplemented!()
-            }
             Opportunity::Svm(_) => {
                 println!("SVM opportunity Received");
                 self.private_key_svm.clone()
@@ -139,10 +135,7 @@ impl SimpleSearcher {
 
     async fn submit_bid(&self, opportunity: Opportunity, private_key: String) -> Result<()> {
         let bid = match opportunity.clone() {
-            opportunity::Opportunity::Evm(_) => {
-                unimplemented!()
-            }
-            opportunity::Opportunity::Svm(opportunity) => {
+            Opportunity::Svm(opportunity) => {
                 let svm_update = self
                     .svm_update_map
                     .get(opportunity.get_chain_id())

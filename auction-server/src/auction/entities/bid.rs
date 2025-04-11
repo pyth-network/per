@@ -17,7 +17,6 @@ use {
     ethers::types::{
         Address,
         Bytes,
-        H256,
         U256,
     },
     express_relay_api_types::bid as api,
@@ -115,23 +114,6 @@ pub enum BidStatusSvm {
     },
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum BidStatusEvm {
-    Pending,
-    Submitted {
-        auction: BidStatusAuction<Self>,
-        index:   u32,
-    },
-    Lost {
-        auction: Option<BidStatusAuction<Self>>,
-        index:   Option<u32>,
-    },
-    Won {
-        auction: BidStatusAuction<Self>,
-        index:   u32,
-    },
-}
-
 impl BidStatus for BidStatusSvm {
     type TxHash = Signature;
 
@@ -183,50 +165,6 @@ impl BidStatus for BidStatusSvm {
             BidStatusSvm::Expired { auction } => Some(auction.id),
             BidStatusSvm::Cancelled { auction } => Some(auction.id),
             BidStatusSvm::SubmissionFailed { auction, .. } => Some(auction.id),
-        }
-    }
-}
-
-impl BidStatus for BidStatusEvm {
-    type TxHash = H256;
-
-    fn is_pending(&self) -> bool {
-        matches!(self, BidStatusEvm::Pending)
-    }
-
-    fn is_awaiting_signature(&self) -> bool {
-        false
-    }
-
-    fn is_sent_to_user_for_submission(&self) -> bool {
-        false
-    }
-
-    fn is_submitted(&self) -> bool {
-        matches!(self, BidStatusEvm::Submitted { .. })
-    }
-
-    fn is_cancelled(&self) -> bool {
-        false
-    }
-
-    fn is_concluded(&self) -> bool {
-        matches!(self, BidStatusEvm::Lost { .. } | BidStatusEvm::Won { .. })
-    }
-
-    fn new_lost() -> Self {
-        BidStatusEvm::Lost {
-            auction: None,
-            index:   None,
-        }
-    }
-
-    fn get_auction_id(&self) -> Option<AuctionId> {
-        match self {
-            BidStatusEvm::Pending => None,
-            BidStatusEvm::Submitted { auction, .. } => Some(auction.id),
-            BidStatusEvm::Lost { auction, .. } => auction.as_ref().map(|a| a.id),
-            BidStatusEvm::Won { auction, .. } => Some(auction.id),
         }
     }
 }
