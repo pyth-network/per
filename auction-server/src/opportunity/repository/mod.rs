@@ -1,7 +1,6 @@
 use {
     super::entities,
     axum_prometheus::metrics,
-    ethers::types::Address,
     express_relay::state::ExpressRelayMetadata,
     solana_sdk::pubkey::Pubkey,
     std::{
@@ -12,13 +11,11 @@ use {
 };
 
 mod add_opportunity;
-mod add_spoof_info;
 mod get_express_relay_metadata;
 mod get_in_memory_opportunities;
 mod get_in_memory_opportunities_by_key;
 mod get_in_memory_opportunity_by_id;
 mod get_opportunities;
-mod get_spoof_info;
 mod get_token_program;
 mod models;
 mod refresh_in_memory_opportunity;
@@ -57,7 +54,6 @@ impl<T: entities::Opportunity> InMemoryStoreCoreFields<T> {
 
 pub struct InMemoryStoreEvm {
     pub core_fields: InMemoryStoreCoreFields<entities::OpportunityEvm>,
-    pub spoof_info:  RwLock<HashMap<Address, entities::SpoofState>>,
 }
 pub struct InMemoryStoreSvm {
     pub core_fields:            InMemoryStoreCoreFields<entities::OpportunitySvm>,
@@ -71,7 +67,6 @@ impl InMemoryStore for InMemoryStoreEvm {
     fn new() -> Self {
         Self {
             core_fields: InMemoryStoreCoreFields::new(),
-            spoof_info:  RwLock::new(HashMap::new()),
         }
     }
 }

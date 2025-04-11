@@ -105,7 +105,6 @@ pub enum OpportunityRemovalReason {
 }
 
 pub enum OpportunityVerificationResult {
-    Success,
     UnableToSpoof,
 }
 

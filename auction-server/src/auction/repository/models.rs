@@ -13,7 +13,6 @@ use {
             db::DB,
             entities::{
                 ChainId,
-                Evm,
                 PermissionKeySvm,
                 Svm,
             },
@@ -24,15 +23,12 @@ use {
     ethers::types::{
         Address,
         Bytes,
-        H256,
-        U256,
     },
     serde::{
         de::DeserializeOwned,
         Deserialize,
         Serialize,
     },
-    serde_json::json,
     solana_sdk::{
         signature::Signature,
         transaction::VersionedTransaction,
@@ -52,7 +48,6 @@ use {
         fmt::Debug,
         num::ParseIntError,
         ops::Deref,
-        str::FromStr,
     },
     time::{
         OffsetDateTime,
@@ -155,187 +150,6 @@ pub trait ModelTrait<T: ChainTrait> {
         bid: &entities::Bid<T>,
         new_status: T::BidStatusType,
     ) -> anyhow::Result<Query<'_, Postgres, PgArguments>>;
-}
-
-impl ModelTrait<Evm> for Evm {
-    type BidMetadataType = BidMetadataEvm;
-
-    fn get_chain_type() -> ChainType {
-        ChainType::Evm
-    }
-
-    fn get_bid_status_auction_entity(
-        auction: Option<Auction>,
-    ) -> anyhow::Result<Option<entities::BidStatusAuction<entities::BidStatusEvm>>> {
-        if let Some(auction) = auction {
-            if let Some(tx_hash) = auction.tx_hash {
-                let slice: [u8; 32] = tx_hash.try_into().map_err(|e| {
-                    anyhow::anyhow!("Failed to convert evm transaction hash to slice {:?}", e)
-                })?;
-                return Ok(Some(entities::BidStatusAuction {
-                    tx_hash: H256::from(slice),
-                    id:      auction.id,
-                }));
-            }
-        }
-        Ok(None)
-    }
-
-    fn get_bid_bundle_index(bid: &Bid<Evm>) -> Option<u32> {
-        bid.metadata.bundle_index.0
-    }
-
-    fn get_bid_amount_entity(bid: &Bid<Evm>) -> anyhow::Result<entities::BidAmountEvm> {
-        entities::BidAmountEvm::from_dec_str(bid.bid_amount.to_string().as_str())
-            .map_err(|e| anyhow::anyhow!(e))
-    }
-
-    fn get_bid_status_entity(
-        bid: &Bid<Evm>,
-        auction: Option<Auction>,
-    ) -> anyhow::Result<entities::BidStatusEvm> {
-        let bid_status_auction = Self::get_bid_status_auction_entity(auction)?;
-        let index = Self::get_bid_bundle_index(bid);
-        match bid.status {
-            BidStatus::Pending => Ok(entities::BidStatusEvm::Pending),
-            BidStatus::AwaitingSignature => {
-                Err(anyhow::anyhow!("Evm bid cannot be awaiting signature"))
-            }
-            BidStatus::SentToUserForSubmission => Err(anyhow::anyhow!(
-                "Evm bid cannot be sent to user for submission"
-            )),
-            BidStatus::Submitted => {
-                if bid_status_auction.is_none() || index.is_none() {
-                    return Err(anyhow::anyhow!(
-                        "Submitted bid should have a tx_hash, auction_id and index"
-                    ));
-                }
-                Ok(entities::BidStatusEvm::Submitted {
-                    auction: bid_status_auction
-                        .expect("Failed to extract bid_status_auction from 'Some' value"),
-                    index:   index.expect("Failed to extract index from 'Some' value"),
-                })
-            }
-            BidStatus::Won => {
-                if bid_status_auction.is_none() || index.is_none() {
-                    return Err(anyhow::anyhow!(
-                        "Won bid should have a tx_hash, auction_id and index"
-                    ));
-                }
-                Ok(entities::BidStatusEvm::Won {
-                    auction: bid_status_auction
-                        .expect("Failed to extract bid_status_auction from 'Some' value"),
-                    index:   index.expect("Failed to extract index from 'Some' value"),
-                })
-            }
-            BidStatus::Lost => Ok(entities::BidStatusEvm::Lost {
-                auction: bid_status_auction,
-                index,
-            }),
-            BidStatus::Failed => Err(anyhow::anyhow!("Evm bid cannot be failed")),
-            BidStatus::Expired => Err(anyhow::anyhow!("Evm bid cannot be expired")),
-            BidStatus::Cancelled => Err(anyhow::anyhow!("Evm bid cannot be cancelled")),
-            BidStatus::SubmissionFailedCancelled => Err(anyhow::anyhow!(
-                "Evm bid cannot be submission failed cancelled"
-            )),
-            BidStatus::SubmissionFailedDeadlinePassed => Err(anyhow::anyhow!(
-                "Evm bid cannot be submission failed deadline passed"
-            )),
-        }
-    }
-    fn convert_bid_status(status: &entities::BidStatusEvm) -> BidStatus {
-        match status {
-            entities::BidStatusEvm::Pending => BidStatus::Pending,
-            entities::BidStatusEvm::Submitted { .. } => BidStatus::Submitted,
-            entities::BidStatusEvm::Lost { .. } => BidStatus::Lost,
-            entities::BidStatusEvm::Won { .. } => BidStatus::Won,
-        }
-    }
-
-    fn get_chain_data_entity(
-        bid: &Bid<Evm>,
-    ) -> anyhow::Result<<Evm as ChainTrait>::BidChainDataType> {
-        Ok(entities::BidChainDataEvm {
-            target_contract: bid.metadata.target_contract,
-            target_calldata: bid.metadata.target_calldata.clone(),
-            gas_limit:       U256::from(bid.metadata.gas_limit),
-            permission_key:  Bytes::from(bid.permission_key.clone()),
-        })
-    }
-
-    fn convert_permission_key(permission_key: &entities::PermissionKey<Evm>) -> Vec<u8> {
-        permission_key.to_vec()
-    }
-
-    fn convert_amount(amount: &entities::BidAmountEvm) -> BigDecimal {
-        BigDecimal::from_str(&amount.to_string()).expect("Failed to convert amount to BigDecimal")
-    }
-
-    fn get_metadata(chain_data: &entities::BidChainDataEvm) -> Self::BidMetadataType {
-        BidMetadataEvm {
-            target_contract: chain_data.target_contract,
-            target_calldata: chain_data.target_calldata.clone(),
-            bundle_index:    BundleIndex(None),
-            gas_limit:       chain_data.gas_limit.as_u64(),
-        }
-    }
-
-    fn get_update_bid_query(
-        bid: &entities::Bid<Evm>,
-        new_status: <Evm as ChainTrait>::BidStatusType,
-    ) -> anyhow::Result<Query<'_, Postgres, PgArguments>> {
-        match new_status {
-            entities::BidStatusEvm::Pending => Err(anyhow::anyhow!("Cannot update bid status to pending")),
-            entities::BidStatusEvm::Submitted { index, auction } => {
-                Ok(sqlx::query!(
-                    "UPDATE bid SET status = $1, auction_id = $2, metadata = jsonb_set(metadata, '{bundle_index}', $3) WHERE id = $4 AND status = $5",
-                    BidStatus::Submitted as _,
-                    auction.id,
-                    json!(index),
-                    bid.id,
-                    BidStatus::Pending as _,
-                ))
-            }
-            entities::BidStatusEvm::Lost { index, auction } => {
-                match auction {
-                    Some(auction) => {
-                        match index {
-                            Some(index) => {
-                                Ok(sqlx::query!(
-                                    "UPDATE bid SET status = $1, metadata = jsonb_set(metadata, '{bundle_index}', $2), auction_id = $3 WHERE id = $4 AND status = $5",
-                                    BidStatus::Lost as _,
-                                    json!(index),
-                                    auction.id,
-                                    bid.id,
-                                    BidStatus::Submitted as _
-                                ))
-                            },
-                            None => Ok(sqlx::query!(
-                                "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND status = $4",
-                                BidStatus::Lost as _,
-                                auction.id,
-                                bid.id,
-                                BidStatus::Pending as _,
-                            )),
-                        }
-                    },
-                    None => Ok(sqlx::query!(
-                        "UPDATE bid SET status = $1 WHERE id = $2 AND status = $3",
-                        BidStatus::Lost as _,
-                        bid.id,
-                        BidStatus::Pending as _
-                    )),
-                }
-            },
-            entities::BidStatusEvm::Won { index, .. } => Ok(sqlx::query!(
-                "UPDATE bid SET status = $1, metadata = jsonb_set(metadata, '{bundle_index}', $2) WHERE id = $3 AND status = $4",
-                BidStatus::Won as _,
-                json!(index),
-                bid.id,
-                BidStatus::Submitted as _,
-            )),
-        }
-    }
 }
 
 impl ModelTrait<Svm> for Svm {

@@ -59,7 +59,6 @@ where
                             None
                         }
                     }
-                    _ => None,
                 };
 
                 if let Some(reason) = reason {

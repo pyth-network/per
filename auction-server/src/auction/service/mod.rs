@@ -19,7 +19,6 @@ use {
             db::DB,
             entities::{
                 ChainId,
-                Evm,
                 Svm,
             },
             traced_client::TracedClient,
@@ -27,7 +26,6 @@ use {
         opportunity::service as opportunity_service,
     },
     ethers::{
-        core::k256::ecdsa::SigningKey,
         middleware::{
             gas_oracle::GasOracleMiddleware,
             NonceManagerMiddleware,
@@ -38,12 +36,8 @@ use {
         signers::{
             LocalWallet,
             Signer,
-            Wallet,
         },
-        types::{
-            Address,
-            U256,
-        },
+        types::Address,
     },
     gas_oracle::EthProviderOracle,
     mockall_double::double,
@@ -122,21 +116,6 @@ pub struct ConfigSvm {
     pub prioritization_fee_percentile: Option<u64>,
 }
 
-pub struct ExpressRelayEvm {
-    pub contract_address: Address,
-    pub relayer:          Wallet<SigningKey>,
-    pub contract:         SignableExpressRelayContract,
-}
-
-type GasOracleType = EthProviderOracle<Provider<TracedClient>>;
-pub struct ConfigEvm {
-    pub express_relay:   ExpressRelayEvm,
-    pub provider:        Provider<TracedClient>,
-    pub block_gas_limit: U256,
-    pub oracle:          GasOracleType,
-    pub ws_address:      String,
-}
-
 pub fn get_express_relay_contract(
     address: Address,
     provider: Provider<TracedClient>,
@@ -158,35 +137,6 @@ pub fn get_express_relay_contract(
     SignableExpressRelayContract::new(address, client)
 }
 
-impl ConfigEvm {
-    pub fn new(
-        relayer: Wallet<SigningKey>,
-        contract_address: Address,
-        provider: Provider<TracedClient>,
-        block_gas_limit: U256,
-        ws_address: String,
-        network_id: u64,
-    ) -> Self {
-        Self {
-            express_relay: ExpressRelayEvm {
-                contract_address,
-                contract: get_express_relay_contract(
-                    contract_address,
-                    provider.clone(),
-                    relayer.clone(),
-                    false,
-                    network_id,
-                ),
-                relayer,
-            },
-            block_gas_limit,
-            oracle: GasOracleType::new(provider.clone()),
-            provider,
-            ws_address,
-        }
-    }
-}
-
 pub struct Config<T> {
     pub chain_id: ChainId,
 
@@ -205,18 +155,6 @@ pub trait ChainTrait:
     type BidChainDataCreateType: Clone + Debug + Send + Sync;
 
     type ChainStore: Send + Sync + Default + Debug;
-}
-
-impl ChainTrait for Evm {
-    type ConfigType = ConfigEvm;
-    type OpportunityServiceType = opportunity_service::ChainTypeEvm;
-
-    type BidStatusType = entities::BidStatusEvm;
-    type BidChainDataType = entities::BidChainDataEvm;
-    type BidAmountType = entities::BidAmountEvm;
-    type BidChainDataCreateType = entities::BidChainDataCreateEvm;
-
-    type ChainStore = repository::ChainStoreEvm;
 }
 
 impl ChainTrait for Svm {

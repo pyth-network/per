@@ -2,15 +2,11 @@ use {
     super::AuctionId,
     crate::{
         auction::service::ChainTrait,
-        kernel::{
-            contracts::MulticallData,
-            entities::{
-                ChainId,
-                Evm,
-                PermissionKey as PermissionKeyEvm,
-                PermissionKeySvm,
-                Svm,
-            },
+        kernel::entities::{
+            ChainId,
+            PermissionKey as PermissionKeyEvm,
+            PermissionKeySvm,
+            Svm,
         },
         models::{
             self,
@@ -366,34 +362,12 @@ impl BidChainDataCreateSvm {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct BidChainDataCreateEvm {
-    pub target_contract: Address,
-    pub target_calldata: Bytes,
-    pub permission_key:  Bytes,
-    pub amount:          U256,
-}
-
 pub type BidAmountSvm = u64;
-pub type BidAmountEvm = U256;
 
 impl PartialEq<Bid<Svm>> for BidCreate<Svm> {
     fn eq(&self, other: &Bid<Svm>) -> bool {
         *self.chain_data.get_transaction() == other.chain_data.transaction
             && self.chain_id == other.chain_id
-    }
-}
-
-impl From<(Bid<Evm>, bool)> for MulticallData {
-    fn from((bid, revert_on_failure): (Bid<Evm>, bool)) -> Self {
-        MulticallData {
-            bid_id: bid.id.into_bytes(),
-            target_contract: bid.chain_data.target_contract,
-            target_calldata: bid.chain_data.target_calldata,
-            bid_amount: bid.amount,
-            gas_limit: bid.chain_data.gas_limit,
-            revert_on_failure,
-        }
     }
 }
 
