@@ -8,9 +8,7 @@ use {
         },
         opportunity::{
             Opportunity,
-            OpportunityBidEvm,
             OpportunityDelete,
-            OpportunityId,
         },
         ChainId,
         Routable,
@@ -41,13 +39,6 @@ pub enum ClientMessage {
     },
     #[serde(rename = "post_bid")]
     PostBid { bid: BidCreate },
-
-    #[serde(rename = "post_opportunity_bid")]
-    PostOpportunityBid {
-        #[schema(value_type = String)]
-        opportunity_id:  OpportunityId,
-        opportunity_bid: OpportunityBidEvm,
-    },
 
     #[serde(rename = "cancel_bid")]
     CancelBid { data: BidCancel },

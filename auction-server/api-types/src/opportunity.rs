@@ -6,11 +6,6 @@ use {
         PermissionKeyEvm,
         Routable,
     },
-    ethers::types::{
-        Address,
-        Signature,
-        U256,
-    },
     serde::{
         Deserialize,
         Serialize,
@@ -412,34 +407,6 @@ pub struct GetOpportunitiesQueryParams {
     #[param(example = "20", value_type = usize, maximum = 100)]
     #[serde(default = "default_limit")]
     pub limit:          usize,
-}
-
-#[derive(Serialize, Deserialize, ToSchema, Clone)]
-pub struct OpportunityBidEvm {
-    /// The opportunity permission key.
-    #[schema(example = "0xdeadbeefcafe", value_type=String)]
-    pub permission_key: PermissionKeyEvm,
-    /// The bid amount in wei.
-    #[schema(example = "1000000000000000000", value_type=String)]
-    #[serde(with = "crate::serde::u256")]
-    pub amount:         U256,
-    /// The latest unix timestamp in seconds until which the bid is valid.
-    #[schema(example = "1000000000000000000", value_type=String)]
-    #[serde(with = "crate::serde::u256")]
-    pub deadline:       U256,
-    /// The nonce of the bid permit signature.
-    #[schema(example = "123", value_type=String)]
-    #[serde(with = "crate::serde::u256")]
-    pub nonce:          U256,
-    /// The executor address.
-    #[schema(example = "0x5FbDB2315678afecb367f032d93F642f64180aa2", value_type=String)]
-    pub executor:       Address,
-    #[schema(
-        example = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12",
-        value_type=String
-    )]
-    #[serde(with = "crate::serde::signature")]
-    pub signature:      Signature,
 }
 
 /// Parameters needed to create a new opportunity from the swap request.

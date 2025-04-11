@@ -598,10 +598,6 @@ impl Subscriber {
                     tracing::Span::current().record("name", "post_bid");
                     self.handle_post_bid(id, bid).await
                 }
-                ClientMessage::PostOpportunityBid {
-                    opportunity_bid: _,
-                    opportunity_id: _,
-                } => (),
                 ClientMessage::CancelBid { data } => {
                     tracing::Span::current().record("name", "cancel_bid");
                     self.handle_cancel_bid(id, data).await

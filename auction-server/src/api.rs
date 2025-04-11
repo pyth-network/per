@@ -748,7 +748,6 @@ pub async fn start_api(
     api_types::bid::BidCancelSvm,
 
     api_types::opportunity::SpecifiedTokenAmount,
-    api_types::opportunity::OpportunityBidEvm,
     api_types::opportunity::OpportunityBidResult,
     api_types::opportunity::OpportunityMode,
     api_types::opportunity::OpportunityCreate,
