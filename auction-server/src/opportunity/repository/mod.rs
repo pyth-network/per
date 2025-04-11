@@ -52,23 +52,10 @@ impl<T: entities::Opportunity> InMemoryStoreCoreFields<T> {
     }
 }
 
-pub struct InMemoryStoreEvm {
-    pub core_fields: InMemoryStoreCoreFields<entities::OpportunityEvm>,
-}
 pub struct InMemoryStoreSvm {
     pub core_fields:            InMemoryStoreCoreFields<entities::OpportunitySvm>,
     pub token_program_cache:    RwLock<HashMap<Pubkey, Pubkey>>,
     pub express_relay_metadata: RwLock<Option<ExpressRelayMetadata>>,
-}
-
-impl InMemoryStore for InMemoryStoreEvm {
-    type Opportunity = entities::OpportunityEvm;
-
-    fn new() -> Self {
-        Self {
-            core_fields: InMemoryStoreCoreFields::new(),
-        }
-    }
 }
 
 impl InMemoryStore for InMemoryStoreSvm {
@@ -80,14 +67,6 @@ impl InMemoryStore for InMemoryStoreSvm {
             token_program_cache:    RwLock::new(HashMap::new()),
             express_relay_metadata: RwLock::new(None),
         }
-    }
-}
-
-impl Deref for InMemoryStoreEvm {
-    type Target = InMemoryStoreCoreFields<entities::OpportunityEvm>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.core_fields
     }
 }
 

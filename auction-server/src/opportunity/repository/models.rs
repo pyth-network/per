@@ -23,11 +23,6 @@ use {
         },
     },
     axum::async_trait,
-    ethers::types::{
-        Address,
-        Bytes,
-        U256,
-    },
     serde::{
         de::DeserializeOwned,
         Deserialize,
@@ -64,14 +59,6 @@ use {
 pub enum OpportunityRemovalReason {
     Expired,
     Invalid,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct OpportunityMetadataEvm {
-    pub target_contract:   Address,
-    #[serde(with = "express_relay_api_types::serde::u256")]
-    pub target_call_value: U256,
-    pub target_calldata:   Bytes,
 }
 
 #[serde_as]
@@ -138,12 +125,6 @@ pub trait OpportunityMetadata:
     Debug + Clone + Serialize + DeserializeOwned + Send + Sync + Unpin + 'static
 {
     fn get_chain_type() -> ChainType;
-}
-
-impl OpportunityMetadata for OpportunityMetadataEvm {
-    fn get_chain_type() -> ChainType {
-        ChainType::Evm
-    }
 }
 
 impl OpportunityMetadata for OpportunityMetadataSvm {
