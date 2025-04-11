@@ -10,7 +10,7 @@ use {
     std::collections::hash_map::Entry,
 };
 
-impl<T: ChainTrait> Repository<T> {
+impl<T: ChainTrait> Repository {
     // Remove a bid from the in memory pending bids if it exists
     pub async fn remove_in_memory_pending_bids(&self, bids: &[entities::Bid<T>]) {
         let mut write_guard = self.in_memory_store.pending_bids.write().await;

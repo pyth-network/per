@@ -69,9 +69,9 @@ pub trait BidStatus:
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct BidStatusAuction<T: BidStatus> {
+pub struct BidStatusAuction {
     pub id:      AuctionId,
-    pub tx_hash: T::TxHash,
+    pub tx_hash: Signature,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -84,31 +84,31 @@ pub enum BidSubmissionFailedReason {
 pub enum BidStatusSvm {
     Pending,
     AwaitingSignature {
-        auction: BidStatusAuction<Self>,
+        auction: BidStatusAuction,
     },
     SentToUserForSubmission {
-        auction: BidStatusAuction<Self>,
+        auction: BidStatusAuction,
     },
     Submitted {
-        auction: BidStatusAuction<Self>,
+        auction: BidStatusAuction,
     },
     Lost {
-        auction: Option<BidStatusAuction<Self>>,
+        auction: Option<BidStatusAuction>,
     },
     Won {
-        auction: BidStatusAuction<Self>,
+        auction: BidStatusAuction,
     },
     Failed {
-        auction: BidStatusAuction<Self>,
+        auction: BidStatusAuction,
     },
     Expired {
-        auction: BidStatusAuction<Self>,
+        auction: BidStatusAuction,
     },
     Cancelled {
-        auction: BidStatusAuction<Self>,
+        auction: BidStatusAuction,
     },
     SubmissionFailed {
-        auction: BidStatusAuction<Self>,
+        auction: BidStatusAuction,
         reason:  BidSubmissionFailedReason,
     },
 }

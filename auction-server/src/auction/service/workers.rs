@@ -42,12 +42,8 @@ use {
     tokio_stream::StreamExt,
 };
 
-impl<T: ChainTrait> Service<T> where Service<T>: AuctionManager<T>
-{
-}
-
 const GET_LATEST_BLOCKHASH_INTERVAL_SVM: Duration = Duration::from_secs(5);
-impl Service<Svm> {
+impl Service {
     pub async fn run_submission_loop(&self) -> Result<()> {
         tracing::info!(
             chain_id = self.config.chain_id,

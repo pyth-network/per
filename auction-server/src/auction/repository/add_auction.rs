@@ -2,13 +2,12 @@ use {
     super::Repository,
     crate::auction::{
         entities,
-        service::ChainTrait,
     },
 };
 
-impl<T: ChainTrait> Repository<T> {
+impl Repository {
     #[tracing::instrument(skip_all)]
-    async fn add_in_memory_auction(&self, auction: entities::Auction<T>) {
+    async fn add_in_memory_auction(&self, auction: entities::Auction) {
         self.in_memory_store
             .auctions
             .write()
@@ -20,8 +19,8 @@ impl<T: ChainTrait> Repository<T> {
     #[tracing::instrument(skip_all, name = "add_auction_repo", fields(auction_id))]
     pub async fn add_auction(
         &self,
-        auction: entities::Auction<T>,
-    ) -> anyhow::Result<entities::Auction<T>> {
+        auction: entities::Auction,
+    ) -> anyhow::Result<entities::Auction> {
         tracing::Span::current().record("auction_id", auction.id.to_string());
         self.db.add_auction(&auction).await?;
 

@@ -1,7 +1,6 @@
 use {
     super::{
         auction_manager::AuctionManager,
-        ChainTrait,
         Service,
     },
     crate::{

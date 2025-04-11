@@ -1498,12 +1498,12 @@ impl Service<Svm> {
 }
 
 #[async_trait]
-impl Verification<Svm> for Service<Svm> {
+impl Verification for Service {
     #[tracing::instrument(skip_all, err(level = tracing::Level::TRACE))]
     async fn verify_bid(
         &self,
-        input: VerifyBidInput<Svm>,
-    ) -> Result<VerificationResult<Svm>, RestError> {
+        input: VerifyBidInput,
+    ) -> Result<VerificationResult, RestError> {
         let bid = input.bid_create;
         if let BidChainDataCreateSvm::Swap(chain_data) = &bid.chain_data {
             tracing::Span::current()

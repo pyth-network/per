@@ -96,7 +96,7 @@ pub struct ConfigSvm {
     pub prioritization_fee_percentile: Option<u64>,
 }
 
-pub struct Config<T> {
+pub struct Config {
     pub chain_id: ChainId,
 
     pub chain_config: ConfigSvm,
@@ -216,8 +216,8 @@ mod mock_service {
 
             pub async fn add_auction(
                 &self,
-                input: add_auction::AddAuctionInput<T>,
-            ) -> Result<entities::Auction<T>, RestError>;
+                input: add_auction::AddAuctionInput,
+            ) -> Result<entities::Auction, RestError>;
 
             pub async fn cancel_bid_for_lock(
                 &self,
@@ -227,13 +227,13 @@ mod mock_service {
 
             pub async fn conclude_auction_with_statuses(
                 &self,
-                input: conclude_auction::ConcludeAuctionWithStatusesInput<T>,
+                input: conclude_auction::ConcludeAuctionWithStatusesInput,
             ) -> anyhow::Result<()>;
 
             pub async fn get_pending_bids(
                 &self,
-                input: get_pending_bids::GetLiveBidsInput<T::BidChainDataType>,
-            ) -> Vec<entities::Bid<T>>;
+                input: get_pending_bids::GetLiveBidsInput,
+            ) -> Vec<entities::Bid>;
 
             pub fn extract_express_relay_instruction(
                 &self,
@@ -243,18 +243,18 @@ mod mock_service {
 
             pub async fn update_bid_status(
                 &self,
-                input: update_bid_status::UpdateBidStatusInput<T>,
+                input: update_bid_status::UpdateBidStatusInput,
             ) -> Result<bool, RestError>;
 
             pub async fn handle_bid(
                 &self,
-                input: handle_bid::HandleBidInput<T>,
-            ) -> Result<entities::Bid<T>, RestError>;
+                input: handle_bid::HandleBidInput,
+            ) -> Result<entities::Bid, RestError>;
 
             pub async fn sign_bid_and_submit_auction(
                 &self,
-                bid: entities::Bid<Svm>,
-                auction: entities::Auction<Svm>,
+                bid: entities::Bid,
+                auction: entities::Auction,
             ) -> Result<VersionedTransaction, RestError>;
 
             pub fn extract_swap_data(
@@ -262,8 +262,8 @@ mod mock_service {
             ) -> Result<express_relay::SwapArgs, RestError>;
 
             pub fn get_new_status(
-                bid: &entities::Bid<Svm>,
-                submitted_bids: &[entities::Bid<Svm>],
+                bid: &entities::Bid,
+                submitted_bids: &[entities::Bid],
                 bid_status_auction: entities::BidStatusAuction<entities::BidStatusSvm>,
             ) -> entities::BidStatusSvm;
         }
