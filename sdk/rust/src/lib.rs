@@ -1,5 +1,4 @@
 pub use {
-    ethers,
     express_relay_api_types as api_types,
     solana_sdk,
 };
@@ -7,7 +6,6 @@ use {
     express_relay_api_types::{
         bid::{
             BidCreate,
-            BidCreateEvm,
             BidCreateOnChainSvm,
             BidCreateSvm,
             BidCreateSwapSvm,
@@ -79,7 +77,6 @@ use {
     url::Url,
 };
 
-pub mod evm;
 pub mod svm;
 
 pub struct ClientInner {
@@ -87,7 +84,6 @@ pub struct ClientInner {
     ws_url:   Url,
     api_key:  Option<String>,
     client:   reqwest::Client,
-    evm:      evm::Evm,
 }
 
 #[derive(Clone)]
@@ -576,26 +572,6 @@ impl Client {
                 ws_url,
                 api_key: config.api_key,
                 client: reqwest::Client::new(),
-                evm: evm::Evm::new(None),
-            }),
-        })
-    }
-
-    /// Creates a new HTTP client with the provided configuration and EVM configuration.
-    /// This is for developers who want to use a custom EVM configuration.
-    /// Do not use this method unless you are sure about the configuration.
-    pub fn try_new_with_evm_config(
-        config: ClientConfig,
-        evm_config: HashMap<String, evm::Config>,
-    ) -> Result<Self, ClientError> {
-        let (http_url, ws_url) = Self::get_urls(config.clone())?;
-        Ok(Self {
-            inner: Arc::new(ClientInner {
-                http_url,
-                ws_url,
-                api_key: config.api_key,
-                client: reqwest::Client::new(),
-                evm: evm::Evm::new(Some(evm_config)),
             }),
         })
     }
@@ -665,81 +641,26 @@ impl Client {
         self.send(Route::GetOpportunities, params).await
     }
 
-    /// Creates a new bid for an opportunity.
-    ///
-    /// # Type Parameters
-    ///
-    /// * `T` - A type that implements the `Biddable` trait.
-    ///
-    /// # Arguments
-    ///
-    /// * `opportunity` - The opportunity to bid on.
-    /// * `params` - Bid parameters specific to the opportunity type.
-    ///
-    /// # Returns
-    ///
-    /// * `Result<BidCreate, ClientError>` - A bid creation object or an error.
-    pub async fn new_bid<T: Biddable>(
-        &self,
-        opportunity: T,
-        params: T::Params,
-    ) -> Result<api_types::bid::BidCreate, ClientError> {
-        T::new_bid(self, opportunity, params)
-    }
-}
-
-pub trait Biddable {
-    type Params;
-
-    fn new_bid(
-        client: &Client,
-        opportunity: Self,
-        params: Self::Params,
-    ) -> Result<BidCreate, ClientError>;
-}
-
-impl Biddable for api_types::opportunity::OpportunityEvm {
-    type Params = evm::NewBidParams;
-
-    fn new_bid(
-        client: &Client,
-        opportunity: Self,
-        params: Self::Params,
-    ) -> Result<BidCreate, ClientError> {
-        let opportunity_params = evm::get_params(opportunity.clone());
-        let config = client
-            .inner
-            .evm
-            .get_config(opportunity_params.chain_id.as_str())?;
-        let bid = BidCreateEvm {
-            permission_key:  opportunity_params.permission_key,
-            chain_id:        opportunity_params.chain_id,
-            target_contract: config.adapter_factory_contract,
-            amount:          params.bid_params.amount,
-            target_calldata: client.inner.evm.make_adapter_calldata(
-                opportunity.clone(),
-                params.bid_params,
-                params.wallet,
-            )?,
-        };
-        Ok(BidCreate::Evm(bid))
-    }
-}
-
-impl Biddable for api_types::opportunity::OpportunitySvm {
-    type Params = svm::NewBidParams;
-
     /// Creates a new bid for an SVM opportunity.
     ///
     /// It receives a list of instructions and add the "submit_bid" or "swap" instruction to it based on the opportunity type.
     /// Then it creates a transaction with the instructions and partially signs it with the signers.
     /// Finally, it returns a Bid object with the created transaction.
     /// If you don't want to use this method, you can use the svm::Svm::get_submit_bid_instruction or svm::Svm::get_swap_instruction methods to create the "submit_bid" or "swap" instruction and manually create the transaction and bid object.
-    fn new_bid(
-        _client: &Client,
-        opportunity: Self,
-        params: Self::Params,
-    ) -> Result<BidCreate, ClientError> {
+    ///
+    /// # Arguments
+    ///
+    /// * `opportunity` - The opportunity to bid on, received from the API.
+    /// * `params` - Bid parameters, ex: amount, deadline, signers, etc..
+    ///
+    /// # Returns
+    ///
+    /// * `Result<BidCreate, ClientError>` - A bid creation object or an error.
+    pub async fn new_bid(
+        &self,
+        opportunity: api_types::opportunity::OpportunitySvm,
+        params: svm::NewBidParams,
+    ) -> Result<api_types::bid::BidCreate, ClientError> {
         let OpportunityParamsSvm::V1(opportunity_params) = opportunity.params.clone();
         match opportunity_params.program {
             OpportunityParamsV1ProgramSvm::Limo { .. } => {

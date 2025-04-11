@@ -2584,7 +2584,6 @@ name = "express-relay-client"
 version = "0.9.0"
 dependencies = [
  "borsh 1.5.5",
- "ethers",
  "express-relay",
  "express-relay-api-types",
  "futures-util",

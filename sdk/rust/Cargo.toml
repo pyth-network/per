@@ -16,7 +16,6 @@ tokio-tungstenite = { version = "0.24.0", features = ["native-tls"] }
 tokio-stream = { workspace = true, features = ["sync"] }
 tokio = { workspace = true, features = ["macros"] }
 futures-util = "0.3.31"
-ethers = { workspace = true }
 solana-sdk = { workspace = true }
 solana-rpc-client = { workspace = true }
 borsh = { workspace = true }

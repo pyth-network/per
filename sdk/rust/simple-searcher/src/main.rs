@@ -19,11 +19,6 @@ pub struct RunOptions {
     #[arg(env = "SERVER_URL")]
     pub server_url: String,
 
-    /// EVM private key in hex format.
-    #[arg(long = "private-key-evm")]
-    #[arg(env = "PRIVATE_KEY_EVM")]
-    pub private_key_evm: Option<String>,
-
     /// SVM private key in base58 format.
     #[arg(long = "private-key-svm")]
     #[arg(env = "PRIVATE_KEY_SVM")]
@@ -57,13 +52,8 @@ async fn main() -> Result<()> {
         anyhow!("Failed to create client")
     })?;
 
-    let mut simple_searcher = SimpleSearcher::try_new(
-        client,
-        args.chains,
-        args.private_key_evm,
-        args.private_key_svm,
-        args.svm_rpc_url,
-    )
-    .await?;
+    let mut simple_searcher =
+        SimpleSearcher::try_new(client, args.chains, args.private_key_svm, args.svm_rpc_url)
+            .await?;
     simple_searcher.run().await
 }
