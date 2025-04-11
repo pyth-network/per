@@ -485,22 +485,6 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
     tokio::join!(
         async {
             let submission_loops = auction_services.iter().filter_map(|(chain_id, service)| {
-                if let auction_service::ServiceEnum::Evm(service) = service {
-                    Some(fault_tolerant_handler(
-                        format!("submission loop for chain {}", chain_id.clone()),
-                        || {
-                            let service = service.clone();
-                            async move { service.run_submission_loop().await }
-                        },
-                    ))
-                } else {
-                    None
-                }
-            });
-            join_all(submission_loops).await;
-        },
-        async {
-            let submission_loops = auction_services.iter().filter_map(|(chain_id, service)| {
                 if let auction_service::ServiceEnum::Svm(service) = service {
                     Some(fault_tolerant_handler(
                         format!("submission loop for chain {}", chain_id.clone()),
@@ -550,22 +534,6 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
                     }
                 });
             join_all(auction_conclusion_loops).await;
-        },
-        async {
-            let tracker_loops = auction_services.iter().filter_map(|(chain_id, service)| {
-                if let auction_service::ServiceEnum::Evm(service) = service {
-                    Some(fault_tolerant_handler(
-                        format!("tracker loop for chain {}", chain_id.clone()),
-                        || {
-                            let service = service.clone();
-                            async move { service.run_tracker_loop().await }
-                        },
-                    ))
-                } else {
-                    None
-                }
-            });
-            join_all(tracker_loops).await;
         },
         async {
             let metric_loops = auction_services.iter().filter_map(|(chain_id, service)| {
