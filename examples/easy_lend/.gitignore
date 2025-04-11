@@ -1,6 +1,0 @@
-lib/*
-out
-cache
-tslib
-node_modules
-!lib/README.md

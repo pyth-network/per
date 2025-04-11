@@ -1,6 +1,0 @@
-{
-  "dependencies": {
-    "@pythnetwork/express-relay-sdk-solidity": "^0.2.0",
-    "@pythnetwork/pyth-sdk-solidity": "^2.3.0"
-  }
-}
