@@ -40,7 +40,6 @@ mod opportunity;
 mod per_metrics;
 mod server;
 mod state;
-mod subwallet;
 
 fn is_internal(metadata: &Metadata) -> bool {
     metadata.target().starts_with("auction_server")
@@ -106,7 +105,6 @@ async fn main() -> Result<()> {
     // with invalid arguments.
     match config::Options::parse() {
         config::Options::Run(opts) => start_server(opts).await,
-        config::Options::SyncSubwallets(opts) => subwallet::sync_subwallets(opts).await,
         config::Options::Migrate(opts) => run_migrations(opts).await,
     }
 }

@@ -12,34 +12,14 @@ use {
         api::ws::UpdateEvent,
         auction::service::simulator::Simulator,
         kernel::{
-            contracts::{
-                LegacyTxTransformer,
-                SignableExpressRelayContract,
-            },
             db::DB,
             entities::{
                 ChainId,
                 Svm,
             },
-            traced_client::TracedClient,
         },
         opportunity::service as opportunity_service,
     },
-    ethers::{
-        middleware::{
-            gas_oracle::GasOracleMiddleware,
-            NonceManagerMiddleware,
-            SignerMiddleware,
-            TransformerMiddleware,
-        },
-        providers::Provider,
-        signers::{
-            LocalWallet,
-            Signer,
-        },
-        types::Address,
-    },
-    gas_oracle::EthProviderOracle,
     mockall_double::double,
     solana_client::{
         nonblocking::rpc_client::RpcClient,
@@ -114,27 +94,6 @@ pub struct ConfigSvm {
     pub tx_broadcaster_clients:        Vec<RpcClient>,
     pub log_sender:                    Sender<Response<RpcLogsResponse>>,
     pub prioritization_fee_percentile: Option<u64>,
-}
-
-pub fn get_express_relay_contract(
-    address: Address,
-    provider: Provider<TracedClient>,
-    relayer: LocalWallet,
-    use_legacy_tx: bool,
-    network_id: u64,
-) -> SignableExpressRelayContract {
-    let transformer = LegacyTxTransformer { use_legacy_tx };
-    let client = Arc::new(TransformerMiddleware::new(
-        GasOracleMiddleware::new(
-            NonceManagerMiddleware::new(
-                SignerMiddleware::new(provider.clone(), relayer.clone().with_chain_id(network_id)),
-                relayer.address(),
-            ),
-            EthProviderOracle::new(provider),
-        ),
-        transformer,
-    ));
-    SignableExpressRelayContract::new(address, client)
 }
 
 pub struct Config<T> {
@@ -219,17 +178,7 @@ pub use {
 mod mock_service {
     use {
         super::*,
-        crate::{
-            api::RestError,
-            kernel::{
-                contracts::{
-                    MulticallData,
-                    MulticallStatus,
-                },
-                entities::PermissionKey,
-            },
-        },
-        ethers::contract::FunctionCall,
+        crate::api::RestError,
         mockall::mock,
         solana_sdk::{
             instruction::CompiledInstruction,
@@ -301,12 +250,6 @@ mod mock_service {
                 &self,
                 input: handle_bid::HandleBidInput<T>,
             ) -> Result<entities::Bid<T>, RestError>;
-
-            pub fn get_simulation_call(
-                &self,
-                permission_key: PermissionKey,
-                multicall_data: Vec<MulticallData>,
-            ) -> FunctionCall<Arc<Provider<TracedClient>>, Provider<TracedClient>, Vec<MulticallStatus>>;
 
             pub async fn sign_bid_and_submit_auction(
                 &self,

@@ -3,11 +3,9 @@ resolver = "2"
 
 members = [
     "auction-server",
-    "gas-oracle",
     "sdk/rust/simple-searcher",
     "sdk/rust/testing-searcher",
     "sdk/rust",
-    "vault-simulator",
 ]
 exclude = ["contracts/svm"]
 

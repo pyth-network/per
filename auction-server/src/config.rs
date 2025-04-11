@@ -32,8 +32,6 @@ mod server;
 pub enum Options {
     /// Run the auction server service.
     Run(RunOptions),
-    /// Sync the relayer subwallets.
-    SyncSubwallets(SubwalletOptions),
     /// Run db migrations and exit.
     Migrate(MigrateOptions),
 }
