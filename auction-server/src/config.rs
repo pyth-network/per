@@ -64,12 +64,6 @@ pub struct RunOptions {
     #[command(flatten)]
     pub config: ConfigOptions,
 
-    /// A 20-byte (40 char) hex encoded Ethereum private key for one of the subwallets
-    /// which can be used for relaying the bids.
-    #[arg(long = "subwallet-private-key")]
-    #[arg(env = "SUBWALLET_PRIVATE_KEY")]
-    pub subwallet_private_key: String,
-
     /// SVM relayer private key in base58 format.
     #[arg(long = "private-key-svm")]
     #[arg(env = "PRIVATE_KEY_SVM")]

@@ -1,93 +1,18 @@
-load("ext://uibutton", "cmd_button", "location", "text_input")
-
-
-rpc_port_anvil = "9545"
-rpc_url_anvil = "http://127.0.0.1:%s" % rpc_port_anvil
-ws_url_anvil = "ws://127.0.0.1:%s" % rpc_port_anvil
-
 rpc_port_solana = "8899"
 rpc_port_solana_ws = "8900"
 rpc_url_solana = "http://127.0.0.1:%s" % rpc_port_solana
 ws_url_solana = "ws://127.0.0.1:%s" % rpc_port_solana_ws
 
-# Default anvil private key
-private_key = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-block_time = "2"
-
-# evm resources
-local_resource(
-    "evm-anvil",
-    serve_cmd="anvil --gas-limit 500000000000000000 --block-time %s -p %s"
-    % (block_time, rpc_port_anvil),
-    readiness_probe=probe(
-        period_secs=5,
-        exec=exec_action(
-            ["cast", "cid", "--rpc-url", rpc_url_anvil]
-        ),  # get chain id as a readiness probe
-    ),
-)
-
-forge_base_command = (
-    "forge script script/Vault.s.sol --via-ir --private-key $PRIVATE_KEY --fork-url %s -vvv"
-    % rpc_url_anvil
-)
-
-# we set automine to true before deployment and then set the interval to the block time after the deployment
-# to speed up the deployment
-local_resource(
-    "evm-deploy-contracts",
-    "cast rp --rpc-url http://localhost:9545 evm_setAutomine true; "
-    + forge_base_command
-    + " --sig 'setUpLocalnet()' --broadcast; "
-    + "cast rp --rpc-url http://localhost:9545 evm_setIntervalMining %s" % block_time,
-    dir="contracts/evm",
-    env={"PRIVATE_KEY": private_key},
-    resource_deps=["evm-anvil"],
-)
-
-cmd_button(
-    "vault state",
-    argv=[
-        "sh",
-        "-c",
-        "cd contracts/evm; "
-        + forge_base_command
-        + " --sig 'getVault(uint256)' $VAULT --broadcast",
-    ],
-    location=location.NAV,
-    resource="evm-deploy-contracts",
-    env=["PRIVATE_KEY=" + private_key],
-    icon_name="search",
-    text="Get vault state",
-    inputs=[
-        text_input("VAULT", placeholder="Enter vault number"),
-    ],
-)
-
-cmd_button(
-    "create new vault",
-    argv=[
-        "sh",
-        "-c",
-        "cd contracts/evm; "
-        + forge_base_command
-        + " --sig 'createLiquidatableVault()' --broadcast",
-    ],
-    location=location.NAV,
-    resource="evm-deploy-contracts",
-    env=["PRIVATE_KEY=" + private_key],
-    icon_name="add",
-    text="Add Evm Opportunity",
-)
-
-local_resource(
-    "create-server-configs", "poetry -C tilt-scripts run python3 integration.py %s %s" % (rpc_url_anvil, ws_url_anvil), resource_deps=["evm-deploy-contracts","svm-create-mints"]
-)
-
 local_resource(
     "svm-build-programs",
     "cargo build-sbf",
     dir="contracts/svm",
+)
+
+local_resource(
+    "create-server-configs",
+    "poetry -C tilt-scripts run python3 integration.py",
+    resource_deps=["svm-create-mints"],
 )
 
 # creates mints for sell and buy tokens, creates and funds ATAs for searcher and admin
@@ -150,28 +75,10 @@ local_resource(
 
 local_resource(
     "auction-server",
-    serve_cmd="source ../tilt-resources.env; source ./.env; cargo run -- run --database-url $DATABASE_URL --subwallet-private-key $RELAYER_PRIVATE_KEY --secret-key $SECRET_KEY",
+    serve_cmd="source ../tilt-resources.env; source ./.env; cargo run -- run --database-url $DATABASE_URL --secret-key $SECRET_KEY",
     serve_dir="auction-server",
     resource_deps=["create-server-configs", "svm-build-programs", "svm-setup-accounts"],
     readiness_probe=probe(period_secs=5, http_get=http_get_action(port=9000)),
-)
-
-monitor_command = (
-    "source ./tilt-resources.env; "
-    + "poetry -C tilt-scripts run "
-    + "python3 -m tilt-scripts.protocols.token_vault_monitor "
-    + "--chain-id development "
-    + "--rpc-url %s " % (rpc_url_anvil)
-    + "--vault-contract $TOKEN_VAULT "
-    + "--weth-contract $WETH "
-    + "--liquidation-server-url http://localhost:9000 "
-    + "--mock-pyth"
-)
-
-local_resource(
-    "evm-monitor",
-    serve_cmd=monitor_command,
-    resource_deps=["evm-deploy-contracts", "auction-server", "create-server-configs"],
 )
 
 local_resource(
@@ -231,14 +138,13 @@ local_resource(
 )
 
 rust_searcher_command = (
-    "source ./tilt-resources.env;"
     + "export SVM_PRIVATE_KEY_FILE=keypairs/searcher_rust.json;"
     + "cargo run -p testing-searcher -- --api-key=$(poetry -C tilt-scripts run python3 tilt-scripts/utils/create_profile.py --name rust_sdk --email rust_sdk@dourolabs.com --role searcher)"
 )
 local_resource(
     "rust-searcher",
     serve_cmd=rust_searcher_command,
-    resource_deps=["svm-initialize-programs", "evm-deploy-contracts", "auction-server", "create-server-configs"],
+    resource_deps=["svm-initialize-programs", "auction-server", "create-server-configs"],
 )
 
 local_resource(
