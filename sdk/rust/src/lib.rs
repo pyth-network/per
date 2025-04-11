@@ -1,5 +1,4 @@
 pub use {
-    ethers,
     express_relay_api_types as api_types,
     solana_sdk,
 };
