@@ -101,9 +101,6 @@ pub async fn process_bid(
         _ => None,
     };
     match store.get_auction_service(&bid_create.get_chain_id())? {
-        ServiceEnum::Evm(_) => Err(RestError::BadParameters(
-            "EVM chain_id is not supported".to_string(),
-        )),
         ServiceEnum::Svm(service) => Svm::handle_bid(&service, &bid_create, profile).await,
     }
 }
@@ -144,9 +141,6 @@ pub async fn cancel_bid(
             let BidCancel::Svm(bid_cancel) = bid_cancel;
             let service = store.get_auction_service(&bid_cancel.chain_id)?;
             match service {
-                ServiceEnum::Evm(_) => Err(RestError::BadParameters(
-                    "EVM chain_id is not supported for cancel_bid".to_string(),
-                )),
                 ServiceEnum::Svm(service) => {
                     service
                         .cancel_bid(CancelBidInput {
@@ -176,9 +170,6 @@ pub async fn get_bid_status(
     Path(params): Path<GetBidStatusParams>,
 ) -> Result<Json<BidStatus>, RestError> {
     match store.get_auction_service(&params.chain_id)? {
-        ServiceEnum::Evm(_) => Err(RestError::BadParameters(
-            "EVM chain_id is not supported".to_string(),
-        )),
         ServiceEnum::Svm(service) => Svm::get_bid_status(&service, params.bid_id).await,
     }
 }
@@ -200,9 +191,6 @@ pub async fn get_bid_status_deprecated(
 ) -> Result<Json<BidStatus>, RestError> {
     for service in store.get_all_auction_services().values() {
         let result = match service {
-            ServiceEnum::Evm(_) => {
-                continue;
-            }
             ServiceEnum::Svm(service) => Svm::get_bid_status(service, bid_id).await,
         };
         match result {
@@ -237,9 +225,6 @@ pub async fn get_bids_by_time(
 ) -> Result<Json<Bids>, RestError> {
     match auth {
         Auth::Authorized(_, profile) => match store.get_auction_service(&chain_id)? {
-            ServiceEnum::Evm(_) => Err(RestError::BadParameters(
-                "EVM chain_id is not supported".to_string(),
-            )),
             ServiceEnum::Svm(service) => {
                 Svm::get_bids_by_time(&service, profile, query.from_time).await
             }
@@ -275,7 +260,6 @@ pub async fn get_bids_by_time_deprecated(
             let mut bids: Vec<Bid> = vec![];
             for service in store.get_all_auction_services().values() {
                 let new_bids = match service {
-                    ServiceEnum::Evm(_) => continue,
                     ServiceEnum::Svm(service) => {
                         Svm::get_bids_by_time(service, profile.clone(), query.from_time).await?
                     }
@@ -312,9 +296,6 @@ pub async fn post_submit_quote(
 ) -> Result<Json<SubmitQuoteResponse>, RestError> {
     let service = store.get_auction_service(&chain_id)?;
     match service {
-        ServiceEnum::Evm(_) => Err(RestError::BadParameters(
-            "EVM chain_id is not supported for submit_quote".to_string(),
-        )),
         ServiceEnum::Svm(service) => {
             let transaction = service
                 .submit_quote(SubmitQuoteInput {

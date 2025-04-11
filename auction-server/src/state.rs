@@ -22,12 +22,7 @@ use {
         engine::general_purpose::URL_SAFE_NO_PAD,
         Engine,
     },
-    ethers::{
-        middleware::Middleware,
-        prelude::BlockNumber,
-        providers::Provider,
-        types::U256,
-    },
+    ethers::providers::Provider,
     mockall_double::double,
     rand::Rng,
     solana_client::rpc_response::{
@@ -57,13 +52,7 @@ use {
 
 pub type GetOrCreate<T> = (T, bool);
 
-pub struct ChainStoreEvm {
-    pub provider:        Provider<TracedClient>,
-    pub network_id:      u64,
-    // TODO move this to core fields
-    pub config:          ConfigEvm,
-    pub block_gas_limit: U256,
-}
+pub struct ChainStoreEvm {}
 
 impl ChainStoreEvm {
     pub fn get_chain_provider(
@@ -92,21 +81,8 @@ impl ChainStoreEvm {
         provider.set_interval(Duration::from_secs(chain_config.poll_interval));
         Ok(provider)
     }
-    pub async fn create_store(chain_id: String, config: ConfigEvm) -> anyhow::Result<Self> {
-        let provider = Self::get_chain_provider(&chain_id, &config)?;
-
-        let id = provider.get_chainid().await?.as_u64();
-        let block = provider
-            .get_block(BlockNumber::Latest)
-            .await?
-            .expect("Failed to get latest block");
-
-        Ok(Self {
-            provider,
-            network_id: id,
-            config: config.clone(),
-            block_gas_limit: block.gas_limit,
-        })
+    pub async fn create_store(_chain_id: String, _config: ConfigEvm) -> anyhow::Result<Self> {
+        Ok(Self {})
     }
 }
 

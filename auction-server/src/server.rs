@@ -417,9 +417,6 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
 
     for (chain_id, service) in auction_services.iter() {
         match service {
-            auction_service::ServiceEnum::Evm(_) => {
-                panic!("EVM service is not supported");
-            }
             auction_service::ServiceEnum::Svm(service) => {
                 let config = opportunity_service_svm
                     .get_config(chain_id)
@@ -440,86 +437,70 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
 
     tokio::join!(
         async {
-            let submission_loops = auction_services.iter().filter_map(|(chain_id, service)| {
-                if let auction_service::ServiceEnum::Svm(service) = service {
-                    Some(fault_tolerant_handler(
-                        format!("submission loop for chain {}", chain_id.clone()),
-                        || {
-                            let service = service.clone();
-                            async move { service.run_submission_loop().await }
-                        },
-                    ))
-                } else {
-                    None
-                }
+            let submission_loops = auction_services.iter().map(|(chain_id, service)| {
+                let auction_service::ServiceEnum::Svm(service) = service;
+                fault_tolerant_handler(
+                    format!("submission loop for chain {}", chain_id.clone()),
+                    || {
+                        let service = service.clone();
+                        async move { service.run_submission_loop().await }
+                    },
+                )
             });
             join_all(submission_loops).await;
         },
         async {
-            let log_listener_loops = auction_services.iter().filter_map(|(chain_id, service)| {
-                if let auction_service::ServiceEnum::Svm(service) = service {
-                    Some(fault_tolerant_handler(
-                        format!("log listener loop for chain {}", chain_id.clone()),
-                        || {
-                            let service = service.clone();
-                            async move { service.run_log_listener_loop().await }
-                        },
-                    ))
-                } else {
-                    None
-                }
+            let log_listener_loops = auction_services.iter().map(|(chain_id, service)| {
+                let auction_service::ServiceEnum::Svm(service) = service;
+                fault_tolerant_handler(
+                    format!("log listener loop for chain {}", chain_id.clone()),
+                    || {
+                        let service = service.clone();
+                        async move { service.run_log_listener_loop().await }
+                    },
+                )
             });
             join_all(log_listener_loops).await;
         },
         async {
-            let auction_conclusion_loops =
-                auction_services.iter().filter_map(|(chain_id, service)| {
-                    if let auction_service::ServiceEnum::Svm(service) = service {
-                        Some(fault_tolerant_handler(
-                            format!(
-                                "auction conclusion loops loop for chain {}",
-                                chain_id.clone()
-                            ),
-                            || {
-                                let service = service.clone();
-                                async move { service.run_auction_conclusion_loop().await }
-                            },
-                        ))
-                    } else {
-                        None
-                    }
-                });
+            let auction_conclusion_loops = auction_services.iter().map(|(chain_id, service)| {
+                let auction_service::ServiceEnum::Svm(service) = service;
+                fault_tolerant_handler(
+                    format!(
+                        "auction conclusion loops loop for chain {}",
+                        chain_id.clone()
+                    ),
+                    || {
+                        let service = service.clone();
+                        async move { service.run_auction_conclusion_loop().await }
+                    },
+                )
+            });
             join_all(auction_conclusion_loops).await;
         },
         async {
-            let metric_loops = auction_services.iter().filter_map(|(chain_id, service)| {
-                if let auction_service::ServiceEnum::Svm(service) = service {
-                    Some(metric_collector(
-                        format!("auction service for chain {}", chain_id.clone()),
-                        || {
-                            let service = service.clone();
-                            async move { service.update_metrics().await }
-                        },
-                    ))
-                } else {
-                    None
-                }
+            let metric_loops = auction_services.iter().map(|(chain_id, service)| {
+                let auction_service::ServiceEnum::Svm(service) = service;
+                metric_collector(
+                    format!("auction service for chain {}", chain_id.clone()),
+                    || {
+                        let service = service.clone();
+                        async move { service.update_metrics().await }
+                    },
+                )
             });
             join_all(metric_loops).await;
         },
         async {
-            let watcher_loops = auction_services.iter().filter_map(|(chain_id, service)| {
-                if let auction_service::ServiceEnum::Svm(service) = service {
-                    Some(fault_tolerant_handler(
-                        format!("watcher loop for chain {}", chain_id.clone()),
-                        || {
-                            let service = service.clone();
-                            async move { service.run_watcher_loop().await }
-                        },
-                    ))
-                } else {
-                    None
-                }
+            let watcher_loops = auction_services.iter().map(|(chain_id, service)| {
+                let auction_service::ServiceEnum::Svm(service) = service;
+                fault_tolerant_handler(
+                    format!("watcher loop for chain {}", chain_id.clone()),
+                    || {
+                        let service = service.clone();
+                        async move { service.run_watcher_loop().await }
+                    },
+                )
             });
             join_all(watcher_loops).await;
         },
