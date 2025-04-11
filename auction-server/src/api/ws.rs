@@ -13,7 +13,6 @@ use {
             entities::BidId,
         },
         config::ChainId,
-        opportunity::service::handle_opportunity_bid::HandleOpportunityBidInput,
         server::{
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
@@ -41,14 +40,11 @@ use {
         bid::{
             BidCancel,
             BidCreate,
-            BidResult,
             BidStatusWithId,
         },
         opportunity::{
             Opportunity,
-            OpportunityBidEvm,
             OpportunityDelete,
-            OpportunityId,
         },
         ws::{
             APIResponse,
@@ -85,7 +81,6 @@ use {
         },
         time::Duration,
     },
-    time::OffsetDateTime,
     tokio::sync::{
         broadcast,
         RwLock,
@@ -541,50 +536,6 @@ impl Subscriber {
         .await;
     }
 
-    #[instrument(skip_all)]
-    async fn handle_post_opportunity_bid(
-        &mut self,
-        message_id: String,
-        opportunity_bid: OpportunityBidEvm,
-        opportunity_id: OpportunityId,
-    ) {
-        let store = self.store.clone();
-        let auth = self.auth.clone();
-        self.spawn_deferred(async move {
-            match store
-                .opportunity_service_evm
-                .handle_opportunity_bid(HandleOpportunityBidInput {
-                    opportunity_id,
-                    opportunity_bid,
-                    initiation_time: OffsetDateTime::now_utc(),
-                    auth,
-                })
-                .await
-            {
-                Ok(bid_result) => DeferredResponse {
-                    response:      ServerResultResponse {
-                        id:     Some(message_id.clone()),
-                        result: ServerResultMessage::Success(Some(APIResponse::BidResult(
-                            BidResult {
-                                status: "OK".to_string(),
-                                id:     bid_result,
-                            },
-                        ))),
-                    },
-                    bid_id_to_add: Some(bid_result),
-                },
-                Err(e) => DeferredResponse {
-                    response:      ServerResultResponse {
-                        id:     Some(message_id),
-                        result: ServerResultMessage::Err(e.to_status_and_message().1),
-                    },
-                    bid_id_to_add: None,
-                },
-            }
-        })
-        .await;
-    }
-
     #[instrument(
         target = "metrics",
         fields(category = "ws_client_message", result = "success", name),
@@ -647,14 +598,9 @@ impl Subscriber {
                     self.handle_post_bid(id, bid).await
                 }
                 ClientMessage::PostOpportunityBid {
-                    opportunity_bid,
-                    opportunity_id,
-                } => {
-                    tracing::Span::current().record("name", "post_opportunity_bid");
-                    self.handle_post_opportunity_bid(id, opportunity_bid, opportunity_id)
-                        .in_current_span()
-                        .await
-                }
+                    opportunity_bid: _,
+                    opportunity_id: _,
+                } => (),
                 ClientMessage::CancelBid { data } => {
                     tracing::Span::current().record("name", "cancel_bid");
                     self.handle_cancel_bid(id, data).await
