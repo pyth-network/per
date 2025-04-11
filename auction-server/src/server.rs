@@ -298,7 +298,6 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
     tracing::info!("Using wallet address: {:?}", wallet.address());
 
     let chains_evm = setup_chain_store_evm(config_map.clone()).await?;
-
     let chains_svm = setup_chain_store_svm(config_map)?;
 
     let pool = create_pg_pool(
@@ -308,8 +307,6 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
     .await?;
     let task_tracker = TaskTracker::new();
 
-    let config_opportunity_service_evm =
-        opportunity_service::ConfigEvm::from_chains(&chains_evm).await?;
     let config_opportunity_service_svm =
         opportunity_service::ConfigSvm::from_chains(&chains_svm).await?;
 
@@ -338,14 +335,6 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
         metrics_recorder: setup_metrics_recorder()?,
     });
 
-    let opportunity_service_evm = Arc::new(
-        OpportunityService::<opportunity_service::ChainTypeEvm>::new(
-            store.clone(),
-            task_tracker.clone(),
-            pool.clone(),
-            config_opportunity_service_evm,
-        ),
-    );
     let opportunity_service_svm = Arc::new(
         OpportunityService::<opportunity_service::ChainTypeSvm>::new(
             store.clone(),
@@ -355,50 +344,26 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
         ),
     );
     #[allow(clippy::iter_kv_map)]
-    let mut auction_services: HashMap<ChainId, auction_service::ServiceEnum> = chains_evm
+    let auction_services: HashMap<ChainId, auction_service::ServiceEnum> = chains_svm
         .iter()
         .map(|(chain_id, chain_store)| {
+            let tx_broadcaster_clients: Vec<RpcClient> = chain_store
+                .config
+                .rpc_tx_submission_urls
+                .iter()
+                .map(|url| {
+                    TracedSenderSvm::new_client(
+                        chain_id.clone(),
+                        url.as_str(),
+                        chain_store.config.rpc_timeout,
+                        RpcClientConfig::with_commitment(CommitmentConfig::processed()),
+                    )
+                })
+                .collect();
+            if tx_broadcaster_clients.is_empty() {
+                panic!("No tx broadcaster client provided for chain {}", chain_id);
+            }
             (
-                chain_id.clone(),
-                auction_service::ServiceEnum::Evm(auction_service::Service::new(
-                    pool.clone(),
-                    auction_service::Config {
-                        chain_id:     chain_id.clone(),
-                        chain_config: auction_service::ConfigEvm::new(
-                            wallet.clone(),
-                            chain_store.config.express_relay_contract,
-                            chain_store.provider.clone(),
-                            chain_store.block_gas_limit,
-                            chain_store.config.geth_ws_addr.clone(),
-                            chain_store.network_id,
-                        ),
-                    },
-                    opportunity_service_evm.clone(),
-                    task_tracker.clone(),
-                    store.ws.broadcast_sender.clone(),
-                )),
-            )
-        })
-        .collect();
-    chains_svm.iter().for_each(|(chain_id, chain_store)| {
-        let tx_broadcaster_clients: Vec<RpcClient> = chain_store
-            .config
-            .rpc_tx_submission_urls
-            .iter()
-            .map(|url| {
-                TracedSenderSvm::new_client(
-                    chain_id.clone(),
-                    url.as_str(),
-                    chain_store.config.rpc_timeout,
-                    RpcClientConfig::with_commitment(CommitmentConfig::processed()),
-                )
-            })
-            .collect();
-        if tx_broadcaster_clients.is_empty() {
-            panic!("No tx broadcaster client provided for chain {}", chain_id);
-        }
-        if auction_services
-            .insert(
                 chain_id.clone(),
                 auction_service::ServiceEnum::Svm(auction_service::Service::new(
                     pool.clone(),
@@ -447,22 +412,11 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
                     store.ws.broadcast_sender.clone(),
                 )),
             )
-            .is_some()
-        {
-            panic!("Duplicate chain id: {}", chain_id);
-        }
-    });
+        })
+        .collect();
 
     for (chain_id, service) in auction_services.iter() {
         match service {
-            auction_service::ServiceEnum::Evm(service) => {
-                let config = opportunity_service_evm
-                    .get_config(chain_id)
-                    .expect("Failed to get opportunity service evm config");
-                config
-                    .auction_service_container
-                    .inject_service(service.clone());
-            }
             auction_service::ServiceEnum::Svm(service) => {
                 let config = opportunity_service_svm
                     .get_config(chain_id)
@@ -476,7 +430,6 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
 
     let store_new = Arc::new(StoreNew::new(
         store.clone(),
-        opportunity_service_evm,
         opportunity_service_svm,
         auction_services.clone(),
         task_tracker.clone(),
@@ -484,92 +437,73 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
 
     tokio::join!(
         async {
-            let submission_loops = auction_services.iter().filter_map(|(chain_id, service)| {
-                if let auction_service::ServiceEnum::Svm(service) = service {
-                    Some(fault_tolerant_handler(
-                        format!("submission loop for chain {}", chain_id.clone()),
-                        || {
-                            let service = service.clone();
-                            async move { service.run_submission_loop().await }
-                        },
-                    ))
-                } else {
-                    None
-                }
+            let submission_loops = auction_services.iter().map(|(chain_id, service)| {
+                let auction_service::ServiceEnum::Svm(service) = service;
+                fault_tolerant_handler(
+                    format!("submission loop for chain {}", chain_id.clone()),
+                    || {
+                        let service = service.clone();
+                        async move { service.run_submission_loop().await }
+                    },
+                )
             });
             join_all(submission_loops).await;
         },
         async {
-            let log_listener_loops = auction_services.iter().filter_map(|(chain_id, service)| {
-                if let auction_service::ServiceEnum::Svm(service) = service {
-                    Some(fault_tolerant_handler(
-                        format!("log listener loop for chain {}", chain_id.clone()),
-                        || {
-                            let service = service.clone();
-                            async move { service.run_log_listener_loop().await }
-                        },
-                    ))
-                } else {
-                    None
-                }
+            let log_listener_loops = auction_services.iter().map(|(chain_id, service)| {
+                let auction_service::ServiceEnum::Svm(service) = service;
+                fault_tolerant_handler(
+                    format!("log listener loop for chain {}", chain_id.clone()),
+                    || {
+                        let service = service.clone();
+                        async move { service.run_log_listener_loop().await }
+                    },
+                )
             });
             join_all(log_listener_loops).await;
         },
         async {
-            let auction_conclusion_loops =
-                auction_services.iter().filter_map(|(chain_id, service)| {
-                    if let auction_service::ServiceEnum::Svm(service) = service {
-                        Some(fault_tolerant_handler(
-                            format!(
-                                "auction conclusion loops loop for chain {}",
-                                chain_id.clone()
-                            ),
-                            || {
-                                let service = service.clone();
-                                async move { service.run_auction_conclusion_loop().await }
-                            },
-                        ))
-                    } else {
-                        None
-                    }
-                });
+            let auction_conclusion_loops = auction_services.iter().map(|(chain_id, service)| {
+                let auction_service::ServiceEnum::Svm(service) = service;
+                fault_tolerant_handler(
+                    format!(
+                        "auction conclusion loops loop for chain {}",
+                        chain_id.clone()
+                    ),
+                    || {
+                        let service = service.clone();
+                        async move { service.run_auction_conclusion_loop().await }
+                    },
+                )
+            });
             join_all(auction_conclusion_loops).await;
         },
         async {
-            let metric_loops = auction_services.iter().filter_map(|(chain_id, service)| {
-                if let auction_service::ServiceEnum::Svm(service) = service {
-                    Some(metric_collector(
-                        format!("auction service for chain {}", chain_id.clone()),
-                        || {
-                            let service = service.clone();
-                            async move { service.update_metrics().await }
-                        },
-                    ))
-                } else {
-                    None
-                }
+            let metric_loops = auction_services.iter().map(|(chain_id, service)| {
+                let auction_service::ServiceEnum::Svm(service) = service;
+                metric_collector(
+                    format!("auction service for chain {}", chain_id.clone()),
+                    || {
+                        let service = service.clone();
+                        async move { service.update_metrics().await }
+                    },
+                )
             });
             join_all(metric_loops).await;
         },
         async {
-            let watcher_loops = auction_services.iter().filter_map(|(chain_id, service)| {
-                if let auction_service::ServiceEnum::Svm(service) = service {
-                    Some(fault_tolerant_handler(
-                        format!("watcher loop for chain {}", chain_id.clone()),
-                        || {
-                            let service = service.clone();
-                            async move { service.run_watcher_loop().await }
-                        },
-                    ))
-                } else {
-                    None
-                }
+            let watcher_loops = auction_services.iter().map(|(chain_id, service)| {
+                let auction_service::ServiceEnum::Svm(service) = service;
+                fault_tolerant_handler(
+                    format!("watcher loop for chain {}", chain_id.clone()),
+                    || {
+                        let service = service.clone();
+                        async move { service.run_watcher_loop().await }
+                    },
+                )
             });
             join_all(watcher_loops).await;
         },
-        fault_tolerant_handler("evm verification loop".to_string(), || {
-            run_verification_loop(store_new.opportunity_service_evm.clone())
-        }),
         fault_tolerant_handler("svm verification loop".to_string(), || {
             run_verification_loop(store_new.opportunity_service_svm.clone())
         }),

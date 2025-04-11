@@ -268,7 +268,6 @@ impl<T: ChainTrait> Service<T> {
 
 #[derive(Clone)]
 pub enum ServiceEnum {
-    Evm(Service<Evm>),
     Svm(Service<Svm>),
 }
 
