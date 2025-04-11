@@ -42,10 +42,6 @@ use {
         PrometheusBuilder,
         PrometheusHandle,
     },
-    ethers::{
-        prelude::LocalWallet,
-        signers::Signer,
-    },
     futures::{
         future::join_all,
         Future,
@@ -293,9 +289,6 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
             path = run_options.config.config
         )
     })?;
-
-    let wallet = run_options.subwallet_private_key.parse::<LocalWallet>()?;
-    tracing::info!("Using wallet address: {:?}", wallet.address());
 
     let chains_evm = setup_chain_store_evm(config_map.clone()).await?;
     let chains_svm = setup_chain_store_svm(config_map)?;

@@ -7,6 +7,7 @@ use {
         Routable,
     },
     serde::{
+        de,
         Deserialize,
         Serialize,
     },
@@ -374,11 +375,26 @@ pub struct OpportunitySvm {
     pub params: OpportunityParamsSvm,
 }
 
-#[derive(Serialize, ToResponse, ToSchema, Clone, Debug, PartialEq, Deserialize)]
+#[derive(Serialize, ToResponse, ToSchema, Clone, Debug, PartialEq)]
 #[serde(untagged)]
 #[allow(clippy::large_enum_variant)]
 pub enum Opportunity {
     Svm(OpportunitySvm),
+}
+
+// Default deserialize implementation is not working for opportunity
+impl<'de> ::serde::Deserialize<'de> for Opportunity {
+    fn deserialize<D>(deserializer: D) -> Result<Opportunity, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        let json_value = serde_json::Value::deserialize(deserializer)?;
+        Ok(Opportunity::Svm(
+            serde_json::from_value(json_value.clone()).map_err(|svm_error| {
+                de::Error::custom(format!("Failed to deserialize opportunity {:?}", svm_error))
+            })?,
+        ))
+    }
 }
 
 fn default_opportunity_mode() -> OpportunityMode {
