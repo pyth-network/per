@@ -1,9 +1,0 @@
-ds-test/=lib/forge-std/lib/ds-test/src/
-erc4626-tests/=lib/openzeppelin-contracts/lib/erc4626-tests/
-forge-std/=lib/forge-std/src/
-openzeppelin-contracts/=lib/openzeppelin-contracts/
-openzeppelin-contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/
-@pythnetwork/pyth-sdk-solidity=node_modules/@pythnetwork/pyth-sdk-solidity/
-@pythnetwork/express-relay-sdk-solidity/=node_modules/@pythnetwork/express-relay-sdk-solidity
-permit2/=lib/permit2/src/
-ExcessivelySafeCall/=lib/ExcessivelySafeCall/src/
