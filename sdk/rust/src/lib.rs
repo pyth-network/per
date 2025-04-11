@@ -153,6 +153,7 @@ pub struct WsClient {
 
 #[derive(Deserialize)]
 #[serde(untagged)]
+#[allow(clippy::large_enum_variant)]
 enum MessageType {
     Response(api_types::ws::ServerResultResponse),
     Update(api_types::ws::ServerUpdateResponse),

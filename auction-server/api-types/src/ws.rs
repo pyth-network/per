@@ -63,6 +63,7 @@ pub struct ClientRequest {
 /// This enum is used to send an update to the client for any subscriptions made.
 #[derive(Serialize, Clone, ToSchema, Deserialize, Debug)]
 #[serde(tag = "type")]
+#[allow(clippy::large_enum_variant)]
 pub enum ServerUpdateResponse {
     #[serde(rename = "new_opportunity")]
     NewOpportunity { opportunity: Opportunity },

@@ -2126,7 +2126,6 @@ mod tests {
         let api_opportunity: opportunity_api::Opportunity = opportunity.into();
         match api_opportunity {
             opportunity_api::Opportunity::Svm(opportunity_svm) => opportunity_svm.params,
-            _ => panic!("Expected Svm opportunity"),
         }
     }
 

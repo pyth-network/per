@@ -79,11 +79,6 @@ pub async fn post_opportunity(
     Json(params): Json<OpportunityCreate>,
 ) -> Result<Json<Opportunity>, RestError> {
     let opportunity_with_metadata: Opportunity = match params {
-        OpportunityCreate::Evm(_) => {
-            return Err(RestError::BadParameters(
-                "EVM chain_id is not supported".to_string(),
-            ))
-        }
         OpportunityCreate::Svm(params) => {
             if get_program(&auth)? != params.get_program() {
                 return Err(RestError::Forbidden);
@@ -196,7 +191,6 @@ pub async fn delete_opportunities(
     Json(opportunity_delete): Json<OpportunityDelete>,
 ) -> Result<StatusCode, RestError> {
     match opportunity_delete {
-        OpportunityDelete::Evm(_) => Err(RestError::Forbidden),
         OpportunityDelete::Svm(params_svm) => {
             let OpportunityDeleteSvm::V1(params) = params_svm;
             if get_program(&auth)? != params.program {

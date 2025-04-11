@@ -8,12 +8,10 @@ use {
     },
     ethers::types::{
         Address,
-        Bytes,
         Signature,
         U256,
     },
     serde::{
-        de,
         Deserialize,
         Serialize,
     },
@@ -88,32 +86,12 @@ pub struct OpportunityDeleteV1Svm {
     pub program:            ProgramSvm,
 }
 
-/// Opportunity parameters needed for deleting live opportunities.
-#[serde_as]
-#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
-pub struct OpportunityDeleteV1Evm {
-    /// The permission key of the opportunity.
-    #[schema(example = "0xdeadbeefcafe", value_type = String)]
-    pub permission_key: PermissionKeyEvm,
-    /// The chain id for the opportunity.
-    #[schema(example = "solana", value_type = String)]
-    pub chain_id:       ChainId,
-}
-
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 #[serde(tag = "version")]
 pub enum OpportunityDeleteSvm {
     #[serde(rename = "v1")]
     #[schema(title = "v1")]
     V1(OpportunityDeleteV1Svm),
-}
-
-#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
-#[serde(tag = "version")]
-pub enum OpportunityDeleteEvm {
-    #[serde(rename = "v1")]
-    #[schema(title = "v1")]
-    V1(OpportunityDeleteV1Evm),
 }
 
 /// The input type for deleting opportunities.
@@ -123,55 +101,6 @@ pub enum OpportunityDelete {
     #[serde(rename = "svm")]
     #[schema(title = "svm")]
     Svm(OpportunityDeleteSvm),
-    #[serde(rename = "evm")]
-    #[schema(title = "evm")]
-    Evm(OpportunityDeleteEvm),
-}
-
-#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
-pub struct TokenAmountEvm {
-    /// The token contract address.
-    #[schema(example = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", value_type = String)]
-    pub token:  Address,
-    /// The token amount.
-    #[schema(example = "1000", value_type = String)]
-    #[serde(with = "crate::serde::u256")]
-    pub amount: U256,
-}
-
-/// Opportunity parameters needed for on-chain execution.
-/// If a searcher signs the opportunity and have approved enough tokens to opportunity adapter,
-/// by calling this target contract with the given target calldata and structures, they will
-/// send the tokens specified in the `sell_tokens` field and receive the tokens specified in the `buy_tokens` field.
-#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
-pub struct OpportunityCreateV1Evm {
-    /// The permission key required for successful execution of the opportunity.
-    #[schema(example = "0xdeadbeefcafe", value_type = String)]
-    pub permission_key:    PermissionKeyEvm,
-    /// The chain id where the opportunity will be executed.
-    #[schema(example = "op_sepolia", value_type = String)]
-    pub chain_id:          String,
-    /// The contract address to call for execution of the opportunity.
-    #[schema(example = "0xcA11bde05977b3631167028862bE2a173976CA11", value_type = String)]
-    pub target_contract:   ethers::abi::Address,
-    /// Calldata for the target contract call.
-    #[schema(example = "0xdeadbeef", value_type = String)]
-    pub target_calldata:   Bytes,
-    /// The value to send with the contract call.
-    #[schema(example = "1", value_type = String)]
-    #[serde(with = "crate::serde::u256")]
-    pub target_call_value: U256,
-
-    pub sell_tokens: Vec<TokenAmountEvm>,
-    pub buy_tokens:  Vec<TokenAmountEvm>,
-}
-
-#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
-#[serde(tag = "version")]
-pub enum OpportunityCreateEvm {
-    #[serde(rename = "v1")]
-    #[schema(title = "v1")]
-    V1(OpportunityCreateV1Evm),
 }
 
 // ----- Svm types -----
@@ -251,34 +180,8 @@ pub enum OpportunityCreateSvm {
 #[serde(untagged)]
 #[allow(clippy::large_enum_variant)]
 pub enum OpportunityCreate {
-    #[schema(title = "evm")]
-    Evm(OpportunityCreateEvm),
     #[schema(title = "svm")]
     Svm(OpportunityCreateSvm),
-}
-
-#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
-pub struct OpportunityParamsV1Evm(pub OpportunityCreateV1Evm);
-
-#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug, ToResponse)]
-#[serde(tag = "version")]
-pub enum OpportunityParamsEvm {
-    #[serde(rename = "v1")]
-    #[schema(title = "v1")]
-    V1(OpportunityParamsV1Evm),
-}
-
-#[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse, Debug, PartialEq)]
-pub struct OpportunityEvm {
-    /// The opportunity unique id.
-    #[schema(example = "obo3ee3e-58cc-4372-a567-0e02b2c3d479", value_type = String)]
-    pub opportunity_id: OpportunityId,
-    /// Creation time of the opportunity (in microseconds since the Unix epoch).
-    #[schema(example = 1_700_000_000_000_000i128, value_type = i128)]
-    pub creation_time:  UnixTimestampMicros,
-    #[serde(flatten)]
-    #[schema(inline)]
-    pub params:         OpportunityParamsEvm,
 }
 
 /// Program specific parameters for the opportunity.
@@ -476,35 +379,11 @@ pub struct OpportunitySvm {
     pub params: OpportunityParamsSvm,
 }
 
-#[derive(Serialize, ToResponse, ToSchema, Clone, Debug, PartialEq)]
+#[derive(Serialize, ToResponse, ToSchema, Clone, Debug, PartialEq, Deserialize)]
 #[serde(untagged)]
 #[allow(clippy::large_enum_variant)]
 pub enum Opportunity {
-    Evm(OpportunityEvm),
     Svm(OpportunitySvm),
-}
-
-// Default deserialize implementation is not working for opportunity
-impl<'de> ::serde::Deserialize<'de> for Opportunity {
-    fn deserialize<D>(deserializer: D) -> Result<Opportunity, D::Error>
-    where
-        D: ::serde::Deserializer<'de>,
-    {
-        let json_value = serde_json::Value::deserialize(deserializer)?;
-        let value: Result<OpportunityEvm, serde_json::Error> =
-            serde_json::from_value(json_value.clone());
-        match value {
-            Ok(opportunity) => Ok(Opportunity::Evm(opportunity)),
-            Err(evm_error) => serde_json::from_value(json_value)
-                .map(Opportunity::Svm)
-                .map_err(|svm_error| {
-                    de::Error::custom(format!(
-                        "Failed to deserialize opportunity as EVM: {:?}, as SVM: {:?}",
-                        evm_error, svm_error
-                    ))
-                }),
-        }
-    }
 }
 
 fn default_opportunity_mode() -> OpportunityMode {
@@ -717,14 +596,6 @@ impl OpportunityCreateSvm {
 }
 
 // ----- Implementations -----
-impl OpportunityEvm {
-    pub fn get_chain_id(&self) -> &ChainId {
-        match &self.params {
-            OpportunityParamsEvm::V1(params) => &params.0.chain_id,
-        }
-    }
-}
-
 impl OpportunitySvm {
     pub fn get_chain_id(&self) -> &ChainId {
         match &self.params {
@@ -736,14 +607,12 @@ impl OpportunitySvm {
 impl Opportunity {
     pub fn get_chain_id(&self) -> &ChainId {
         match self {
-            Opportunity::Evm(opportunity) => opportunity.get_chain_id(),
             Opportunity::Svm(opportunity) => opportunity.get_chain_id(),
         }
     }
 
     pub fn creation_time(&self) -> UnixTimestampMicros {
         match self {
-            Opportunity::Evm(opportunity) => opportunity.creation_time,
             Opportunity::Svm(opportunity) => opportunity.creation_time,
         }
     }
@@ -753,7 +622,6 @@ impl OpportunityDelete {
     pub fn get_chain_id(&self) -> &ChainId {
         match self {
             OpportunityDelete::Svm(OpportunityDeleteSvm::V1(params)) => &params.chain_id,
-            OpportunityDelete::Evm(OpportunityDeleteEvm::V1(params)) => &params.chain_id,
         }
     }
 }
