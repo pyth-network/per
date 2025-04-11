@@ -99,7 +99,7 @@ pub struct ConfigSvm {
 pub struct Config<T> {
     pub chain_id: ChainId,
 
-    pub chain_config: T,
+    pub chain_config: ConfigSvm,
 }
 
 pub trait ChainTrait:
@@ -128,27 +128,27 @@ impl ChainTrait for Svm {
     type ChainStore = repository::ChainStoreSvm;
 }
 
-pub struct ServiceInner<T: ChainTrait> {
-    opportunity_service: Arc<OpportunityService<T::OpportunityServiceType>>,
-    config:              Config<T::ConfigType>,
-    repo:                Arc<Repository<T>>,
+pub struct ServiceInner {
+    opportunity_service: Arc<OpportunityService<opportunity_service::ChainTypeSvm>>,
+    config:              Config,
+    repo:                Arc<Repository>,
     task_tracker:        TaskTracker,
     event_sender:        broadcast::Sender<UpdateEvent>,
 }
 
 #[derive(Clone)]
-pub struct Service<T: ChainTrait>(Arc<ServiceInner<T>>);
-impl<T: ChainTrait> std::ops::Deref for Service<T> {
-    type Target = ServiceInner<T>;
+pub struct Service(Arc<ServiceInner>);
+impl<T: ChainTrait> std::ops::Deref for Service {
+    type Target = ServiceInner;
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl<T: ChainTrait> Service<T> {
+impl Service {
     pub fn new(
         db: DB,
-        config: Config<T::ConfigType>,
+        config: Config,
         opportunity_service: Arc<OpportunityService<T::OpportunityServiceType>>,
         task_tracker: TaskTracker,
         event_sender: broadcast::Sender<UpdateEvent>,
@@ -165,7 +165,7 @@ impl<T: ChainTrait> Service<T> {
 
 #[derive(Clone)]
 pub enum ServiceEnum {
-    Svm(Service<Svm>),
+    Svm(Service),
 }
 
 #[cfg(test)]
@@ -187,26 +187,26 @@ mod mock_service {
     };
 
     #[derive(Clone)]
-    pub struct MockService<T: ChainTrait>(pub Arc<StatefulMockAuctionService<T>>);
+    pub struct MockService(pub Arc<StatefulMockAuctionService>);
 
-    impl<T: ChainTrait> MockService<T> {
-        pub fn new(mock: StatefulMockAuctionService<T>) -> Self {
+    impl MockService {
+        pub fn new(mock: StatefulMockAuctionService) -> Self {
             Self(Arc::new(mock))
         }
     }
 
-    impl<T: ChainTrait> std::ops::Deref for MockService<T> {
-        type Target = StatefulMockAuctionService<T>;
+    impl std::ops::Deref for MockService {
+        type Target = StatefulMockAuctionService;
         fn deref(&self) -> &Self::Target {
             &self.0
         }
     }
 
     mock! {
-        pub ServiceInner<T: ChainTrait> {
+        pub ServiceInner {
             pub fn new(
                 db: DB,
-                config: Config<T::ConfigType>,
+                config: Config,
                 opportunity_service: Arc<OpportunityService<T::OpportunityServiceType>>,
                 task_tracker: TaskTracker,
                 event_sender: broadcast::Sender<UpdateEvent>,

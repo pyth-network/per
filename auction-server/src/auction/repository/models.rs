@@ -56,6 +56,7 @@ use {
     },
     tracing::instrument,
 };
+use crate::auction::entities::BidStatusSvm;
 
 #[derive(Clone, Debug, PartialEq, PartialOrd, sqlx::Type)]
 #[sqlx(type_name = "chain_type", rename_all = "lowercase")]
@@ -452,7 +453,7 @@ impl ModelTrait<Svm> for Svm {
     }
 }
 #[derive(Clone, Debug, FromRow)]
-pub struct Bid<T: ChainTrait + ModelTrait<T>> {
+pub struct Bid {
     pub id:              entities::BidId,
     #[allow(dead_code)]
     pub creation_time:   PrimitiveDateTime,
@@ -466,23 +467,23 @@ pub struct Bid<T: ChainTrait + ModelTrait<T>> {
     #[allow(dead_code)]
     pub conclusion_time: Option<PrimitiveDateTime>,
     pub profile_id:      Option<ProfileId>,
-    pub metadata:        Json<T::BidMetadataType>,
+    pub metadata:        Json<BidMetadataSvm>,
 }
 
-impl<T: ChainTrait + ModelTrait<T>> Bid<T> {
+impl Bid {
     pub fn new(
-        bid: entities::BidCreate<T>,
-        amount: &T::BidAmountType,
-        chain_data: &T::BidChainDataType,
-    ) -> Bid<T> {
+        bid: entities::BidCreate,
+        amount: &entities::BidAmountSvm,
+        chain_data: &entities::BidChainDataSvm,
+    ) -> Bid {
         let now = OffsetDateTime::now_utc();
         Bid {
             id:              entities::BidId::new_v4(),
             creation_time:   PrimitiveDateTime::new(now.date(), now.time()),
-            permission_key:  T::convert_permission_key(&chain_data.get_permission_key()),
+            permission_key:  Svm::convert_permission_key(&chain_data.get_permission_key()),
             chain_id:        bid.chain_id.clone(),
-            chain_type:      T::get_chain_type(),
-            bid_amount:      T::convert_amount(amount),
+            chain_type:      Svm::get_chain_type(),
+            bid_amount:      Svm::convert_amount(amount),
             status:          BidStatus::Pending,
             auction_id:      None,
             initiation_time: PrimitiveDateTime::new(
@@ -491,20 +492,20 @@ impl<T: ChainTrait + ModelTrait<T>> Bid<T> {
             ),
             conclusion_time: None,
             profile_id:      bid.profile.map(|p| p.id),
-            metadata:        Json(T::get_metadata(chain_data)),
+            metadata:        Json(Svm::get_metadata(chain_data)),
         }
     }
 
-    pub fn get_bid_entity(&self, auction: Option<Auction>) -> anyhow::Result<entities::Bid<T>> {
+    pub fn get_bid_entity(&self, auction: Option<Auction>) -> anyhow::Result<entities::Bid> {
         Ok(entities::Bid {
             id:              self.id,
             chain_id:        self.chain_id.clone(),
             initiation_time: self.initiation_time.assume_offset(UtcOffset::UTC),
             profile_id:      self.profile_id,
 
-            amount:     T::get_bid_amount_entity(self)?,
-            status:     T::get_bid_status_entity(self, auction)?,
-            chain_data: T::get_chain_data_entity(self)?,
+            amount:     Svm::get_bid_amount_entity(self)?,
+            status:     Svm::get_bid_status_entity(self, auction)?,
+            chain_data: Svm::get_chain_data_entity(self)?,
         })
     }
 }
@@ -512,37 +513,37 @@ impl<T: ChainTrait + ModelTrait<T>> Bid<T> {
 
 #[cfg_attr(test, automock)]
 #[async_trait]
-pub trait Database<T: ChainTrait>: Debug + Send + Sync + 'static {
-    async fn add_auction(&self, auction: &entities::Auction<T>) -> anyhow::Result<()>;
-    async fn add_bid(&self, bid: &Bid<T>) -> Result<(), RestError>;
+pub trait Database: Debug + Send + Sync + 'static {
+    async fn add_auction(&self, auction: &entities::Auction) -> anyhow::Result<()>;
+    async fn add_bid(&self, bid: &Bid) -> Result<(), RestError>;
     async fn conclude_auction(&self, auction_id: entities::AuctionId) -> anyhow::Result<()>;
     async fn get_bid(
         &self,
         bid_id: entities::BidId,
         chain_id: ChainId,
-    ) -> Result<Bid<T>, RestError>;
+    ) -> Result<Bid, RestError>;
     async fn get_auction(&self, auction_id: entities::AuctionId) -> Result<Auction, RestError>;
-    async fn get_auctions_by_bids(&self, bids: &[Bid<T>]) -> Result<Vec<Auction>, RestError>;
+    async fn get_auctions_by_bids(&self, bids: &[Bid]) -> Result<Vec<Auction>, RestError>;
     async fn get_bids(
         &self,
         chain_id: ChainId,
         profile_id: ProfileId,
         from_time: Option<OffsetDateTime>,
-    ) -> Result<Vec<Bid<T>>, RestError>;
+    ) -> Result<Vec<Bid>, RestError>;
     async fn submit_auction(
         &self,
-        auction: &entities::Auction<T>,
-        transaction_hash: &entities::TxHash<T>,
-    ) -> anyhow::Result<Option<entities::Auction<T>>>;
+        auction: &entities::Auction,
+        transaction_hash: &Signature,
+    ) -> anyhow::Result<Option<entities::Auction>>;
     async fn update_bid_status(
         &self,
-        bid: &entities::Bid<T>,
-        new_status: &T::BidStatusType,
+        bid: &entities::Bid,
+        new_status: &BidStatusSvm,
     ) -> anyhow::Result<bool>;
 }
 
 #[async_trait]
-impl<T: ChainTrait> Database<T> for DB {
+impl Database for DB {
     #[instrument(
         target = "metrics",
         name = "db_add_auction",
@@ -554,7 +555,7 @@ impl<T: ChainTrait> Database<T> for DB {
         ),
         skip_all
     )]
-    async fn add_auction(&self, auction: &entities::Auction<T>) -> anyhow::Result<()> {
+    async fn add_auction(&self, auction: &entities::Auction) -> anyhow::Result<()> {
         sqlx::query!(
             "INSERT INTO auction (id, creation_time, permission_key, chain_id, chain_type, bid_collection_time, tx_hash) VALUES ($1, $2, $3, $4, $5, $6, $7)",
             auction.id,
@@ -563,7 +564,7 @@ impl<T: ChainTrait> Database<T> for DB {
             auction.chain_id,
             T::get_chain_type() as _,
             PrimitiveDateTime::new(auction.bid_collection_time.date(), auction.bid_collection_time.time()),
-            auction.tx_hash.clone().map(|tx_hash| T::BidStatusType::convert_tx_hash(&tx_hash)),
+            auction.tx_hash.clone().map(|tx_hash| BidStatusSvm::convert_tx_hash(&tx_hash)),
         )
         .execute(self)
         .await
@@ -584,7 +585,7 @@ impl<T: ChainTrait> Database<T> for DB {
         ),
         skip_all
     )]
-    async fn add_bid(&self, bid: &Bid<T>) -> Result<(), RestError> {
+    async fn add_bid(&self, bid: &Bid) -> Result<(), RestError> {
         sqlx::query!("INSERT INTO bid (id, creation_time, permission_key, chain_id, chain_type, bid_amount, status, initiation_time, profile_id, metadata) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
             bid.id,
             bid.creation_time,
@@ -647,7 +648,7 @@ impl<T: ChainTrait> Database<T> for DB {
         &self,
         bid_id: entities::BidId,
         chain_id: ChainId,
-    ) -> Result<Bid<T>, RestError> {
+    ) -> Result<Bid, RestError> {
         sqlx::query_as("SELECT * FROM bid WHERE id = $1 AND chain_id = $2")
             .bind(bid_id)
             .bind(&chain_id)
@@ -705,7 +706,7 @@ impl<T: ChainTrait> Database<T> for DB {
         ),
         skip_all
     )]
-    async fn get_auctions_by_bids(&self, bids: &[Bid<T>]) -> Result<Vec<Auction>, RestError> {
+    async fn get_auctions_by_bids(&self, bids: &[Bid]) -> Result<Vec<Auction>, RestError> {
         let auction_ids: Vec<entities::AuctionId> =
             bids.iter().filter_map(|bid| bid.auction_id).collect();
         sqlx::query_as("SELECT * FROM auction WHERE id = ANY($1)")
@@ -735,7 +736,7 @@ impl<T: ChainTrait> Database<T> for DB {
         chain_id: ChainId,
         profile_id: ProfileId,
         from_time: Option<OffsetDateTime>,
-    ) -> Result<Vec<Bid<T>>, RestError> {
+    ) -> Result<Vec<Bid>, RestError> {
         let mut query = QueryBuilder::new("SELECT * from bid where profile_id = ");
         query
             .push_bind(profile_id)
@@ -766,16 +767,16 @@ impl<T: ChainTrait> Database<T> for DB {
     )]
     async fn submit_auction(
         &self,
-        auction: &entities::Auction<T>,
-        transaction_hash: &entities::TxHash<T>,
-    ) -> anyhow::Result<Option<entities::Auction<T>>> {
+        auction: &entities::Auction,
+        transaction_hash: &Signature,
+    ) -> anyhow::Result<Option<entities::Auction>> {
         let mut auction = auction.clone();
         let now = OffsetDateTime::now_utc();
         auction.tx_hash = Some(transaction_hash.clone());
         auction.submission_time = Some(now);
         let result = sqlx::query!("UPDATE auction SET submission_time = $1, tx_hash = $2 WHERE id = $3 AND submission_time IS NULL",
             PrimitiveDateTime::new(now.date(), now.time()),
-            T::BidStatusType::convert_tx_hash(transaction_hash),
+            BidStatusSvm::convert_tx_hash(transaction_hash),
             auction.id,
         ).execute(self).await.inspect_err(|_| {
             tracing::Span::current().record("result", "error");
@@ -796,10 +797,10 @@ impl<T: ChainTrait> Database<T> for DB {
     )]
     async fn update_bid_status(
         &self,
-        bid: &entities::Bid<T>,
-        new_status: &T::BidStatusType,
+        bid: &entities::Bid,
+        new_status: &entities::BidStatusSvm,
     ) -> anyhow::Result<bool> {
-        let update_query = T::get_update_bid_query(bid, new_status.clone())?;
+        let update_query = Svm::get_update_bid_query(bid, new_status.clone())?;
         let result = update_query.execute(self).await.inspect_err(|_| {
             tracing::Span::current().record("result", "error");
         })?;

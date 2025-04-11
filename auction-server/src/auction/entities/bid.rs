@@ -6,7 +6,6 @@ use {
             ChainId,
             PermissionKey as PermissionKeyEvm,
             PermissionKeySvm,
-            Svm,
         },
         models::{
             self,
@@ -170,15 +169,15 @@ impl BidStatus for BidStatusSvm {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Bid<T: ChainTrait> {
+pub struct Bid {
     pub id:              BidId,
     pub chain_id:        ChainId,
     pub initiation_time: OffsetDateTime,
     pub profile_id:      Option<ProfileId>,
 
-    pub amount:     T::BidAmountType,
-    pub status:     T::BidStatusType,
-    pub chain_data: T::BidChainDataType,
+    pub amount:     BidAmountSvm,
+    pub status:     BidStatusSvm,
+    pub chain_data: BidChainDataSvm,
 }
 
 pub type PermissionKey<T> = <<T as ChainTrait>::BidChainDataType as BidChainData>::PermissionKey;
@@ -264,12 +263,12 @@ impl BidChainDataSvm {
 }
 
 #[derive(Clone, Debug)]
-pub struct BidCreate<T: ChainTrait> {
+pub struct BidCreate {
     pub chain_id:        ChainId,
     pub initiation_time: OffsetDateTime,
     pub profile:         Option<models::Profile>,
 
-    pub chain_data: T::BidChainDataCreateType,
+    pub chain_data: BidChainDataCreateSvm,
 }
 
 #[derive(Clone, Debug)]
@@ -302,15 +301,15 @@ impl BidChainDataCreateSvm {
 
 pub type BidAmountSvm = u64;
 
-impl PartialEq<Bid<Svm>> for BidCreate<Svm> {
-    fn eq(&self, other: &Bid<Svm>) -> bool {
+impl PartialEq<Bid> for BidCreate {
+    fn eq(&self, other: &Bid) -> bool {
         *self.chain_data.get_transaction() == other.chain_data.transaction
             && self.chain_id == other.chain_id
     }
 }
 
-pub struct BidContainerTracing<'a, T: ChainTrait>(pub &'a [Bid<T>]);
-impl<T: ChainTrait> Display for BidContainerTracing<'_, T> {
+pub struct BidContainerTracing<'a>(pub &'a [Bid]);
+impl Display for BidContainerTracing<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,

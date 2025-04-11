@@ -89,22 +89,22 @@ use {
     time::OffsetDateTime,
 };
 
-pub struct VerifyBidInput<T: ChainTrait> {
-    pub bid_create: entities::BidCreate<T>,
+pub struct VerifyBidInput {
+    pub bid_create: entities::BidCreate,
 }
 
-pub type VerificationResult<T> = (
-    <T as ChainTrait>::BidChainDataType,
-    <T as ChainTrait>::BidAmountType,
+pub type VerificationResult= (
+    entities::BidChainDataSvm,
+    entities::BidAmountSvm,
 );
 
 #[async_trait]
-pub trait Verification<T: ChainTrait> {
+pub trait Verification {
     /// Verify the bid, and extract the chain data from the bid.
     async fn verify_bid(
         &self,
-        input: VerifyBidInput<T>,
-    ) -> Result<VerificationResult<T>, RestError>;
+        input: VerifyBidInput,
+    ) -> Result<VerificationResult, RestError>;
 }
 
 #[derive(Debug, Clone)]

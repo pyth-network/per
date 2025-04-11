@@ -12,23 +12,21 @@ use {
     futures::future::join_all,
 };
 
-pub struct ConcludeAuctionInput<T: ChainTrait> {
-    pub auction: entities::Auction<T>,
+pub struct ConcludeAuctionInput {
+    pub auction: entities::Auction,
 }
 
-pub struct ConcludeAuctionWithStatusesInput<T: ChainTrait> {
-    pub auction:      entities::Auction<T>,
-    pub bid_statuses: Vec<(T::BidStatusType, entities::Bid<T>)>,
+pub struct ConcludeAuctionWithStatusesInput {
+    pub auction:      entities::Auction,
+    pub bid_statuses: Vec<(entities::BidStatusSvm, entities::Bid)>,
 }
 
-impl<T: ChainTrait> Service<T>
-where
-    Service<T>: AuctionManager<T>,
+impl Service
 {
     #[tracing::instrument(skip_all, fields(auction_id, bid_ids, bid_statuses))]
     pub async fn conclude_auction_with_statuses(
         &self,
-        input: ConcludeAuctionWithStatusesInput<T>,
+        input: ConcludeAuctionWithStatusesInput,
     ) -> anyhow::Result<()> {
         tracing::Span::current().record(
             "bid_ids",
@@ -75,11 +73,11 @@ where
 
     /// Concludes an auction by getting the auction transaction status from the chain.
     #[tracing::instrument(skip_all)]
-    async fn conclude_auction(&self, input: ConcludeAuctionInput<T>) -> anyhow::Result<()> {
+    async fn conclude_auction(&self, input: ConcludeAuctionInput) -> anyhow::Result<()> {
         let auction = input.auction;
         tracing::info!(chain_id = self.config.chain_id, auction_id = ?auction.id, permission_key = auction.permission_key.to_string(), "Concluding auction");
         if let Some(tx_hash) = auction.tx_hash.clone() {
-            let bids: Vec<entities::Bid<T>> = auction
+            let bids: Vec<entities::Bid> = auction
                 .bids
                 .iter()
                 .filter(|bid| !bid.status.is_concluded())
@@ -108,7 +106,7 @@ where
             // This only happens if auction submission to chain fails
             // This is a very rare case and should not happen
             tracing::warn!("Auction has no transaction hash and is expired");
-            let lost_status = T::BidStatusType::new_lost();
+            let lost_status = entities::BidStatusSvm::new_lost();
             self.conclude_auction_with_statuses(ConcludeAuctionWithStatusesInput {
                 auction:      auction.clone(),
                 bid_statuses: auction

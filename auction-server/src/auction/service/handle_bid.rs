@@ -4,7 +4,6 @@ use {
             Verification,
             VerifyBidInput,
         },
-        ChainTrait,
         Service,
     },
     crate::{
@@ -13,13 +12,11 @@ use {
     },
 };
 
-pub struct HandleBidInput<T: ChainTrait> {
-    pub bid_create: entities::BidCreate<T>,
+pub struct HandleBidInput {
+    pub bid_create: entities::BidCreate,
 }
 
-impl<T: ChainTrait> Service<T>
-where
-    Service<T>: Verification<T>,
+impl Service
 {
     #[tracing::instrument(
         skip_all,
@@ -28,8 +25,8 @@ where
     )]
     pub async fn handle_bid(
         &self,
-        input: HandleBidInput<T>,
-    ) -> Result<entities::Bid<T>, RestError> {
+        input: HandleBidInput,
+    ) -> Result<entities::Bid, RestError> {
         if let Some(profile) = &input.bid_create.profile {
             tracing::Span::current().record("profile_name", &profile.name);
         }
