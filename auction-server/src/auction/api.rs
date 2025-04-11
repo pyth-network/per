@@ -48,7 +48,6 @@ use {
             BidCancelSvm,
             BidCoreFields,
             BidCreate,
-            BidCreateEvm,
             BidCreateSvm,
             BidEvm,
             BidId,
@@ -513,34 +512,6 @@ where
         bid: &BidCreate,
         profile: Option<models::Profile>,
     ) -> Result<entities::BidCreate<T>, RestError>;
-}
-
-impl ApiTrait<Evm> for Evm {
-    type BidCreateType = BidCreateEvm;
-
-    fn get_bid_create_entity(
-        bid: &BidCreate,
-        profile: Option<models::Profile>,
-    ) -> Result<entities::BidCreate<Evm>, RestError> {
-        match bid {
-            BidCreate::Evm(bid_create_evm) => {
-                Ok(entities::BidCreate::<Evm> {
-                    chain_id: bid_create_evm.chain_id.clone(),
-                    profile,
-                    initiation_time: OffsetDateTime::now_utc(),
-                    chain_data: entities::BidChainDataCreateEvm {
-                        target_contract: bid_create_evm.target_contract,
-                        target_calldata: bid_create_evm.target_calldata.clone(),
-                        permission_key:  bid_create_evm.permission_key.clone(),
-                        amount:          bid_create_evm.amount,
-                    },
-                })
-            }
-            _ => Err(RestError::BadParameters(
-                "Expected EVM chain_id. Ensure that the bid type matches the expected chain for the specified chain_id.".to_string()
-            )),
-        }
-    }
 }
 
 impl ApiTrait<Svm> for Svm {

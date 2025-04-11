@@ -720,7 +720,6 @@ pub async fn start_api(
     bid::post_cancel_bid,
 
     opportunity::post_opportunity,
-    opportunity::opportunity_bid,
     opportunity::get_opportunities,
     opportunity::post_quote,
     opportunity::delete_opportunities,
