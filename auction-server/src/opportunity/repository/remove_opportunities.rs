@@ -1,7 +1,6 @@
 use {
     super::{
         models::OpportunityRemovalReason,
-        InMemoryStore,
         Repository,
     },
     crate::{
@@ -9,18 +8,21 @@ use {
             ChainId,
             PermissionKey,
         },
-        opportunity::entities,
+        opportunity::{
+            entities,
+            entities::OpportunitySvm,
+        },
     },
 };
 
-impl<T: InMemoryStore> Repository<T> {
+impl Repository {
     pub async fn remove_opportunities(
         &self,
         permission_key: PermissionKey,
         chain_id: ChainId,
         opportunity_key: &entities::OpportunityKey,
         reason: OpportunityRemovalReason,
-    ) -> anyhow::Result<Vec<T::Opportunity>> {
+    ) -> anyhow::Result<Vec<OpportunitySvm>> {
         self.db
             .remove_opportunities(permission_key, chain_id, reason)
             .await?;

@@ -1,23 +1,20 @@
 use {
-    super::{
-        InMemoryStore,
-        Repository,
-    },
+    super::Repository,
     crate::{
         api::RestError,
         opportunity::entities::{
-            self,
-            Opportunity,
+            OpportunityCreateSvm,
+            OpportunitySvm,
         },
     },
 };
 
-impl<T: InMemoryStore> Repository<T> {
+impl Repository {
     pub async fn add_opportunity(
         &self,
-        opportunity: <T::Opportunity as entities::Opportunity>::OpportunityCreate,
-    ) -> Result<T::Opportunity, RestError> {
-        let opportunity: T::Opportunity = T::Opportunity::new_with_current_time(opportunity);
+        opportunity: OpportunityCreateSvm,
+    ) -> Result<OpportunitySvm, RestError> {
+        let opportunity = OpportunitySvm::new_with_current_time(opportunity);
         self.db.add_opportunity(&opportunity).await?;
         self.in_memory_store
             .opportunities

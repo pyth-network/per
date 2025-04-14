@@ -12,7 +12,6 @@ use {
             db::DB,
             entities::ChainId,
         },
-        opportunity::service as opportunity_service,
     },
     mockall_double::double,
     solana_client::{
@@ -94,7 +93,7 @@ pub struct Config {
 }
 
 pub struct ServiceInner {
-    opportunity_service: Arc<OpportunityService<opportunity_service::ChainTypeSvm>>,
+    opportunity_service: Arc<OpportunityService>,
     config:              Config,
     repo:                Arc<Repository>,
     task_tracker:        TaskTracker,
@@ -114,7 +113,7 @@ impl Service {
     pub fn new(
         db: DB,
         config: Config,
-        opportunity_service: Arc<OpportunityService<ChainTypeSvm>>,
+        opportunity_service: Arc<OpportunityService>,
         task_tracker: TaskTracker,
         event_sender: broadcast::Sender<UpdateEvent>,
     ) -> Self {
@@ -133,7 +132,6 @@ pub enum ServiceEnum {
     Svm(Service),
 }
 
-use crate::opportunity::service::ChainTypeSvm;
 #[cfg(test)]
 pub use {
     mock_service::MockService,
@@ -176,7 +174,7 @@ mod mock_service {
             pub fn new(
                 db: DB,
                 config: Config,
-                opportunity_service: Arc<OpportunityService<ChainTypeSvm>>,
+                opportunity_service: Arc<OpportunityService>,
                 task_tracker: TaskTracker,
                 event_sender: broadcast::Sender<UpdateEvent>,
             ) -> Self;
@@ -266,10 +264,7 @@ pub mod tests {
                     TracedSenderSvm,
                 },
             },
-            opportunity::service::{
-                ChainTypeSvm,
-                MockService as MockOpportunityService,
-            },
+            opportunity::service::MockService as MockOpportunityService,
             server::{
                 get_submit_bid_instruction_account_positions,
                 get_swap_instruction_account_positions,
@@ -289,7 +284,7 @@ pub mod tests {
         pub fn new_with_mocks_svm(
             chain_id: ChainId,
             db: impl Database,
-            opportunity_service: MockOpportunityService<ChainTypeSvm>,
+            opportunity_service: MockOpportunityService,
             rpc_client: MockRpcClient,
             broadcaster_client: MockRpcClient,
         ) -> Self {

@@ -1,11 +1,8 @@
 use {
-    super::{
-        ChainType,
-        Service,
-    },
+    super::Service,
     crate::{
         api::RestError,
-        opportunity::repository::InMemoryStore,
+        opportunity::entities::OpportunitySvm,
     },
     express_relay_api_types::opportunity::{
         GetOpportunitiesQueryParams,
@@ -22,11 +19,11 @@ pub struct GetLiveOpportunityByIdInput {
     pub opportunity_id: OpportunityId,
 }
 
-impl<T: ChainType> Service<T> {
+impl Service {
     pub async fn get_live_opportunity_by_id(
         &self,
         input: GetLiveOpportunityByIdInput,
-    ) -> Option<<T::InMemoryStore as InMemoryStore>::Opportunity> {
+    ) -> Option<OpportunitySvm> {
         self.repo
             .get_in_memory_opportunity_by_id(input.opportunity_id)
             .await
@@ -34,7 +31,7 @@ impl<T: ChainType> Service<T> {
     pub async fn get_opportunities(
         &self,
         input: GetOpportunitiesInput,
-    ) -> Result<Vec<<T::InMemoryStore as InMemoryStore>::Opportunity>, RestError> {
+    ) -> Result<Vec<OpportunitySvm>, RestError> {
         let query_params = input.query_params;
         if let Some(chain_id) = query_params.chain_id.clone() {
             self.get_config(&chain_id)?;

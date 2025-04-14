@@ -1608,7 +1608,6 @@ mod tests {
                         generate_indicative_price_taker,
                         get_quote_virtual_permission_account,
                     },
-                    ChainTypeSvm,
                     MockService,
                 },
             },
@@ -1690,10 +1689,8 @@ mod tests {
         pub with_minimum_lifetime:       OpportunitySvm,
     }
 
-    fn get_opportunity_service(
-        chain_id: ChainId,
-    ) -> (MockService<ChainTypeSvm>, TestOpportunities) {
-        let mut opportunity_service = MockService::<ChainTypeSvm>::default();
+    fn get_opportunity_service(chain_id: ChainId) -> (MockService, TestOpportunities) {
+        let mut opportunity_service = MockService::default();
         let now = OffsetDateTime::now_utc();
         let router = Pubkey::new_unique();
         let user_wallet_address = Pubkey::new_unique();
@@ -1769,7 +1766,7 @@ mod tests {
         );
 
         let opp_user_token_specified = OpportunitySvm {
-            core_fields: OpportunityCoreFields::<TokenAmountSvm> {
+            core_fields: OpportunityCoreFields {
                 id:             Uuid::new_v4(),
                 permission_key: OpportunitySvm::get_permission_key(
                     BidPaymentInstructionType::Swap,
@@ -1798,7 +1795,7 @@ mod tests {
         };
 
         let opp_searcher_token_specified = OpportunitySvm {
-            core_fields: OpportunityCoreFields::<TokenAmountSvm> {
+            core_fields: OpportunityCoreFields {
                 id:             Uuid::new_v4(),
                 permission_key: OpportunitySvm::get_permission_key(
                     BidPaymentInstructionType::Swap,
@@ -1827,7 +1824,7 @@ mod tests {
         };
 
         let opp_user_token_wsol = OpportunitySvm {
-            core_fields: OpportunityCoreFields::<TokenAmountSvm> {
+            core_fields: OpportunityCoreFields {
                 id:             Uuid::new_v4(),
                 permission_key: OpportunitySvm::get_permission_key(
                     BidPaymentInstructionType::Swap,
@@ -1860,7 +1857,7 @@ mod tests {
         };
 
         let opp_searcher_token_wsol = OpportunitySvm {
-            core_fields: OpportunityCoreFields::<TokenAmountSvm> {
+            core_fields: OpportunityCoreFields {
                 id:             Uuid::new_v4(),
                 permission_key: OpportunitySvm::get_permission_key(
                     BidPaymentInstructionType::Swap,
@@ -1897,7 +1894,7 @@ mod tests {
         );
 
         let opp_with_indicative_price_taker = OpportunitySvm {
-            core_fields: OpportunityCoreFields::<TokenAmountSvm> {
+            core_fields: OpportunityCoreFields {
                 id:             Uuid::new_v4(),
                 permission_key: OpportunitySvm::get_permission_key(
                     BidPaymentInstructionType::Swap,
@@ -1927,7 +1924,7 @@ mod tests {
 
 
         let opp_with_user_payer = OpportunitySvm {
-            core_fields: OpportunityCoreFields::<TokenAmountSvm> {
+            core_fields: OpportunityCoreFields {
                 id:             Uuid::new_v4(),
                 permission_key: OpportunitySvm::get_permission_key(
                     BidPaymentInstructionType::Swap,
@@ -1961,7 +1958,7 @@ mod tests {
         };
 
         let opp_with_memo = OpportunitySvm {
-            core_fields: OpportunityCoreFields::<TokenAmountSvm> {
+            core_fields: OpportunityCoreFields {
                 id:             Uuid::new_v4(),
                 permission_key: OpportunitySvm::get_permission_key(
                     BidPaymentInstructionType::Swap,
@@ -1991,7 +1988,7 @@ mod tests {
         };
 
         let opp_with_minimum_lifetime = OpportunitySvm {
-            core_fields: OpportunityCoreFields::<TokenAmountSvm> {
+            core_fields: OpportunityCoreFields {
                 id: Uuid::new_v4(),
                 permission_key: OpportunitySvm::get_permission_key(
                     BidPaymentInstructionType::Swap,

@@ -1,18 +1,15 @@
 use {
-    super::{
-        InMemoryStore,
-        Repository,
-    },
+    super::Repository,
     crate::opportunity::entities::{
         self,
-        Opportunity,
+        OpportunitySvm,
     },
 };
 
-impl<T: InMemoryStore> Repository<T> {
+impl Repository {
     pub async fn remove_opportunity(
         &self,
-        opportunity: &T::Opportunity,
+        opportunity: &OpportunitySvm,
         reason: entities::OpportunityRemovalReason,
     ) -> anyhow::Result<()> {
         self.db

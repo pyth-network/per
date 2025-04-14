@@ -1,16 +1,16 @@
 use {
-    super::{
-        InMemoryStore,
-        Repository,
+    super::Repository,
+    crate::opportunity::{
+        entities,
+        entities::OpportunitySvm,
     },
-    crate::opportunity::entities,
     std::collections::HashMap,
 };
 
-impl<T: InMemoryStore> Repository<T> {
+impl Repository {
     pub async fn get_in_memory_opportunities(
         &self,
-    ) -> HashMap<entities::OpportunityKey, Vec<T::Opportunity>> {
+    ) -> HashMap<entities::OpportunityKey, Vec<OpportunitySvm>> {
         self.in_memory_store.opportunities.read().await.clone()
     }
 }

@@ -1,8 +1,5 @@
 use {
-    super::{
-        ChainTypeSvm,
-        Service,
-    },
+    super::Service,
     crate::{
         api::{
             ws::UpdateEvent,
@@ -13,7 +10,6 @@ use {
         opportunity::{
             entities::{
                 self,
-                Opportunity as _,
             },
             repository::{
                 self,
@@ -29,7 +25,7 @@ pub struct RemoveOpportunitiesInput {
     pub router:             Pubkey,
 }
 
-impl Service<ChainTypeSvm> {
+impl Service {
     pub async fn remove_opportunities(
         &self,
         input: RemoveOpportunitiesInput,

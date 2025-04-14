@@ -1,9 +1,5 @@
 use {
-    super::{
-        verification::Verification,
-        ChainType,
-        Service,
-    },
+    super::Service,
     crate::{
         api::{
             ws::UpdateEvent::NewOpportunity,
@@ -12,37 +8,27 @@ use {
         opportunity::{
             entities::{
                 self,
-                Opportunity,
-                OpportunityCreate,
+                OpportunityCreateSvm,
+                OpportunitySvm,
             },
-            repository::InMemoryStore,
             service::verification::VerifyOpportunityInput,
         },
     },
 };
 
-pub struct AddOpportunityInput<T: entities::OpportunityCreate> {
-    pub opportunity: T,
+pub struct AddOpportunityInput {
+    pub opportunity: OpportunityCreateSvm,
 }
 
-type OpportunityType<T> = <<T as ChainType>::InMemoryStore as InMemoryStore>::Opportunity;
-type OpportunityCreateType<T> = <OpportunityType<T> as entities::Opportunity>::OpportunityCreate;
-
 #[derive(Debug, Clone)]
-enum OpportunityAction<T: entities::Opportunity> {
+enum OpportunityAction {
     Add,
-    Refresh(T),
+    Refresh(OpportunitySvm),
     Ignore,
 }
 
-impl<T: ChainType> Service<T>
-where
-    Service<T>: Verification<T>,
-{
-    async fn assess_action(
-        &self,
-        opportunity: &OpportunityCreateType<T>,
-    ) -> OpportunityAction<OpportunityType<T>> {
+impl Service {
+    async fn assess_action(&self, opportunity: &OpportunityCreateSvm) -> OpportunityAction {
         let opportunities = self
             .repo
             .get_in_memory_opportunities_by_key(&opportunity.get_key())
@@ -60,8 +46,8 @@ where
     }
     pub async fn add_opportunity(
         &self,
-        input: AddOpportunityInput<OpportunityCreateType<T>>,
-    ) -> Result<<T::InMemoryStore as InMemoryStore>::Opportunity, RestError> {
+        input: AddOpportunityInput,
+    ) -> Result<OpportunitySvm, RestError> {
         let opportunity_create = input.opportunity;
         let action = self.assess_action(&opportunity_create).await;
         if let OpportunityAction::Ignore = action {
@@ -134,7 +120,6 @@ mod tests {
                 repository::MockDatabase,
                 service::{
                     add_opportunity::AddOpportunityInput,
-                    ChainTypeSvm,
                     Service,
                 },
             },
@@ -155,7 +140,7 @@ mod tests {
         mock_db.expect_add_opportunity().returning(|_| Ok(()));
 
         let (service, mut ws_receiver) =
-            Service::<ChainTypeSvm>::new_with_mocks_svm(chain_id.clone(), mock_db, rpc_client);
+            Service::new_with_mocks_svm(chain_id.clone(), mock_db, rpc_client);
 
         let permission_account = Pubkey::new_unique();
         let router = Pubkey::new_unique();
@@ -172,7 +157,7 @@ mod tests {
         let order = vec![1, 2, 3, 4];
 
         let opportunity_create = OpportunityCreateSvm {
-            core_fields: OpportunityCoreFieldsCreate::<TokenAmountSvm> {
+            core_fields: OpportunityCoreFieldsCreate {
                 permission_key: permission_key.clone(),
                 chain_id:       chain_id.clone(),
                 sell_tokens:    vec![TokenAmountSvm {

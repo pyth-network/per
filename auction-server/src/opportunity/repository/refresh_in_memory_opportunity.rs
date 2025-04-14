@@ -1,17 +1,14 @@
 use {
-    super::{
-        InMemoryStore,
-        Repository,
-    },
-    crate::opportunity::entities::Opportunity,
+    super::Repository,
+    crate::opportunity::entities::OpportunitySvm,
     std::collections::hash_map::Entry,
 };
 
-impl<T: InMemoryStore> Repository<T> {
+impl Repository {
     pub async fn refresh_in_memory_opportunity(
         &self,
-        opportunity: T::Opportunity,
-    ) -> T::Opportunity {
+        opportunity: OpportunitySvm,
+    ) -> OpportunitySvm {
         let mut refreshed_opportunity = opportunity.clone();
         refreshed_opportunity.refresh();
 

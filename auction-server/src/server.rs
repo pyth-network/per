@@ -328,14 +328,12 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
         metrics_recorder: setup_metrics_recorder()?,
     });
 
-    let opportunity_service_svm = Arc::new(
-        OpportunityService::<opportunity_service::ChainTypeSvm>::new(
-            store.clone(),
-            task_tracker.clone(),
-            pool.clone(),
-            config_opportunity_service_svm,
-        ),
-    );
+    let opportunity_service_svm = Arc::new(OpportunityService::new(
+        store.clone(),
+        task_tracker.clone(),
+        pool.clone(),
+        config_opportunity_service_svm,
+    ));
     #[allow(clippy::iter_kv_map)]
     let auction_services: HashMap<ChainId, auction_service::ServiceEnum> = chains_svm
         .iter()
