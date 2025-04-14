@@ -1,8 +1,5 @@
 use {
-    super::{
-        entities,
-        service::ChainTrait,
-    },
+    super::entities,
     crate::kernel::entities::ChainId,
     axum_prometheus::metrics,
     solana_sdk::pubkey::Pubkey,
@@ -42,6 +39,7 @@ mod submit_auction;
 mod update_bid_status;
 mod update_in_memory_auction;
 
+use crate::kernel::entities::PermissionKeySvm;
 pub use models::*;
 
 #[derive(Debug, Default)]
@@ -62,37 +60,37 @@ pub struct PrioritizationFeeSample {
 pub struct ChainStoreEvm {}
 
 #[derive(Debug)]
-pub struct InMemoryStore<T: ChainTrait> {
-    pub pending_bids: RwLock<HashMap<entities::PermissionKey<T>, Vec<entities::Bid<T>>>>,
-    pub auctions:     RwLock<HashMap<entities::AuctionId, entities::Auction<T>>>,
+pub struct InMemoryStore {
+    pub pending_bids: RwLock<HashMap<PermissionKeySvm, Vec<entities::Bid>>>,
+    pub auctions:     RwLock<HashMap<entities::AuctionId, entities::Auction>>,
 
-    pub auction_lock: Mutex<HashMap<entities::PermissionKey<T>, entities::AuctionLock>>,
+    pub auction_lock: Mutex<HashMap<PermissionKeySvm, entities::AuctionLock>>,
     pub bid_lock:     Mutex<HashMap<entities::BidId, entities::BidLock>>,
 
-    pub chain_store: T::ChainStore,
+    pub chain_store: ChainStoreSvm,
 }
 
-impl<T: ChainTrait> Default for InMemoryStore<T> {
+impl Default for InMemoryStore {
     fn default() -> Self {
         Self {
             pending_bids: RwLock::new(HashMap::new()),
             auctions:     RwLock::new(HashMap::new()),
             auction_lock: Mutex::new(HashMap::new()),
             bid_lock:     Mutex::new(HashMap::new()),
-            chain_store:  T::ChainStore::default(),
+            chain_store:  ChainStoreSvm::default(),
         }
     }
 }
 
 #[derive(Debug)]
-pub struct Repository<T: ChainTrait> {
-    pub in_memory_store: InMemoryStore<T>,
-    pub db:              Box<dyn models::Database<T>>,
+pub struct Repository {
+    pub in_memory_store: InMemoryStore,
+    pub db:              Box<dyn models::Database>,
     pub chain_id:        ChainId,
 }
 
-impl<T: ChainTrait> Repository<T> {
-    pub fn new(db: impl models::Database<T>, chain_id: ChainId) -> Self {
+impl Repository {
+    pub fn new(db: impl models::Database, chain_id: ChainId) -> Self {
         Self {
             in_memory_store: InMemoryStore::default(),
             db: Box::new(db),

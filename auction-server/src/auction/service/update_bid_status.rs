@@ -1,8 +1,5 @@
 use {
-    super::{
-        ChainTrait,
-        Service,
-    },
+    super::Service,
     crate::{
         api::{
             ws::UpdateEvent,
@@ -13,17 +10,14 @@ use {
     express_relay_api_types::bid::BidStatusWithId,
 };
 
-pub struct UpdateBidStatusInput<T: ChainTrait> {
-    pub bid:        entities::Bid<T>,
-    pub new_status: T::BidStatusType,
+pub struct UpdateBidStatusInput {
+    pub bid:        entities::Bid,
+    pub new_status: entities::BidStatusSvm,
 }
 
-impl<T: ChainTrait> Service<T> {
+impl Service {
     #[tracing::instrument(skip_all, fields(bid_id, status), err(level = tracing::Level::TRACE))]
-    pub async fn update_bid_status(
-        &self,
-        input: UpdateBidStatusInput<T>,
-    ) -> Result<bool, RestError> {
+    pub async fn update_bid_status(&self, input: UpdateBidStatusInput) -> Result<bool, RestError> {
         tracing::Span::current().record("bid_id", input.bid.id.to_string());
         tracing::Span::current().record("status", format!("{:?}", input.new_status));
 

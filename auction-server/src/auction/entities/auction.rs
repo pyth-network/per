@@ -1,13 +1,13 @@
 use {
     super::bid::{
         Bid,
-        BidChainData,
         BidStatus,
     },
-    crate::{
-        auction::service::ChainTrait,
-        kernel::entities::ChainId,
+    crate::kernel::entities::{
+        ChainId,
+        PermissionKeySvm,
     },
+    solana_sdk::signature::Signature,
     std::{
         sync::Arc,
         time::Duration,
@@ -21,18 +21,18 @@ pub type AuctionId = Uuid;
 pub type AuctionLock = Arc<Mutex<()>>;
 
 #[derive(Debug, Clone)]
-pub struct Auction<T: ChainTrait> {
+pub struct Auction {
     pub id:                  AuctionId,
     pub chain_id:            ChainId,
-    pub permission_key:      super::PermissionKey<T>,
+    pub permission_key:      PermissionKeySvm,
     pub creation_time:       OffsetDateTime,
     #[allow(dead_code)]
     pub conclusion_time:     Option<OffsetDateTime>,
     pub bid_collection_time: OffsetDateTime,
     pub submission_time:     Option<OffsetDateTime>,
-    pub tx_hash:             Option<<T::BidStatusType as BidStatus>::TxHash>,
+    pub tx_hash:             Option<Signature>,
 
-    pub bids: Vec<Bid<T>>,
+    pub bids: Vec<Bid>,
 }
 
 #[derive(PartialEq, Debug)]
@@ -42,9 +42,9 @@ pub enum SubmitType {
     Invalid,
 }
 
-impl<T: ChainTrait> Auction<T> {
-    pub fn try_new(bids: Vec<Bid<T>>, bid_collection_time: OffsetDateTime) -> Option<Self> {
-        let bids: Vec<Bid<T>> = bids
+impl Auction {
+    pub fn try_new(bids: Vec<Bid>, bid_collection_time: OffsetDateTime) -> Option<Self> {
+        let bids: Vec<Bid> = bids
             .into_iter()
             .filter(|bid| bid.status.is_pending())
             .collect();

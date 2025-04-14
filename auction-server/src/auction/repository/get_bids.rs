@@ -1,8 +1,5 @@
 use {
-    super::{
-        ChainTrait,
-        Repository,
-    },
+    super::Repository,
     crate::{
         api::RestError,
         auction::entities,
@@ -11,12 +8,12 @@ use {
     time::OffsetDateTime,
 };
 
-impl<T: ChainTrait> Repository<T> {
+impl Repository {
     pub async fn get_bids(
         &self,
         profile_id: ProfileId,
         from_time: Option<OffsetDateTime>,
-    ) -> Result<Vec<entities::Bid<T>>, RestError> {
+    ) -> Result<Vec<entities::Bid>, RestError> {
         let bids = self
             .db
             .get_bids(self.chain_id.clone(), profile_id, from_time)

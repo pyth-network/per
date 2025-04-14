@@ -1,8 +1,5 @@
 use {
-    crate::{
-        auction::entities::Bid,
-        kernel::entities::Svm,
-    },
+    crate::auction::entities::Bid,
     futures::future::join_all,
     litesvm::{
         types::{
@@ -391,7 +388,7 @@ impl Simulator {
     /// considering the current state of the chain and the pending transactions.
     /// Right now, for simplicity, the method assume the bids are sorted, and tries to submit them in order
     /// and only return the ones that are successfully submitted.
-    pub async fn optimize_bids(&self, bids_sorted: &[Bid<Svm>]) -> RpcResult<Vec<Bid<Svm>>> {
+    pub async fn optimize_bids(&self, bids_sorted: &[Bid]) -> RpcResult<Vec<Bid>> {
         let pending_txs = self.fetch_pending_and_remove_old_txs().await;
         let txs_to_fetch = pending_txs
             .iter()

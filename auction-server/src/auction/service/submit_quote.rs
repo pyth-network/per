@@ -11,10 +11,7 @@ use {
             self,
             BidStatus,
         },
-        kernel::entities::{
-            ChainId,
-            Svm,
-        },
+        kernel::entities::ChainId,
         per_metrics::{
             SUBMIT_QUOTE_DEADLINE_BUFFER_METRIC,
             SUBMIT_QUOTE_DEADLINE_TOTAL,
@@ -35,12 +32,12 @@ pub struct SubmitQuoteInput {
 
 const MIN_DEADLINE_BUFFER_SECS: i64 = 2;
 
-impl Service<Svm> {
+impl Service {
     async fn get_winner_bid(
         &self,
         auction_id: entities::AuctionId,
-    ) -> Result<(entities::Auction<Svm>, entities::Bid<Svm>), RestError> {
-        let auction: entities::Auction<Svm> = self
+    ) -> Result<(entities::Auction, entities::Bid), RestError> {
+        let auction: entities::Auction = self
             .get_auction_by_id(GetAuctionByIdInput { auction_id })
             .await
             .ok_or(RestError::BadParameters("Quote not found. The provided reference ID may be invalid, already finalized on-chain, or canceled.".to_string()))?;
@@ -71,8 +68,8 @@ impl Service<Svm> {
 
     pub async fn sign_bid_and_submit_auction(
         &self,
-        bid: entities::Bid<Svm>,
-        auction: entities::Auction<Svm>,
+        bid: entities::Bid,
+        auction: entities::Auction,
     ) -> Result<VersionedTransaction, RestError> {
         let mut bid = bid;
         self.add_relayer_signature(&mut bid);
@@ -94,8 +91,8 @@ impl Service<Svm> {
     #[tracing::instrument(skip_all, err(level = tracing::Level::TRACE))]
     async fn submit_auction_bid_for_lock(
         &self,
-        signed_bid: entities::Bid<Svm>,
-        auction: entities::Auction<Svm>,
+        signed_bid: entities::Bid,
+        auction: entities::Auction,
         lock: entities::BidLock,
     ) -> Result<(), RestError> {
         let _lock = lock.lock().await;

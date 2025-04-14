@@ -5,24 +5,20 @@ use {
     },
     crate::{
         api::RestError,
-        auction::{
-            entities::{
-                self,
-                BidChainData,
-            },
-            service::ChainTrait,
+        auction::entities::{
+            self,
         },
     },
 };
 
-impl<T: ChainTrait> Repository<T> {
+impl Repository {
     #[tracing::instrument(skip_all, err(level = tracing::Level::TRACE))]
     pub async fn add_bid(
         &self,
-        bid_create: entities::BidCreate<T>,
-        chain_data: &T::BidChainDataType,
-        amount: &T::BidAmountType,
-    ) -> Result<entities::Bid<T>, RestError> {
+        bid_create: entities::BidCreate,
+        chain_data: &entities::BidChainDataSvm,
+        amount: &entities::BidAmountSvm,
+    ) -> Result<entities::Bid, RestError> {
         let bid_model = Bid::new(bid_create.clone(), amount, chain_data);
         let bid = bid_model.get_bid_entity(None).map_err(|e| {
             tracing::error!(error = e.to_string(), bid_create = ?bid_create, "Failed to convert bid to entity");

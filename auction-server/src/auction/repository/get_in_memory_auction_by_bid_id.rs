@@ -1,16 +1,13 @@
 use {
     super::Repository,
-    crate::auction::{
-        entities,
-        service::ChainTrait,
-    },
+    crate::auction::entities,
 };
 
-impl<T: ChainTrait> Repository<T> {
+impl Repository {
     pub async fn get_in_memory_auction_bid_by_bid_id(
         &self,
         bid_id: entities::BidId,
-    ) -> Option<entities::Bid<T>> {
+    ) -> Option<entities::Bid> {
         self.get_in_memory_auctions()
             .await
             .into_iter()
