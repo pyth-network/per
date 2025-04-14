@@ -1,16 +1,16 @@
 use {
-    super::{
-        InMemoryStore,
-        Repository,
+    super::Repository,
+    crate::opportunity::{
+        entities,
+        entities::OpportunitySvm,
     },
-    crate::opportunity::entities,
 };
 
-impl<T: InMemoryStore> Repository<T> {
+impl Repository {
     pub async fn get_in_memory_opportunity_by_id(
         &self,
         id: entities::OpportunityId,
-    ) -> Option<T::Opportunity> {
+    ) -> Option<OpportunitySvm> {
         let opportunities = self.get_in_memory_opportunities().await;
         opportunities
             .iter()

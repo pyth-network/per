@@ -1,34 +1,22 @@
 use {
-    super::{
-        ChainType,
-        ChainTypeSvm,
-        Service,
-    },
+    super::Service,
     crate::{
         api::RestError,
         opportunity::{
             entities,
-            repository::InMemoryStore,
+            entities::OpportunityCreateSvm,
         },
     },
-    std::future::Future,
 };
 
-pub struct VerifyOpportunityInput<T: entities::OpportunityCreate> {
-    pub opportunity: T,
+pub struct VerifyOpportunityInput {
+    pub opportunity: OpportunityCreateSvm,
 }
 
-pub trait Verification<T: ChainType> {
-    fn verify_opportunity(
+impl Service {
+    pub async fn verify_opportunity(
         &self,
-        input: VerifyOpportunityInput<<<T::InMemoryStore as InMemoryStore>::Opportunity as entities::Opportunity>::OpportunityCreate>,
-    ) -> impl Future<Output = Result<entities::OpportunityVerificationResult, RestError>>;
-}
-
-impl Verification<ChainTypeSvm> for Service<ChainTypeSvm> {
-    async fn verify_opportunity(
-        &self,
-        input: VerifyOpportunityInput<entities::OpportunityCreateSvm>,
+        input: VerifyOpportunityInput,
     ) -> Result<entities::OpportunityVerificationResult, RestError> {
         self.get_config(&input.opportunity.core_fields.chain_id)?;
 

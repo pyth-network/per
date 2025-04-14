@@ -1,11 +1,8 @@
 use {
-    super::{
-        ChainType,
-        Service,
-    },
+    super::Service,
     crate::opportunity::{
         entities,
-        repository::InMemoryStore,
+        entities::OpportunitySvm,
     },
 };
 
@@ -14,11 +11,11 @@ pub struct GetLiveOpportunitiesInput {
     pub key: entities::OpportunityKey,
 }
 
-impl<T: ChainType> Service<T> {
+impl Service {
     pub async fn get_live_opportunities(
         &self,
         input: GetLiveOpportunitiesInput,
-    ) -> Vec<<T::InMemoryStore as InMemoryStore>::Opportunity> {
+    ) -> Vec<OpportunitySvm> {
         self.repo
             .get_in_memory_opportunities_by_key(&input.key)
             .await

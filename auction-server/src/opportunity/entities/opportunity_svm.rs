@@ -1,13 +1,8 @@
 use {
     super::{
-        opportunity::{
-            Opportunity,
-            OpportunityCoreFields,
-        },
-        token_amount_svm::TokenAmountSvm,
+        opportunity::OpportunityCoreFields,
         OpportunityComparison,
         OpportunityCoreFieldsCreate,
-        OpportunityCreate,
     },
     crate::{
         auction::{
@@ -19,7 +14,10 @@ use {
         },
         kernel::entities::PermissionKey,
         opportunity::{
-            entities::QuoteTokens,
+            entities::{
+                OpportunityKey,
+                QuoteTokens,
+            },
             repository,
         },
     },
@@ -133,7 +131,7 @@ pub enum OpportunitySvmProgram {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct OpportunitySvm {
-    pub core_fields: OpportunityCoreFields<TokenAmountSvm>,
+    pub core_fields: OpportunityCoreFields,
 
     pub router:             Pubkey,
     pub permission_account: Pubkey,
@@ -142,7 +140,7 @@ pub struct OpportunitySvm {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct OpportunityCreateSvm {
-    pub core_fields: OpportunityCoreFieldsCreate<TokenAmountSvm>,
+    pub core_fields: OpportunityCoreFieldsCreate,
 
     pub router:             Pubkey,
     pub permission_account: Pubkey,
@@ -152,23 +150,21 @@ pub struct OpportunityCreateSvm {
 // Opportunity can be refreshed after 30 seconds
 const MIN_REFRESH_TIME: Duration = Duration::from_secs(30);
 
-impl Opportunity for OpportunitySvm {
-    type TokenAmount = TokenAmountSvm;
-    type ModelMetadata = repository::OpportunityMetadataSvm;
-    type OpportunityCreate = OpportunityCreateSvm;
+impl OpportunitySvm {
+    pub fn get_key(&self) -> OpportunityKey {
+        OpportunityKey(self.chain_id.clone(), self.permission_key.clone())
+    }
 
-    fn new_with_current_time(val: Self::OpportunityCreate) -> Self {
+    pub fn new_with_current_time(val: OpportunityCreateSvm) -> Self {
         OpportunitySvm {
-            core_fields:        OpportunityCoreFields::<TokenAmountSvm>::new_with_current_time(
-                val.core_fields,
-            ),
+            core_fields:        OpportunityCoreFields::new_with_current_time(val.core_fields),
             router:             val.router,
             permission_account: val.permission_account,
             program:            val.program,
         }
     }
 
-    fn get_models_metadata(&self) -> Self::ModelMetadata {
+    pub fn get_models_metadata(&self) -> repository::OpportunityMetadataSvm {
         let program = match self.program.clone() {
             OpportunitySvmProgram::Limo(program) => {
                 repository::OpportunityMetadataSvmProgram::Limo(
@@ -198,14 +194,14 @@ impl Opportunity for OpportunitySvm {
                 )
             }
         };
-        Self::ModelMetadata {
+        repository::OpportunityMetadataSvm {
             program,
             router: self.router,
             permission_account: self.permission_account,
         }
     }
 
-    fn get_opportunity_delete(&self) -> api::OpportunityDelete {
+    pub fn get_opportunity_delete(&self) -> api::OpportunityDelete {
         api::OpportunityDelete::Svm(api::OpportunityDeleteSvm::V1(api::OpportunityDeleteV1Svm {
             chain_id:           self.chain_id.clone(),
             permission_account: self.permission_account,
@@ -214,7 +210,7 @@ impl Opportunity for OpportunitySvm {
         }))
     }
 
-    fn compare(&self, other: &OpportunityCreateSvm) -> super::OpportunityComparison {
+    pub fn compare(&self, other: &OpportunityCreateSvm) -> super::OpportunityComparison {
         let mut self_clone: OpportunityCreateSvm = self.clone().into();
         if let (
             OpportunitySvmProgram::Limo(self_program),
@@ -234,16 +230,14 @@ impl Opportunity for OpportunitySvm {
         }
     }
 
-    fn refresh(&mut self) {
+    pub fn refresh(&mut self) {
         self.core_fields.refresh_time = OffsetDateTime::now_utc();
     }
 }
 
-impl OpportunityCreate for OpportunityCreateSvm {
-    type ApiOpportunityCreate = api::OpportunityCreateSvm;
-
-    fn get_key(&self) -> super::OpportunityKey {
-        super::OpportunityKey(
+impl OpportunityCreateSvm {
+    pub fn get_key(&self) -> OpportunityKey {
+        OpportunityKey(
             self.core_fields.chain_id.clone(),
             self.core_fields.permission_key.clone(),
         )
@@ -251,7 +245,7 @@ impl OpportunityCreate for OpportunityCreateSvm {
 }
 
 impl Deref for OpportunitySvm {
-    type Target = OpportunityCoreFields<TokenAmountSvm>;
+    type Target = OpportunityCoreFields;
 
     fn deref(&self) -> &Self::Target {
         &self.core_fields
@@ -529,7 +523,7 @@ impl From<api::OpportunityCreateSvm> for OpportunityCreateSvm {
         };
 
         OpportunityCreateSvm {
-            core_fields: OpportunityCoreFieldsCreate::<TokenAmountSvm> {
+            core_fields: OpportunityCoreFieldsCreate {
                 permission_key: get_permission_key(
                     bid_instruction_type,
                     params.router,
@@ -549,7 +543,7 @@ impl From<api::OpportunityCreateSvm> for OpportunityCreateSvm {
 impl From<OpportunitySvm> for OpportunityCreateSvm {
     fn from(val: OpportunitySvm) -> Self {
         OpportunityCreateSvm {
-            core_fields:        OpportunityCoreFieldsCreate::<TokenAmountSvm> {
+            core_fields:        OpportunityCoreFieldsCreate {
                 permission_key: val.core_fields.permission_key,
                 chain_id:       val.core_fields.chain_id,
                 sell_tokens:    val.core_fields.sell_tokens,

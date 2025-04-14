@@ -13,7 +13,6 @@ use {
             ConfigSvm,
         },
         models,
-        opportunity::service as opportunity_service,
     },
     axum_prometheus::metrics_exporter_prometheus::PrometheusHandle,
     base64::{
@@ -89,7 +88,7 @@ pub struct Store {
 }
 
 pub struct StoreNew {
-    pub opportunity_service_svm: Arc<OpportunityService<opportunity_service::ChainTypeSvm>>,
+    pub opportunity_service_svm: Arc<OpportunityService>,
     pub store:                   Arc<Store>,
     pub task_tracker:            TaskTracker,
 
@@ -99,7 +98,7 @@ pub struct StoreNew {
 impl StoreNew {
     pub fn new(
         store: Arc<Store>,
-        opportunity_service_svm: Arc<OpportunityService<opportunity_service::ChainTypeSvm>>,
+        opportunity_service_svm: Arc<OpportunityService>,
         auction_services: HashMap<ChainId, auction_service::ServiceEnum>,
         task_tracker: TaskTracker,
     ) -> Self {

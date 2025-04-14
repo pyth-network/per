@@ -25,15 +25,6 @@ impl Display for PermissionKeySvm {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
-pub enum ChainType {
-    Evm,
-    Svm,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct Evm;
-
 #[derive(Clone, Debug, PartialEq)]
 pub struct Svm;
 

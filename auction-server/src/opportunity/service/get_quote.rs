@@ -2,7 +2,6 @@ use {
     super::{
         get_quote_request_account_balances::QuoteRequestAccountBalancesInput,
         get_token_program::GetTokenProgramInput,
-        ChainTypeSvm,
         Service,
     },
     crate::{
@@ -178,7 +177,7 @@ fn get_fee_token(
     }
 }
 
-impl Service<ChainTypeSvm> {
+impl Service {
     #[tracing::instrument(skip_all, err(level = tracing::Level::TRACE))]
     async fn get_opportunity_create_for_quote(
         &self,
@@ -861,7 +860,7 @@ mod tests {
     }
 
     struct QuoteSequence {
-        service:         Service<ChainTypeSvm>,
+        service:         Service,
         auction_service: StatefulMockAuctionService,
 
         token_program_user:     Pubkey,
@@ -882,8 +881,7 @@ mod tests {
 
         let test_token_program_user = Pubkey::new_unique();
         let test_token_program_searcher = Pubkey::new_unique();
-        let (mut service, _) =
-            Service::<ChainTypeSvm>::new_with_mocks_svm(chain_id.clone(), mock_db, rpc_client);
+        let (mut service, _) = Service::new_with_mocks_svm(chain_id.clone(), mock_db, rpc_client);
         service
             .config
             .get_mut(&chain_id)
@@ -907,7 +905,7 @@ mod tests {
     }
 
     fn inject_auction_service(
-        service: &Service<ChainTypeSvm>,
+        service: &Service,
         auction_service_in_call: StatefulMockAuctionService,
     ) {
         let auction_service = MockAuctionService::new(auction_service_in_call);

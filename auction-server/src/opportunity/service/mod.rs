@@ -3,8 +3,6 @@ use crate::auction::service::Service as AuctionService;
 use {
     super::repository::{
         Database,
-        InMemoryStore,
-        InMemoryStoreSvm,
         Repository,
     },
     crate::{
@@ -12,10 +10,7 @@ use {
             self as auction_service,
         },
         kernel::{
-            entities::{
-                ChainId,
-                ChainType as ChainTypeEnum,
-            },
+            entities::ChainId,
             traced_sender_svm::TracedSenderSvm,
         },
         state::{
@@ -108,12 +103,6 @@ pub struct ConfigSvm {
     pub auction_service_container: AuctionServiceContainer,
 }
 
-#[allow(dead_code)]
-pub trait Config: Send + Sync {}
-
-impl Config for ConfigSvm {
-}
-
 impl ConfigSvm {
     pub async fn from_chains(
         chains: &HashMap<ChainId, ChainStoreSvm>,
@@ -143,39 +132,21 @@ impl ConfigSvm {
     }
 }
 
-pub trait ChainType: Send + Sync {
-    type Config: Config;
-    type InMemoryStore: InMemoryStore;
-
-    fn get_type() -> ChainTypeEnum;
-}
-
-pub struct ChainTypeSvm;
-
-impl ChainType for ChainTypeSvm {
-    type Config = ConfigSvm;
-    type InMemoryStore = InMemoryStoreSvm;
-
-    fn get_type() -> ChainTypeEnum {
-        ChainTypeEnum::Svm
-    }
-}
-
 // TODO maybe just create a service per chain_id?
-pub struct Service<T: ChainType> {
+pub struct Service {
     store:        Arc<Store>,
     // TODO maybe after adding state for opportunity we can remove the arc
-    repo:         Arc<Repository<T::InMemoryStore>>,
-    config:       HashMap<ChainId, T::Config>,
+    repo:         Arc<Repository>,
+    config:       HashMap<ChainId, ConfigSvm>,
     task_tracker: TaskTracker,
 }
 
-impl<T: ChainType> Service<T> {
+impl Service {
     pub fn new(
         store: Arc<Store>,
         task_tracker: TaskTracker,
-        db: impl Database<T::InMemoryStore>,
-        config: HashMap<ChainId, T::Config>,
+        db: impl Database,
+        config: HashMap<ChainId, ConfigSvm>,
     ) -> Self {
         Self {
             store,
@@ -207,10 +178,10 @@ pub mod tests {
         },
     };
 
-    impl Service<ChainTypeSvm> {
+    impl Service {
         pub fn new_with_mocks_svm(
             chain_id: ChainId,
-            db: MockDatabase<InMemoryStoreSvm>,
+            db: MockDatabase,
             rpc_client: MockRpcClient,
         ) -> (Self, Receiver<UpdateEvent>) {
             let config_svm = crate::opportunity::service::ConfigSvm {
@@ -237,8 +208,7 @@ pub mod tests {
 
             let ws_receiver = store.ws.broadcast_receiver.resubscribe();
 
-            let service =
-                Service::<ChainTypeSvm>::new(store.clone(), TaskTracker::new(), db, chains_svm);
+            let service = Service::new(store.clone(), TaskTracker::new(), db, chains_svm);
 
             (service, ws_receiver)
         }
@@ -246,17 +216,20 @@ pub mod tests {
 }
 
 #[cfg(test)]
+use crate::opportunity::entities::OpportunitySvm;
+
+#[cfg(test)]
 mock! {
-    pub Service<T: ChainType + 'static> {
+    pub Service {
         pub fn new(
             store: Arc<Store>,
             task_tracker: TaskTracker,
             db: DB,
-            config: HashMap<ChainId, T::Config>,
+            config: HashMap<ChainId, ConfigSvm>,
         ) -> Self;
-        pub fn get_config(&self, chain_id: &ChainId) -> Result<T::Config, crate::api::RestError>;
-        pub async fn get_live_opportunities(&self, input: get_live_opportunities::GetLiveOpportunitiesInput) -> Vec<<T::InMemoryStore as InMemoryStore>::Opportunity>;
-        pub async fn get_live_opportunity_by_id(&self, input: get_opportunities::GetLiveOpportunityByIdInput) -> Option<<T::InMemoryStore as InMemoryStore>::Opportunity>;
+        pub fn get_config(&self, chain_id: &ChainId) -> Result<ConfigSvm, crate::api::RestError>;
+        pub async fn get_live_opportunities(&self, input: get_live_opportunities::GetLiveOpportunitiesInput) -> Vec<OpportunitySvm>;
+        pub async fn get_live_opportunity_by_id(&self, input: get_opportunities::GetLiveOpportunityByIdInput) -> Option<OpportunitySvm>;
         pub async fn remove_invalid_or_expired_opportunities(&self);
         pub async fn update_metrics(&self);
         pub async fn remove_opportunities(
@@ -265,18 +238,16 @@ mock! {
         ) -> Result<(), crate::api::RestError>;
         pub async fn add_opportunity(
             &self,
-            input: add_opportunity::AddOpportunityInput<<<T::InMemoryStore as InMemoryStore>::Opportunity as crate::opportunity::entities::Opportunity>::OpportunityCreate>,
-        ) -> Result<<T::InMemoryStore as InMemoryStore>::Opportunity, crate::api::RestError>;
+            input: add_opportunity::AddOpportunityInput,
+        ) -> Result<OpportunitySvm, crate::api::RestError>;
         pub async fn get_opportunities(
             &self,
             input: get_opportunities::GetOpportunitiesInput,
-        ) -> Result<Vec<<T::InMemoryStore as InMemoryStore>::Opportunity>, crate::api::RestError>;
+        ) -> Result<Vec<OpportunitySvm>, crate::api::RestError>;
         pub async fn get_quote(&self, input: get_quote::GetQuoteInput) -> Result<crate::opportunity::entities::Quote, crate::api::RestError>;
-    }
-    impl<T: ChainType + 'static> verification::Verification<T> for Service<T> {
-        async fn verify_opportunity(
+        pub async fn verify_opportunity(
             &self,
-            input: verification::VerifyOpportunityInput<<<T::InMemoryStore as InMemoryStore>::Opportunity as crate::opportunity::entities::Opportunity>::OpportunityCreate>,
+            input: verification::VerifyOpportunityInput,
         ) -> Result<crate::opportunity::entities::OpportunityVerificationResult, crate::api::RestError>;
     }
 }

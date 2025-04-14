@@ -1,8 +1,5 @@
 use {
-    super::{
-        ChainTypeSvm,
-        Service,
-    },
+    super::Service,
     crate::{
         api::RestError,
         kernel::entities::ChainId,
@@ -22,7 +19,7 @@ pub struct GetExpressRelayMetadata {
 }
 
 // TODO: Move this to kernel
-impl Service<ChainTypeSvm> {
+impl Service {
     /// Fetches the express relay program metadata for fee calculations
     /// Uses one hour cache to avoid repeated RPC calls
     pub async fn get_express_relay_metadata(

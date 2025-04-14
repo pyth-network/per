@@ -1,12 +1,9 @@
 use {
-    super::{
-        InMemoryStoreSvm,
-        Repository,
-    },
+    super::Repository,
     express_relay::state::ExpressRelayMetadata,
 };
 
-impl Repository<InMemoryStoreSvm> {
+impl Repository {
     pub async fn query_express_relay_metadata(&self) -> Option<ExpressRelayMetadata> {
         self.in_memory_store
             .express_relay_metadata

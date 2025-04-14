@@ -1,19 +1,17 @@
 use {
-    super::token_amount::TokenAmount,
     crate::{
         api::RestError,
         kernel::entities::{
             ChainId,
             PermissionKey,
         },
-        opportunity::repository,
+        opportunity::{
+            entities::TokenAmountSvm,
+            repository,
+        },
     },
     ethers::types::Bytes,
-    express_relay_api_types::opportunity as api,
-    std::{
-        fmt::Debug,
-        ops::Deref,
-    },
+    std::fmt::Debug,
     time::OffsetDateTime,
     uuid::Uuid,
 };
@@ -24,18 +22,18 @@ pub type OpportunityId = Uuid;
 pub struct OpportunityKey(pub ChainId, pub PermissionKey);
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct OpportunityCoreFields<T: TokenAmount> {
+pub struct OpportunityCoreFields {
     pub id:             OpportunityId,
     pub permission_key: Bytes,
     pub chain_id:       ChainId,
-    pub sell_tokens:    Vec<T>,
-    pub buy_tokens:     Vec<T>,
+    pub sell_tokens:    Vec<TokenAmountSvm>,
+    pub buy_tokens:     Vec<TokenAmountSvm>,
     pub creation_time:  OffsetDateTime,
     pub refresh_time:   OffsetDateTime,
 }
 
-impl<T: TokenAmount> OpportunityCoreFields<T> {
-    pub fn new_with_current_time(val: OpportunityCoreFieldsCreate<T>) -> Self {
+impl OpportunityCoreFields {
+    pub fn new_with_current_time(val: OpportunityCoreFieldsCreate) -> Self {
         Self {
             id:             Uuid::new_v4(),
             permission_key: val.permission_key,
@@ -49,11 +47,11 @@ impl<T: TokenAmount> OpportunityCoreFields<T> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct OpportunityCoreFieldsCreate<T: TokenAmount> {
+pub struct OpportunityCoreFieldsCreate {
     pub permission_key: Bytes,
     pub chain_id:       ChainId,
-    pub sell_tokens:    Vec<T>,
-    pub buy_tokens:     Vec<T>,
+    pub sell_tokens:    Vec<TokenAmountSvm>,
+    pub buy_tokens:     Vec<TokenAmountSvm>,
 }
 
 #[derive(Debug, Clone)]
@@ -61,39 +59,6 @@ pub enum OpportunityComparison {
     New,
     Duplicate,
     NeedsRefresh,
-}
-
-// TODO Think more about structure. Isn't it better to have a generic Opportunity struct with a field of type OpportunityParams?
-pub trait Opportunity:
-    Debug
-    + Clone
-    + Deref<Target = OpportunityCoreFields<<Self as Opportunity>::TokenAmount>>
-    + PartialEq
-    + Into<api::Opportunity>
-    + Into<Self::OpportunityCreate>
-    + TryFrom<repository::Opportunity<Self::ModelMetadata>>
-    + Send
-    + Sync
-{
-    type TokenAmount: TokenAmount;
-    type ModelMetadata: repository::OpportunityMetadata;
-    type OpportunityCreate: OpportunityCreate;
-
-    fn new_with_current_time(val: Self::OpportunityCreate) -> Self;
-    fn get_models_metadata(&self) -> Self::ModelMetadata;
-    fn get_opportunity_delete(&self) -> api::OpportunityDelete;
-    fn get_key(&self) -> OpportunityKey {
-        OpportunityKey(self.chain_id.clone(), self.permission_key.clone())
-    }
-
-    fn compare(&self, other: &Self::OpportunityCreate) -> OpportunityComparison;
-    fn refresh(&mut self);
-}
-
-pub trait OpportunityCreate: Debug + Clone + From<Self::ApiOpportunityCreate> + PartialEq {
-    type ApiOpportunityCreate;
-
-    fn get_key(&self) -> OpportunityKey;
 }
 
 #[derive(Debug)]

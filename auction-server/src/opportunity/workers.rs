@@ -1,10 +1,6 @@
 #[double]
 use super::service::Service;
 use {
-    super::service::{
-        ChainType,
-        ChainTypeSvm,
-    },
     crate::server::{
         EXIT_CHECK_INTERVAL,
         SHOULD_EXIT,
@@ -19,11 +15,8 @@ use {
     },
 };
 
-pub async fn run_verification_loop(service: Arc<Service<ChainTypeSvm>>) -> anyhow::Result<()> {
-    tracing::info!(
-        chain_type = ?ChainTypeSvm::get_type(),
-        "Starting opportunity verifier..."
-    );
+pub async fn run_verification_loop(service: Arc<Service>) -> anyhow::Result<()> {
+    tracing::info!("Starting opportunity verifier...");
     let mut exit_check_interval = tokio::time::interval(EXIT_CHECK_INTERVAL);
 
     // this should be replaced by a subscription to the chain and have a different trigger
@@ -37,9 +30,6 @@ pub async fn run_verification_loop(service: Arc<Service<ChainTypeSvm>>) -> anyho
             }
         }
     }
-    tracing::info!(
-        chain_type = ?ChainTypeSvm::get_type(),
-        "Shutting down opportunity verifier..."
-    );
+    tracing::info!("Shutting down opportunity verifier...");
     Ok(())
 }

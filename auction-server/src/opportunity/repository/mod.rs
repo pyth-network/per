@@ -26,25 +26,17 @@ pub use models::*;
 
 pub const OPPORTUNITY_PAGE_SIZE_CAP: usize = 100;
 
-#[derive(Debug)]
-pub struct Repository<T: InMemoryStore> {
-    pub in_memory_store: T,
-    pub db:              Box<dyn Database<T>>,
+pub struct Repository {
+    pub in_memory_store: InMemoryStoreSvm,
+    pub db:              Box<dyn Database>,
 }
 
-pub trait InMemoryStore:
-    Deref<Target = InMemoryStoreCoreFields<Self::Opportunity>> + Send + Sync + 'static
-{
-    type Opportunity: entities::Opportunity;
 
-    fn new() -> Self;
+pub struct InMemoryStoreCoreFields {
+    pub opportunities: RwLock<HashMap<entities::OpportunityKey, Vec<entities::OpportunitySvm>>>,
 }
 
-pub struct InMemoryStoreCoreFields<T: entities::Opportunity> {
-    pub opportunities: RwLock<HashMap<entities::OpportunityKey, Vec<T>>>,
-}
-
-impl<T: entities::Opportunity> InMemoryStoreCoreFields<T> {
+impl InMemoryStoreCoreFields {
     pub fn new() -> Self {
         Self {
             opportunities: RwLock::new(HashMap::new()),
@@ -53,14 +45,12 @@ impl<T: entities::Opportunity> InMemoryStoreCoreFields<T> {
 }
 
 pub struct InMemoryStoreSvm {
-    pub core_fields:            InMemoryStoreCoreFields<entities::OpportunitySvm>,
+    pub core_fields:            InMemoryStoreCoreFields,
     pub token_program_cache:    RwLock<HashMap<Pubkey, Pubkey>>,
     pub express_relay_metadata: RwLock<Option<ExpressRelayMetadata>>,
 }
 
-impl InMemoryStore for InMemoryStoreSvm {
-    type Opportunity = entities::OpportunitySvm;
-
+impl InMemoryStoreSvm {
     fn new() -> Self {
         Self {
             core_fields:            InMemoryStoreCoreFields::new(),
@@ -70,18 +60,19 @@ impl InMemoryStore for InMemoryStoreSvm {
     }
 }
 
+
 impl Deref for InMemoryStoreSvm {
-    type Target = InMemoryStoreCoreFields<entities::OpportunitySvm>;
+    type Target = InMemoryStoreCoreFields;
 
     fn deref(&self) -> &Self::Target {
         &self.core_fields
     }
 }
 
-impl<T: InMemoryStore> Repository<T> {
-    pub fn new(db: impl Database<T>) -> Self {
+impl Repository {
+    pub fn new(db: impl Database) -> Self {
         Self {
-            in_memory_store: T::new(),
+            in_memory_store: InMemoryStoreSvm::new(),
             db:              Box::new(db),
         }
     }

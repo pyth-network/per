@@ -1,8 +1,5 @@
 use {
-    super::{
-        ChainTypeSvm,
-        Service,
-    },
+    super::Service,
     crate::{
         api::RestError,
         kernel::entities::ChainId,
@@ -15,7 +12,7 @@ pub struct GetTokenProgramInput {
     pub mint:     Pubkey,
 }
 
-impl Service<ChainTypeSvm> {
+impl Service {
     /// Find the token program for a given mint.
     /// Pulls from the cache if already present, otherwise queries the RPC and saves in the cache.
     pub async fn get_token_program(

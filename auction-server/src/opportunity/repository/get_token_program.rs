@@ -1,12 +1,9 @@
 use {
-    super::{
-        InMemoryStoreSvm,
-        Repository,
-    },
+    super::Repository,
     solana_sdk::pubkey::Pubkey,
 };
 
-impl Repository<InMemoryStoreSvm> {
+impl Repository {
     pub async fn query_token_program_cache(&self, mint: Pubkey) -> Option<Pubkey> {
         let cache_read = self.in_memory_store.token_program_cache.read().await;
         let token_program_query = cache_read.get(&mint);

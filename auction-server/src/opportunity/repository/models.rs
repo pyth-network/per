@@ -1,11 +1,7 @@
 #[cfg(test)]
 use mockall::automock;
 use {
-    super::{
-        entities,
-        models,
-        InMemoryStore,
-    },
+    super::models,
     crate::{
         api::RestError,
         kernel::{
@@ -18,7 +14,7 @@ use {
         models::ChainType,
         opportunity::entities::{
             FeeToken,
-            Opportunity as OpportunityTrait,
+            OpportunitySvm,
             TokenAccountInitializationConfigs,
         },
     },
@@ -150,14 +146,14 @@ pub struct Opportunity<T: OpportunityMetadata> {
 
 #[cfg_attr(test, automock)]
 #[async_trait]
-pub trait Database<T: InMemoryStore>: Debug + Send + Sync + 'static {
-    async fn add_opportunity(&self, opportunity: &T::Opportunity) -> Result<(), RestError>;
+pub trait Database: Debug + Send + Sync + 'static {
+    async fn add_opportunity(&self, opportunity: &OpportunitySvm) -> Result<(), RestError>;
     async fn get_opportunities(
         &self,
         chain_id: ChainId,
         permission_key: Option<PermissionKey>,
         from_time: Option<OffsetDateTime>,
-    ) -> Result<Vec<T::Opportunity>, RestError>;
+    ) -> Result<Vec<OpportunitySvm>, RestError>;
     async fn remove_opportunities(
         &self,
         permission_key: PermissionKey,
@@ -166,12 +162,12 @@ pub trait Database<T: InMemoryStore>: Debug + Send + Sync + 'static {
     ) -> anyhow::Result<()>;
     async fn remove_opportunity(
         &self,
-        opportunity: &T::Opportunity,
+        opportunity: &OpportunitySvm,
         reason: OpportunityRemovalReason,
     ) -> anyhow::Result<()>;
 }
 #[async_trait]
-impl<T: InMemoryStore> Database<T> for DB {
+impl Database for DB {
     #[instrument(
         target = "metrics",
         name = "db_add_opportunity",
@@ -183,9 +179,9 @@ impl<T: InMemoryStore> Database<T> for DB {
         ),
         skip_all
     )]
-    async fn add_opportunity(&self, opportunity: &T::Opportunity) -> Result<(), RestError> {
+    async fn add_opportunity(&self, opportunity: &OpportunitySvm) -> Result<(), RestError> {
         let metadata = opportunity.get_models_metadata();
-        let chain_type = <T::Opportunity as entities::Opportunity>::ModelMetadata::get_chain_type();
+        let chain_type = OpportunityMetadataSvm::get_chain_type(); // todo: remove?
         sqlx::query!("INSERT INTO opportunity (id,
                                                         creation_time,
                                                         permission_key,
@@ -227,11 +223,9 @@ impl<T: InMemoryStore> Database<T> for DB {
         chain_id: ChainId,
         permission_key: Option<PermissionKey>,
         from_time: Option<OffsetDateTime>,
-    ) -> Result<Vec<<T as InMemoryStore>::Opportunity>, RestError> {
+    ) -> Result<Vec<OpportunitySvm>, RestError> {
         let mut query = QueryBuilder::new("SELECT * from opportunity WHERE chain_type = ");
-        query.push_bind(
-            <<T::Opportunity as entities::Opportunity>::ModelMetadata>::get_chain_type(),
-        );
+        query.push_bind(OpportunityMetadataSvm::get_chain_type());
         query.push(" AND chain_id = ");
         query.push_bind(chain_id.clone());
         if let Some(permission_key) = permission_key.clone() {
@@ -244,7 +238,7 @@ impl<T: InMemoryStore> Database<T> for DB {
         }
         query.push(" ORDER BY creation_time ASC LIMIT ");
         query.push_bind(super::OPPORTUNITY_PAGE_SIZE_CAP as i64);
-        let opps: Vec<models::Opportunity<<T::Opportunity as entities::Opportunity>::ModelMetadata>> = query
+        let opps: Vec<models::Opportunity<OpportunityMetadataSvm>> = query
             .build_query_as()
             .fetch_all(self)
             .await
@@ -318,7 +312,7 @@ impl<T: InMemoryStore> Database<T> for DB {
     )]
     async fn remove_opportunity(
         &self,
-        opportunity: &T::Opportunity,
+        opportunity: &OpportunitySvm,
         reason: OpportunityRemovalReason,
     ) -> anyhow::Result<()> {
         let now = OffsetDateTime::now_utc();
