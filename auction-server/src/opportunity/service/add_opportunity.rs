@@ -46,7 +46,7 @@ impl Service {
         input: AddOpportunityInput,
     ) -> Result<OpportunitySvm, RestError> {
         // Make sure the chain id is valid
-        self.get_config(&input.opportunity.core_fields.chain_id.clone())?;
+        self.get_config(&input.opportunity.chain_id.clone())?;
 
         let opportunity_create = input.opportunity;
         let action = self.assess_action(&opportunity_create).await;
@@ -97,7 +97,6 @@ mod tests {
             kernel::rpc_client_svm_tester::RpcClientSvmTester,
             opportunity::{
                 entities::{
-                    OpportunityCoreFieldsCreate,
                     OpportunityCreateSvm,
                     OpportunityKey,
                     OpportunitySvmProgram,
@@ -144,18 +143,16 @@ mod tests {
         let order = vec![1, 2, 3, 4];
 
         let opportunity_create = OpportunityCreateSvm {
-            core_fields: OpportunityCoreFieldsCreate {
-                permission_key: permission_key.clone(),
-                chain_id:       chain_id.clone(),
-                sell_tokens:    vec![TokenAmountSvm {
-                    token:  sell_token,
-                    amount: sell_amount,
-                }],
-                buy_tokens:     vec![TokenAmountSvm {
-                    token:  buy_token,
-                    amount: buy_amount,
-                }],
-            },
+            permission_key: permission_key.clone(),
+            chain_id: chain_id.clone(),
+            sell_tokens: vec![TokenAmountSvm {
+                token:  sell_token,
+                amount: sell_amount,
+            }],
+            buy_tokens: vec![TokenAmountSvm {
+                token:  buy_token,
+                amount: buy_amount,
+            }],
             router,
             permission_account,
             program: OpportunitySvmProgram::Limo(OpportunitySvmProgramLimo {
@@ -171,23 +168,14 @@ mod tests {
             })
             .await
             .unwrap();
-        assert!(opportunity.core_fields.creation_time <= opportunity.core_fields.refresh_time);
+        assert!(opportunity.creation_time <= opportunity.refresh_time);
         assert_eq!(
-            opportunity.core_fields.permission_key,
-            opportunity_create.core_fields.permission_key
+            opportunity.permission_key,
+            opportunity_create.permission_key
         );
-        assert_eq!(
-            opportunity.core_fields.chain_id,
-            opportunity_create.core_fields.chain_id
-        );
-        assert_eq!(
-            opportunity.core_fields.sell_tokens,
-            opportunity_create.core_fields.sell_tokens
-        );
-        assert_eq!(
-            opportunity.core_fields.buy_tokens,
-            opportunity_create.core_fields.buy_tokens
-        );
+        assert_eq!(opportunity.chain_id, opportunity_create.chain_id);
+        assert_eq!(opportunity.sell_tokens, opportunity_create.sell_tokens);
+        assert_eq!(opportunity.buy_tokens, opportunity_create.buy_tokens);
         assert_eq!(opportunity.router, router);
         assert_eq!(opportunity.permission_account, permission_account);
         assert_eq!(

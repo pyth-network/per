@@ -324,23 +324,6 @@ impl Service {
             referral_fee_info.referral_fee_bps,
         );
 
-        let core_fields = entities::OpportunityCoreFieldsCreate {
-            permission_key: entities::OpportunitySvm::get_permission_key(
-                BidPaymentInstructionType::Swap,
-                referral_fee_info.router,
-                permission_account,
-            ),
-            chain_id:       quote_create.chain_id.clone(),
-            sell_tokens:    vec![entities::TokenAmountSvm {
-                token:  mint_searcher,
-                amount: searcher_amount,
-            }],
-            buy_tokens:     vec![entities::TokenAmountSvm {
-                token:  mint_user,
-                amount: user_amount,
-            }],
-        };
-
         let program_opportunity =
             entities::OpportunitySvmProgram::Swap(entities::OpportunitySvmProgramSwap {
                 user_wallet_address,
@@ -363,7 +346,20 @@ impl Service {
             });
 
         Ok(entities::OpportunityCreateSvm {
-            core_fields,
+            permission_key: entities::OpportunitySvm::get_permission_key(
+                BidPaymentInstructionType::Swap,
+                referral_fee_info.router,
+                permission_account,
+            ),
+            chain_id: quote_create.chain_id.clone(),
+            sell_tokens: vec![entities::TokenAmountSvm {
+                token:  mint_searcher,
+                amount: searcher_amount,
+            }],
+            buy_tokens: vec![entities::TokenAmountSvm {
+                token:  mint_user,
+                amount: user_amount,
+            }],
             router: referral_fee_info.router,
             permission_account,
             program: program_opportunity,
