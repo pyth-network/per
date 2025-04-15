@@ -4,7 +4,7 @@ All notable changes to the searcher sdks will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [Rust: 0.9.0, Python 0.24.0, Javascript 0.25.0] - 2025-04-15
 
 ### Added
 
