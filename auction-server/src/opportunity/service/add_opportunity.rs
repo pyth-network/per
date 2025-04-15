@@ -5,13 +5,10 @@ use {
             ws::UpdateEvent::NewOpportunity,
             RestError,
         },
-        opportunity::{
-            entities::{
-                self,
-                OpportunityCreateSvm,
-                OpportunitySvm,
-            },
-            service::verification::VerifyOpportunityInput,
+        opportunity::entities::{
+            self,
+            OpportunityCreateSvm,
+            OpportunitySvm,
         },
     },
 };
@@ -48,25 +45,15 @@ impl Service {
         &self,
         input: AddOpportunityInput,
     ) -> Result<OpportunitySvm, RestError> {
+        // Make sure the chain id is valid
+        self.get_config(&input.opportunity.core_fields.chain_id.clone())?;
+
         let opportunity_create = input.opportunity;
         let action = self.assess_action(&opportunity_create).await;
         if let OpportunityAction::Ignore = action {
             tracing::info!("Submitted opportunity ignored: {:?}", opportunity_create);
             return Err(RestError::DuplicateOpportunity);
         }
-
-        self.verify_opportunity(VerifyOpportunityInput {
-            opportunity: opportunity_create.clone(),
-        })
-        .await
-        .map_err(|e| {
-            tracing::warn!(
-                "Failed to verify opportunity: {:?} - opportunity: {:?}",
-                e,
-                opportunity_create,
-            );
-            e
-        })?;
 
         let opportunity = if let OpportunityAction::Refresh(opp) = action {
             self.repo.refresh_in_memory_opportunity(opp.clone()).await
