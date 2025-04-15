@@ -3,6 +3,7 @@ import { hideBin } from "yargs/helpers";
 import _ from "lodash";
 import { Client, ClientError } from "@pythnetwork/express-relay-js";
 import { PublicKey } from "@solana/web3.js";
+import fs from "fs/promises";
 
 const argv = yargs(hideBin(process.argv))
   .option("public-key", {
@@ -48,12 +49,30 @@ type TaskResult = {
   status: string;
 };
 
+async function loadTokensFromFile(): Promise<PublicKey[]> {
+  try {
+    const fileContents = await fs.readFile("./tokens.json", "utf-8");
+    const tokens = JSON.parse(fileContents);
+
+    // Convert strings into PublicKey objects
+    return tokens.map((token: string) => new PublicKey(token));
+  } catch (error) {
+    console.error(
+      `Error reading or parsing tokens.json file at ./tokens.json: (falling back to default tokens)`,
+      (error as Error).message,
+    );
+
+    return TOKENS;
+  }
+}
+
 async function runBatches(
   url: string,
   chainId: string,
   publicKey: PublicKey,
   concurrency: number,
   throughput: number,
+  availableTokens: PublicKey[],
 ): Promise<TaskResult[]> {
   const client = new Client({
     baseUrl: url,
@@ -75,7 +94,7 @@ async function runBatches(
         const taskStart = Date.now();
 
         const taskPromise: Promise<TaskResult> = new Promise((resolve) => {
-          const tokens = _.sampleSize(TOKENS, 2);
+          const tokens = _.sampleSize(availableTokens, 2);
           const shuffledTokens = _.shuffle(tokens);
           client
             .getQuote({
@@ -151,12 +170,14 @@ async function run() {
   console.log(`- Throughput: ${throughput.toLocaleString()}`);
   console.log("--------------------------------------------------");
 
+  const tokens = await loadTokensFromFile();
   const result = await runBatches(
     serverUrl,
     argv["chain-id"],
     publicKey,
     concurrency,
     throughput,
+    tokens,
   );
   const latency = result.map((task) => task.latency);
   const status = result.map((task) => task.status);
