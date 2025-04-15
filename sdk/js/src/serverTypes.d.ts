@@ -102,23 +102,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/opportunities/{opportunity_id}/bids": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Bid on opportunity. */
-    post: operations["opportunity_bid"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   "/v1/profiles/access_tokens": {
     parameters: {
       query?: never;
@@ -221,7 +204,7 @@ export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
     APIResponse: components["schemas"]["BidResult"];
-    Bid: components["schemas"]["BidEvm"] | components["schemas"]["BidSvm"];
+    Bid: components["schemas"]["BidSvm"];
     BidCancel: components["schemas"]["BidCancelSvm"];
     BidCancelSvm: {
       /**
@@ -235,36 +218,7 @@ export interface components {
        */
       chain_id: string;
     };
-    BidCreate:
-      | components["schemas"]["BidCreateEvm"]
-      | components["schemas"]["BidCreateSvm"];
-    BidCreateEvm: {
-      /**
-       * @description Amount of bid in wei.
-       * @example 10
-       */
-      amount: string;
-      /**
-       * @description The chain id to bid on.
-       * @example op_sepolia
-       */
-      chain_id: string;
-      /**
-       * @description The permission key to bid on.
-       * @example 0xdeadbeef
-       */
-      permission_key: string;
-      /**
-       * @description Calldata for the contract call.
-       * @example 0xdeadbeef
-       */
-      target_calldata: string;
-      /**
-       * @description The contract address to call.
-       * @example 0xcA11bde05977b3631167028862bE2a173976CA11
-       */
-      target_contract: string;
-    };
+    BidCreate: components["schemas"]["BidCreateSvm"];
     BidCreateOnChainSvm: {
       /**
        * @description The chain id to bid on.
@@ -308,56 +262,6 @@ export interface components {
     };
     /** @enum {string} */
     BidCreateSwapSvmTag: "swap";
-    BidEvm: {
-      /**
-       * @description The chain id for bid.
-       * @example op_sepolia
-       */
-      chain_id: string;
-      /**
-       * @description The unique id for bid.
-       * @example obo3ee3e-58cc-4372-a567-0e02b2c3d479
-       */
-      id: string;
-      /**
-       * @description The time server received the bid formatted in rfc3339.
-       * @example 2024-05-23T21:26:57.329954Z
-       */
-      initiation_time: string;
-      /**
-       * @description The profile id for the bid owner.
-       * @example obo3ee3e-58cc-4372-a567-0e02b2c3d479
-       */
-      profile_id: string;
-    } & {
-      /**
-       * @description Amount of bid in wei.
-       * @example 10
-       */
-      bid_amount: string;
-      /**
-       * @description The gas limit for the contract call.
-       * @example 2000000
-       */
-      gas_limit: string;
-      /**
-       * @description The permission key for bid.
-       * @example 0xdeadbeef
-       */
-      permission_key: string;
-      /** @description The latest status for bid. */
-      status: components["schemas"]["BidStatusEvm"];
-      /**
-       * @description Calldata for the contract call.
-       * @example 0xdeadbeef
-       */
-      target_calldata: string;
-      /**
-       * @description The contract address to call.
-       * @example 0xcA11bde05977b3631167028862bE2a173976CA11
-       */
-      target_contract: string;
-    };
     BidResult: {
       /**
        * @description The unique id created to identify the bid. This id can be used to query the status of the bid.
@@ -370,47 +274,7 @@ export interface components {
        */
       status: string;
     };
-    BidStatus:
-      | components["schemas"]["BidStatusSvm"]
-      | components["schemas"]["BidStatusEvm"];
-    BidStatusEvm:
-      | {
-          /** @enum {string} */
-          type: "pending";
-        }
-      | {
-          /**
-           * Format: int32
-           * @example 1
-           */
-          index: number;
-          /** @example 0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3 */
-          result: string;
-          /** @enum {string} */
-          type: "submitted";
-        }
-      | {
-          /**
-           * Format: int32
-           * @example 1
-           */
-          index?: number | null;
-          /** @example 0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3 */
-          result?: string | null;
-          /** @enum {string} */
-          type: "lost";
-        }
-      | {
-          /**
-           * Format: int32
-           * @example 1
-           */
-          index: number;
-          /** @example 0x103d4fbd777a36311b5161f2062490f761f25b67406badb2bace62bb170aa4e3 */
-          result: string;
-          /** @enum {string} */
-          type: "won";
-        };
+    BidStatus: components["schemas"]["BidStatusSvm"];
     BidStatusSvm:
       | {
           /** @enum {string} */
@@ -544,14 +408,6 @@ export interface components {
         }
       | {
           /** @enum {string} */
-          method: "post_opportunity_bid";
-          params: {
-            opportunity_bid: components["schemas"]["OpportunityBidEvm"];
-            opportunity_id: string;
-          };
-        }
-      | {
-          /** @enum {string} */
           method: "cancel_bid";
           params: {
             data: components["schemas"]["BidCancel"];
@@ -565,38 +421,7 @@ export interface components {
     };
     /** @enum {string} */
     FeeToken: "searcher_token" | "user_token";
-    Opportunity:
-      | components["schemas"]["OpportunityEvm"]
-      | components["schemas"]["OpportunitySvm"];
-    OpportunityBidEvm: {
-      /**
-       * @description The bid amount in wei.
-       * @example 1000000000000000000
-       */
-      amount: string;
-      /**
-       * @description The latest unix timestamp in seconds until which the bid is valid.
-       * @example 1000000000000000000
-       */
-      deadline: string;
-      /**
-       * @description The executor address.
-       * @example 0x5FbDB2315678afecb367f032d93F642f64180aa2
-       */
-      executor: string;
-      /**
-       * @description The nonce of the bid permit signature.
-       * @example 123
-       */
-      nonce: string;
-      /**
-       * @description The opportunity permission key.
-       * @example 0xdeadbeefcafe
-       */
-      permission_key: string;
-      /** @example 0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12 */
-      signature: string;
-    };
+    Opportunity: components["schemas"]["OpportunitySvm"];
     OpportunityBidResult: {
       /**
        * @description The unique id created to identify the bid. This id can be used to query the status of the bid.
@@ -607,13 +432,7 @@ export interface components {
       status: string;
     };
     /** @description The input type for creating a new opportunity. */
-    OpportunityCreate:
-      | components["schemas"]["OpportunityCreateEvm"]
-      | components["schemas"]["OpportunityCreateSvm"];
-    OpportunityCreateEvm: components["schemas"]["OpportunityCreateV1Evm"] & {
-      /** @enum {string} */
-      version: "v1";
-    };
+    OpportunityCreate: components["schemas"]["OpportunityCreateSvm"];
     /** @description Program specific parameters for the opportunity. */
     OpportunityCreateProgramParamsV1Svm: {
       /**
@@ -632,39 +451,6 @@ export interface components {
     OpportunityCreateSvm: components["schemas"]["OpportunityCreateV1Svm"] & {
       /** @enum {string} */
       version: "v1";
-    };
-    /** @description Opportunity parameters needed for on-chain execution.
-     *     If a searcher signs the opportunity and have approved enough tokens to opportunity adapter,
-     *     by calling this target contract with the given target calldata and structures, they will
-     *     send the tokens specified in the `sell_tokens` field and receive the tokens specified in the `buy_tokens` field. */
-    OpportunityCreateV1Evm: {
-      buy_tokens: components["schemas"]["TokenAmountEvm"][];
-      /**
-       * @description The chain id where the opportunity will be executed.
-       * @example op_sepolia
-       */
-      chain_id: string;
-      /**
-       * @description The permission key required for successful execution of the opportunity.
-       * @example 0xdeadbeefcafe
-       */
-      permission_key: string;
-      sell_tokens: components["schemas"]["TokenAmountEvm"][];
-      /**
-       * @description The value to send with the contract call.
-       * @example 1
-       */
-      target_call_value: string;
-      /**
-       * @description Calldata for the target contract call.
-       * @example 0xdeadbeef
-       */
-      target_calldata: string;
-      /**
-       * @description The contract address to call for execution of the opportunity.
-       * @example 0xcA11bde05977b3631167028862bE2a173976CA11
-       */
-      target_contract: string;
     };
     /** @description Opportunity parameters needed for on-chain execution.
      *     Parameters may differ for each program. */
@@ -707,35 +493,13 @@ export interface components {
       slot: number;
     };
     /** @description The input type for deleting opportunities. */
-    OpportunityDelete:
-      | (components["schemas"]["OpportunityDeleteSvm"] & {
-          /** @enum {string} */
-          chain_type: "svm";
-        })
-      | (components["schemas"]["OpportunityDeleteEvm"] & {
-          /** @enum {string} */
-          chain_type: "evm";
-        });
-    OpportunityDeleteEvm: components["schemas"]["OpportunityDeleteV1Evm"] & {
+    OpportunityDelete: components["schemas"]["OpportunityDeleteSvm"] & {
       /** @enum {string} */
-      version: "v1";
+      chain_type: "svm";
     };
     OpportunityDeleteSvm: components["schemas"]["OpportunityDeleteV1Svm"] & {
       /** @enum {string} */
       version: "v1";
-    };
-    /** @description Opportunity parameters needed for deleting live opportunities. */
-    OpportunityDeleteV1Evm: {
-      /**
-       * @description The chain id for the opportunity.
-       * @example solana
-       */
-      chain_id: string;
-      /**
-       * @description The permission key of the opportunity.
-       * @example 0xdeadbeefcafe
-       */
-      permission_key: string;
     };
     /** @description Opportunity parameters needed for deleting live opportunities. */
     OpportunityDeleteV1Svm: {
@@ -757,32 +521,12 @@ export interface components {
        */
       router: string;
     };
-    OpportunityEvm: (components["schemas"]["OpportunityParamsV1Evm"] & {
-      /** @enum {string} */
-      version: "v1";
-    }) & {
-      /**
-       * @description Creation time of the opportunity (in microseconds since the Unix epoch).
-       * @example 1700000000000000
-       */
-      creation_time: number;
-      /**
-       * @description The opportunity unique id.
-       * @example obo3ee3e-58cc-4372-a567-0e02b2c3d479
-       */
-      opportunity_id: string;
-    };
     /** @enum {string} */
     OpportunityMode: "live" | "historical";
-    OpportunityParamsEvm: components["schemas"]["OpportunityParamsV1Evm"] & {
-      /** @enum {string} */
-      version: "v1";
-    };
     OpportunityParamsSvm: components["schemas"]["OpportunityParamsV1Svm"] & {
       /** @enum {string} */
       version: "v1";
     };
-    OpportunityParamsV1Evm: components["schemas"]["OpportunityCreateV1Evm"];
     /** @description Opportunity parameters needed for on-chain execution.
      *     Parameters may differ for each program. */
     OpportunityParamsV1Svm: (
@@ -1181,18 +925,6 @@ export interface components {
       /** @description The user token account for the user-provided token */
       user_ata_mint_user: components["schemas"]["TokenAccountInitializationConfig"];
     };
-    TokenAmountEvm: {
-      /**
-       * @description The token amount.
-       * @example 1000
-       */
-      amount: string;
-      /**
-       * @description The token contract address.
-       * @example 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2
-       */
-      token: string;
-    };
     TokenAmountSvm: {
       /**
        * Format: int64
@@ -1254,9 +986,7 @@ export interface components {
         [name: string]: unknown;
       };
       content: {
-        "application/json":
-          | components["schemas"]["OpportunityEvm"]
-          | components["schemas"]["OpportunitySvm"];
+        "application/json": components["schemas"]["OpportunitySvm"];
       };
     };
   };
@@ -1497,43 +1227,6 @@ export interface operations {
       };
       400: components["responses"]["ErrorBodyResponse"];
       /** @description No quote available right now */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorBodyResponse"];
-        };
-      };
-    };
-  };
-  opportunity_bid: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description Opportunity id to bid on */
-        opportunity_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["OpportunityBidEvm"];
-      };
-    };
-    responses: {
-      /** @description Bid Result */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["OpportunityBidResult"];
-        };
-      };
-      400: components["responses"]["ErrorBodyResponse"];
-      /** @description Opportunity or chain id was not found */
       404: {
         headers: {
           [name: string]: unknown;

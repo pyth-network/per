@@ -70,45 +70,6 @@ export type OpportunityAdapterConfig = {
    */
   weth: Address;
 };
-/**
- * Represents a valid opportunity ready to be executed
- */
-export type OpportunityEvm = {
-  /**
-   * The chain id where the opportunity will be executed.
-   */
-  chainId: ChainId;
-
-  /**
-   * Permission key required for successful execution of the opportunity.
-   */
-  permissionKey: Hex;
-  /**
-   * Contract address to call for execution of the opportunity.
-   */
-  targetContract: Address;
-  /**
-   * Calldata for the targetContract call.
-   */
-  targetCalldata: Hex;
-  /**
-   * Value to send with the targetContract call.
-   */
-  targetCallValue: bigint;
-  /**
-   * Tokens required to execute the opportunity
-   */
-  sellTokens: TokenAmount[];
-  /**
-   * Tokens to receive after the opportunity is executed
-   */
-  buyTokens: TokenAmount[];
-  /**
-   * Unique identifier for the opportunity
-   */
-  opportunityId: string;
-};
-
 export type OpportunitySvmMetadata = {
   /**
    * The chain id where the opportunity will be executed.
@@ -173,11 +134,9 @@ export type OpportunitySvmSwap = {
 
 export type OpportunitySvm = OpportunitySvmLimo | OpportunitySvmSwap;
 
-export type OpportunityCreate =
-  | Omit<OpportunityEvm, "opportunityId">
-  | Omit<OpportunitySvmLimo, "opportunityId">;
+export type OpportunityCreate = Omit<OpportunitySvmLimo, "opportunityId">;
 
-export type Opportunity = OpportunityEvm | OpportunitySvm;
+export type Opportunity = OpportunitySvm;
 /**
  * Represents a bid for an opportunity
  */
@@ -205,43 +164,7 @@ export type OpportunityBid = {
  * All the parameters necessary to represent an opportunity
  */
 
-export type Bid = BidEvm | BidSvm;
-/**
- * Represents a raw EVM bid on acquiring a permission key
- */
-export type BidEvm = {
-  /**
-   * The permission key to bid on
-   * @example 0xc0ffeebabe
-   *
-   */
-  permissionKey: Hex;
-  /**
-   * @description Amount of bid in wei.
-   * @example 10
-   */
-  amount: bigint;
-  /**
-   * @description Calldata for the targetContract call.
-   * @example 0xdeadbeef
-   */
-  targetCalldata: Hex;
-  /**
-   * @description The chain id to bid on.
-   * @example sepolia
-   */
-  chainId: ChainId;
-  /**
-   * @description The targetContract address to call.
-   * @example 0xcA11bde05977b3631167028862bE2a173976CA11
-   */
-  targetContract: Address;
-  /**
-   * @description The execution environment for the bid.
-   */
-  env: "evm";
-};
-
+export type Bid = BidSvm;
 /**
  * Necessary accounts for submitting a SVM bid. These can be fetched from on-chain program data.
  */
@@ -319,13 +242,8 @@ export type BidStatusUpdateSvm = {
   id: BidId;
 } & components["schemas"]["BidStatusSvm"];
 
-export type BidStatusUpdateEvm = {
-  id: BidId;
-} & components["schemas"]["BidStatusEvm"];
-
 export type BidResponse = components["schemas"]["Bid"];
 export type BidResponseSvm = components["schemas"]["BidSvm"];
-export type BidResponseEvm = components["schemas"]["BidEvm"];
 
 export type BidsResponse = {
   items: BidResponse[];
@@ -348,23 +266,13 @@ export type OpportunityDeleteSvm = {
   router: PublicKey;
 };
 
-export type OpportunityDeleteEvm = {
-  chainId: ChainId;
-  permissionKey: Hex;
-};
-
 export enum ChainType {
-  EVM = "evm",
   SVM = "svm",
 }
 
-export type OpportunityDelete =
-  | (OpportunityDeleteSvm & {
-      chainType: ChainType.SVM;
-    })
-  | (OpportunityDeleteEvm & {
-      chainType: ChainType.EVM;
-    });
+export type OpportunityDelete = OpportunityDeleteSvm & {
+  chainType: ChainType.SVM;
+};
 
 export type SpecifiedTokenAmount = {
   side: "input" | "output";
