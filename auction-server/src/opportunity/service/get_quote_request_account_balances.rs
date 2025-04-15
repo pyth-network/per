@@ -313,7 +313,7 @@ mod tests {
         assert_eq!(
             balances.user_ata_mint_searcher,
             TokenAccountBalance::Uninitialized
-        ); // should this be like this?
+        );
 
         rpc_client.check_all_uncanned().await;
     }
