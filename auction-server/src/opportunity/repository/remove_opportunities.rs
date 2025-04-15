@@ -3,28 +3,20 @@ use {
         models::OpportunityRemovalReason,
         Repository,
     },
-    crate::{
-        kernel::entities::{
-            ChainId,
-            PermissionKey,
-        },
-        opportunity::{
-            entities,
-            entities::OpportunitySvm,
-        },
+    crate::opportunity::{
+        entities,
+        entities::OpportunitySvm,
     },
 };
 
 impl Repository {
     pub async fn remove_opportunities(
         &self,
-        permission_key: PermissionKey,
-        chain_id: ChainId,
         opportunity_key: &entities::OpportunityKey,
         reason: OpportunityRemovalReason,
     ) -> anyhow::Result<Vec<OpportunitySvm>> {
         self.db
-            .remove_opportunities(permission_key, chain_id, reason)
+            .remove_opportunities(&opportunity_key.1, &opportunity_key.0, reason)
             .await?;
 
         let mut write_guard = self.in_memory_store.opportunities.write().await;

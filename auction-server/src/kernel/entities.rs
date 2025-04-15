@@ -2,16 +2,17 @@ use {
     crate::api::RestError,
     base64::Engine,
     bincode::serialized_size,
-    ethers::types::Bytes,
     solana_sdk::{
         packet::PACKET_DATA_SIZE,
         transaction::VersionedTransaction,
     },
-    std::fmt::Display,
+    std::{
+        array::TryFromSliceError,
+        fmt::Display,
+    },
 };
 
 pub type ChainId = String;
-pub type PermissionKey = Bytes;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PermissionKeySvm(pub [u8; 65]);
@@ -22,6 +23,26 @@ impl Display for PermissionKeySvm {
             "{}",
             base64::engine::general_purpose::STANDARD.encode(self.0)
         )
+    }
+}
+
+impl PermissionKeySvm {
+    pub fn to_vec(&self) -> Vec<u8> {
+        self.0.to_vec()
+    }
+}
+
+impl AsRef<[u8]> for PermissionKeySvm {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
+impl TryFrom<&[u8]> for PermissionKeySvm {
+    type Error = TryFromSliceError;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        <[u8; 65]>::try_from(value).map(Self)
     }
 }
 

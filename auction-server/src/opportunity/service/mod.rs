@@ -195,7 +195,6 @@ pub mod tests {
 
             let store = Arc::new(Store {
                 db:            DB::connect_lazy("https://test").unwrap(),
-                chains_evm:    HashMap::new(),
                 chains_svm:    HashMap::new(),
                 ws:            ws::WsState::new("X-Forwarded-For".to_string(), 100),
                 secret_key:    "test".to_string(),

@@ -1,31 +1,3 @@
-pub mod signature {
-    use {
-        ethers::types::Signature,
-        serde::{
-            de::Error,
-            Deserialize,
-            Deserializer,
-            Serializer,
-        },
-        std::str::FromStr,
-    };
-
-    pub fn serialize<S>(b: &Signature, s: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        s.serialize_str(b.to_string().as_str())
-    }
-
-    pub fn deserialize<'de, D>(d: D) -> Result<Signature, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s: String = Deserialize::deserialize(d)?;
-        Signature::from_str(s.as_str()).map_err(|err| D::Error::custom(err.to_string()))
-    }
-}
-
 pub mod nullable_datetime {
     use {
         serde::{

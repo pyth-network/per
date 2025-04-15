@@ -3,7 +3,6 @@ use {
         Deserialize,
         Serialize,
     },
-    ethers::types::Bytes,
     serde_with::{
         base64::{
             Base64,
@@ -32,7 +31,7 @@ pub mod ws;
 
 pub type MicroLamports = u64;
 pub type ChainId = String;
-pub type PermissionKeyEvm = Bytes;
+
 #[derive(Clone, Debug)]
 pub struct PermissionKeySvm(pub [u8; 65]);
 impl Serialize for PermissionKeySvm {

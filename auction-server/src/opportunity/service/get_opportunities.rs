@@ -69,11 +69,7 @@ impl Service {
                     RestError::BadParameters("Chain id is required on historical mode".to_string())
                 })?;
                 self.repo
-                    .get_opportunities(
-                        chain_id,
-                        query_params.permission_key.clone(),
-                        query_params.from_time,
-                    )
+                    .get_opportunities(chain_id, query_params.from_time)
                     .await
             }
         }

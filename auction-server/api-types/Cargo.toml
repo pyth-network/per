@@ -13,11 +13,10 @@ uuid = { workspace = true, features = ["serde", "v4"] }
 serde_json = { workspace = true }
 serde_with = { workspace = true, features = ["base64"] }
 solana-sdk = { workspace = true }
-ethers = { workspace = true }
 time = { workspace = true, features = ["serde"] }
 base64 = { workspace = true }
 bincode = { workspace = true }
 email_address = { workspace = true }
-strum = { workspace = true }
+strum = { workspace = true, features = ["strum_macros", "derive"] }
 http = "1.2.0"
 strum_macros = "0.26.4"

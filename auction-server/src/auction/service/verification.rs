@@ -16,10 +16,7 @@ use {
             },
             service::get_pending_bids::GetLiveBidsInput,
         },
-        kernel::entities::{
-            PermissionKey,
-            Svm,
-        },
+        kernel::entities::Svm,
         opportunity::{
             self as opportunity,
             entities::{
@@ -1309,7 +1306,7 @@ impl Service {
                     .get_live_opportunities(GetLiveOpportunitiesInput {
                         key: opportunity::entities::OpportunityKey(
                             bid.chain_id.clone(),
-                            PermissionKey::from(permission_key.0),
+                            permission_key,
                         ),
                     })
                     .await;
@@ -1368,7 +1365,6 @@ impl Service {
 
                     let msgs = simulation.value.logs.unwrap_or_default();
                     Err(RestError::SimulationError {
-                        result: Default::default(),
                         reason: msgs.join("\n"),
                     })
                 } else {
@@ -1432,7 +1428,6 @@ impl Service {
                     }
                     let msgs = err.meta.logs;
                     Err(RestError::SimulationError {
-                        result: Default::default(),
                         reason: msgs.join("\n"),
                     })
                 }
@@ -1612,7 +1607,6 @@ mod tests {
             },
         },
         borsh::BorshDeserialize,
-        ethers::types::Bytes,
         express_relay_api_types::opportunity as opportunity_api,
         express_relay_client::svm::{
             self,
@@ -3925,7 +3919,6 @@ mod tests {
         assert_eq!(
             result.unwrap_err(),
             RestError::SimulationError {
-                result: Bytes::default(),
                 reason: "".to_string(),
             }
         )

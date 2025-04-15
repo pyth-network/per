@@ -3,7 +3,6 @@ use {
         bid::BidId,
         AccessLevel,
         ChainId,
-        PermissionKeyEvm,
         Routable,
     },
     serde::{
@@ -407,22 +406,19 @@ fn default_limit() -> usize {
 #[derive(Clone, Serialize, Deserialize, IntoParams)]
 pub struct GetOpportunitiesQueryParams {
     #[param(example = "op_sepolia", value_type = Option < String >)]
-    pub chain_id:       Option<ChainId>,
+    pub chain_id:  Option<ChainId>,
     /// Get opportunities in live or historical mode.
     #[param(default = "live")]
     #[serde(default = "default_opportunity_mode")]
-    pub mode:           OpportunityMode,
-    /// The permission key to filter the opportunities by. Used only in historical mode.
-    #[param(example = "0xdeadbeef", value_type = Option< String >)]
-    pub permission_key: Option<PermissionKeyEvm>,
+    pub mode:      OpportunityMode,
     /// The time to get the opportunities from.
     #[param(example="2024-05-23T21:26:57.329954Z", value_type = Option<String>)]
     #[serde(default, with = "crate::serde::nullable_datetime")]
-    pub from_time:      Option<OffsetDateTime>,
+    pub from_time: Option<OffsetDateTime>,
     /// The maximum number of opportunities to return. Capped at 100; if more than 100 requested, at most 100 will be returned.
     #[param(example = "20", value_type = usize, maximum = 100)]
     #[serde(default = "default_limit")]
-    pub limit:          usize,
+    pub limit:     usize,
 }
 
 /// Parameters needed to create a new opportunity from the swap request.

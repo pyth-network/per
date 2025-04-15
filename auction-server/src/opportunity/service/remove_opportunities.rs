@@ -39,8 +39,6 @@ impl Service {
         let opportunities = self
             .repo
             .remove_opportunities(
-                permission_key.clone(),
-                input.chain_id.clone(),
                 &entities::OpportunityKey(input.chain_id.clone(), permission_key),
                 repository::OpportunityRemovalReason::Invalid,
             )
