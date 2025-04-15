@@ -1,6 +1,6 @@
 # Express Relay Program
 
-This subdir contains the Express Relay program and its SDK to help integrating programs check permissioning and perform testing.
+This subdirectory contains the Express Relay program and its SDK to help integrating programs check permissioning and perform testing.
 
 ## Express Relay Design
 
