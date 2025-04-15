@@ -690,7 +690,10 @@ mod tests {
                 },
             },
             kernel::{
-                rpc_client_svm_tester::RpcClientSvmTester,
+                rpc_client_svm_tester::{
+                    RpcClientSvmTester,
+                    TokenAccountWithLamports,
+                },
                 test_utils::DEFAULT_CHAIN_ID,
             },
             opportunity::{
@@ -714,6 +717,10 @@ mod tests {
             instruction::CompiledInstruction,
             signature::Signature,
             transaction::VersionedTransaction,
+        },
+        spl_token_2022::state::{
+            Account as TokenAccount,
+            AccountState,
         },
         uuid::Uuid,
     };
@@ -858,6 +865,7 @@ mod tests {
     struct QuoteSequence {
         service:         Service,
         auction_service: StatefulMockAuctionService,
+        rpc_client:      RpcClientSvmTester,
 
         token_program_user:     Pubkey,
         token_program_searcher: Pubkey,
@@ -895,6 +903,7 @@ mod tests {
         QuoteSequence {
             service,
             auction_service,
+            rpc_client,
             token_program_user: test_token_program_user,
             token_program_searcher: test_token_program_searcher,
         }
@@ -931,6 +940,7 @@ mod tests {
             mut auction_service,
             token_program_user,
             token_program_searcher,
+            ..
         } = setup_basic_sequence(QuoteSequenceParams {
             auction_service_sequence: AuctionServiceSequenceParams {
                 bids: Some(vec![BidParams {
@@ -1041,8 +1051,7 @@ mod tests {
         let QuoteSequence {
             service,
             auction_service,
-            token_program_user: _,
-            token_program_searcher: _,
+            ..
         } = setup_basic_sequence(QuoteSequenceParams::default()).await;
         inject_auction_service(&service, auction_service);
 
@@ -1084,6 +1093,7 @@ mod tests {
             auction_service,
             token_program_user,
             token_program_searcher,
+            ..
         } = setup_basic_sequence(QuoteSequenceParams {
             auction_service_sequence: AuctionServiceSequenceParams {
                 bids: Some(Vec::new()),
@@ -1139,6 +1149,7 @@ mod tests {
             mut auction_service,
             token_program_user,
             token_program_searcher,
+            ..
         } = setup_basic_sequence(QuoteSequenceParams {
             auction_service_sequence: AuctionServiceSequenceParams {
                 bids: Some(vec![
@@ -1238,6 +1249,7 @@ mod tests {
             auction_service,
             token_program_user,
             token_program_searcher,
+            ..
         } = setup_basic_sequence(QuoteSequenceParams {
             auction_service_sequence: AuctionServiceSequenceParams {
                 swap_args: Some(SwapArgs {
@@ -1293,5 +1305,176 @@ mod tests {
 
         assert_eq!(quote.referrer_fee.amount, 0);
         assert_eq!(quote.platform_fee.amount, 2);
+    }
+
+    #[tokio::test]
+    async fn test_get_quote_connected_wallet_happy_path() {
+        let winner_sig = Signature::new_unique();
+
+        let QuoteSequence {
+            service,
+            auction_service,
+            rpc_client,
+            token_program_user,
+            token_program_searcher,
+        } = setup_basic_sequence(QuoteSequenceParams {
+            auction_service_sequence: AuctionServiceSequenceParams {
+                swap_args: Some(SwapArgs {
+                    deadline:         10,
+                    amount_searcher:  2000,
+                    amount_user:      2000,
+                    referral_fee_bps: 15,
+                    fee_token:        FeeToken::Searcher,
+                }),
+                bids: Some(vec![BidParams {
+                    signature: Some(vec![winner_sig]),
+                    amount: Some(100),
+                    ..Default::default()
+                }]),
+                ..Default::default()
+            },
+            metadata: Some(ExpressRelayMetadata {
+                swap_platform_fee_bps: 10,
+                split_relayer: 5000,
+                ..Default::default()
+            }),
+            ..Default::default()
+        })
+        .await;
+        inject_auction_service(&service, auction_service);
+
+        let user_token = Pubkey::new_unique();
+        let searcher_token = Pubkey::new_unique();
+        service
+            .repo
+            .cache_token_program(searcher_token, token_program_user)
+            .await;
+        service
+            .repo
+            .cache_token_program(user_token, token_program_searcher)
+            .await;
+
+        rpc_client
+            .can_next_multi_call_token_accounts(
+                std::iter::repeat(TokenAccountWithLamports {
+                    lamports:      0,
+                    token_account: TokenAccount {
+                        amount: 5000,
+                        state: AccountState::Initialized,
+                        ..Default::default()
+                    },
+                })
+                .take(6)
+                .collect(),
+            )
+            .await;
+
+        let user_wallet = Pubkey::new_unique();
+        let quote = service
+            .get_quote(GetQuoteInput {
+                quote_create: QuoteCreate {
+                    user_wallet_address: Some(user_wallet),
+                    tokens:              QuoteTokens::SearcherTokenSpecified {
+                        searcher_token: TokenAmountSvm {
+                            token:  searcher_token,
+                            amount: 2000,
+                        },
+                        user_token,
+                    },
+                    referral_fee_info:   None,
+                    chain_id:            DEFAULT_CHAIN_ID.to_string(),
+                    memo:                None,
+                    cancellable:         true,
+                    minimum_lifetime:    None,
+                },
+            })
+            .await
+            .expect("Failed to submit quote");
+
+        // winning bid signature is present, user can sign it
+        assert_eq!(quote.transaction.unwrap().signatures, vec![winner_sig]);
+        rpc_client.check_all_uncanned().await;
+    }
+
+    #[tokio::test]
+    async fn test_get_quote_connected_not_enough_funds() {
+        let QuoteSequence {
+            service,
+            auction_service,
+            rpc_client,
+            token_program_user,
+            token_program_searcher,
+        } = setup_basic_sequence(QuoteSequenceParams {
+            auction_service_sequence: AuctionServiceSequenceParams {
+                swap_args: Some(SwapArgs {
+                    deadline:         10,
+                    amount_searcher:  2000,
+                    amount_user:      2000,
+                    referral_fee_bps: 15,
+                    fee_token:        FeeToken::Searcher,
+                }),
+                ..Default::default()
+            },
+            metadata: Some(ExpressRelayMetadata {
+                swap_platform_fee_bps: 10,
+                split_relayer: 5000,
+                ..Default::default()
+            }),
+            ..Default::default()
+        })
+        .await;
+        inject_auction_service(&service, auction_service);
+
+        let user_token = Pubkey::new_unique();
+        let searcher_token = Pubkey::new_unique();
+        service
+            .repo
+            .cache_token_program(searcher_token, token_program_user)
+            .await;
+        service
+            .repo
+            .cache_token_program(user_token, token_program_searcher)
+            .await;
+
+        rpc_client
+            .can_next_multi_call_token_accounts(
+                std::iter::repeat(TokenAccountWithLamports {
+                    lamports:      0,
+                    token_account: TokenAccount {
+                        amount: 10, // poor
+                        state: AccountState::Initialized,
+                        ..Default::default()
+                    },
+                })
+                .take(6)
+                .collect(),
+            )
+            .await;
+
+        let user_wallet = Pubkey::new_unique();
+        let quote = service
+            .get_quote(GetQuoteInput {
+                quote_create: QuoteCreate {
+                    user_wallet_address: Some(user_wallet),
+                    tokens:              QuoteTokens::SearcherTokenSpecified {
+                        searcher_token: TokenAmountSvm {
+                            token:  searcher_token,
+                            amount: 2000,
+                        },
+                        user_token,
+                    },
+                    referral_fee_info:   None,
+                    chain_id:            DEFAULT_CHAIN_ID.to_string(),
+                    memo:                None,
+                    cancellable:         true,
+                    minimum_lifetime:    None,
+                },
+            })
+            .await
+            .expect("Failed to submit quote");
+
+        // quote became indicative
+        assert_eq!(quote.transaction, None);
+        rpc_client.check_all_uncanned().await;
     }
 }
