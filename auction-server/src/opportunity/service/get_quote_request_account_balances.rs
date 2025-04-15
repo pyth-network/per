@@ -195,12 +195,13 @@ impl Service {
         let token_balances: Vec<TokenAccountBalance> = accounts[1..].iter()
             .map(|account| {
                 account
-                    .as_ref()
-                    .map(|acc| {
-                        if acc.data.is_empty()  // Accounts can "exist" (because someone has sent SOL to them) but be uninitialized, this handles that case
-                        {
-                            return Ok(0);
+                    .as_ref().and_then(|acc| {
+                        if acc.data.is_empty() {
+                            return None;
                         }
+                        Some(acc)
+                    })
+                    .map(|acc| {
                         StateWithExtensions::<TokenAccount>::unpack(&acc.data)
                             .map_err(|err| {
                                 tracing::error!(error = ?err, "Failed to deserialize a token account");
@@ -310,8 +311,8 @@ mod tests {
         assert_eq!(balances.user_sol_balance, 100);
         assert_eq!(
             balances.user_ata_mint_searcher,
-            TokenAccountBalance::Initialized(0)
-        ); // should this be like this?
+            TokenAccountBalance::Uninitialized
+        );
 
         rpc_client.check_all_uncanned().await;
     }
