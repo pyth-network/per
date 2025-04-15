@@ -144,49 +144,6 @@ importers:
         specifier: ^3.4.17
         version: 3.4.17(ts-node@10.9.2(@types/node@22.10.1)(typescript@5.7.2))
 
-  examples/easy_lend:
-    dependencies:
-      "@openzeppelin/contracts":
-        specifier: ^4.5.0
-        version: 4.9.6
-      "@pythnetwork/express-relay-js":
-        specifier: workspace:*
-        version: link:../../sdk/js
-      "@pythnetwork/express-relay-sdk-solidity":
-        specifier: workspace:*
-        version: link:../../sdk/solidity
-      "@pythnetwork/price-service-client":
-        specifier: ^1.9.0
-        version: 1.9.0(bufferutil@4.0.8)(utf-8-validate@5.0.10)
-      "@pythnetwork/pyth-evm-js":
-        specifier: ^1.73.0
-        version: 1.76.0(bufferutil@4.0.8)(utf-8-validate@5.0.10)
-      "@pythnetwork/pyth-sdk-solidity":
-        specifier: ^4.0.0
-        version: 4.0.0
-      ts-node:
-        specifier: "catalog:"
-        version: 10.9.1(@types/node@22.10.1)(typescript@5.5.4)
-      typescript:
-        specifier: "catalog:"
-        version: 5.5.4
-      viem:
-        specifier: "catalog:"
-        version: 2.16.2(bufferutil@4.0.8)(typescript@5.5.4)(utf-8-validate@5.0.10)(zod@3.24.1)
-    devDependencies:
-      "@types/yargs":
-        specifier: "catalog:"
-        version: 17.0.32
-      prettier:
-        specifier: ^2.6.2
-        version: 2.8.8
-      typedoc:
-        specifier: ^0.25.7
-        version: 0.25.13(typescript@5.5.4)
-      yargs:
-        specifier: "catalog:"
-        version: 17.7.2
-
   scripts/dex-router:
     dependencies:
       "@coral-xyz/anchor":
@@ -417,15 +374,6 @@ importers:
       yargs:
         specifier: "catalog:"
         version: 17.7.2
-
-  sdk/solidity:
-    devDependencies:
-      prettier:
-        specifier: ^2.7.1
-        version: 2.8.8
-      prettier-plugin-solidity:
-        specifier: ^1.0.0-rc.1
-        version: 1.4.1(prettier@2.8.8)
 
 packages:
   "@adobe/css-tools@4.4.1":
@@ -2751,12 +2699,6 @@ packages:
       }
     engines: { node: ">= 8" }
 
-  "@openzeppelin/contracts@4.9.6":
-    resolution:
-      {
-        integrity: sha512-xSmezSupL+y9VkHZJGDoCBpmnB2ogM13ccaYDWqJTfS3dbuHkgjuwDFUmaFauBCboQMGB/S5UqUl2y54X99BmA==,
-      }
-
   "@particle-network/analytics@1.0.2":
     resolution:
       {
@@ -2842,12 +2784,6 @@ packages:
     resolution:
       {
         integrity: sha512-wBPiey9nZ14b2FIWce1MH+8Ss/G57MaIuK2LIl8hcjFrPFtmG5Ei/CKaHjsMWKxHNBCkuC+SFI9zVErxY1F81Q==,
-      }
-
-  "@pythnetwork/pyth-sdk-solidity@4.0.0":
-    resolution:
-      {
-        integrity: sha512-Cy2MvSN1Oh5YpIYmZd2In6/gfXbGjnpazmXKioTuq07Drp4Rl2XHcvtqHdgilplCl32IG4pU+XoRafpexID08A==,
       }
 
   "@radix-ui/react-compose-refs@1.1.1":
@@ -3766,12 +3702,6 @@ packages:
       }
     peerDependencies:
       "@solana/web3.js": "*"
-
-  "@solidity-parser/parser@0.18.0":
-    resolution:
-      {
-        integrity: sha512-yfORGUIPgLck41qyN7nbwJRAx17/jAIXCTanHOJZhB6PJ1iAk/84b/xlsVKFSyNyLXIj0dhppoE0+CRws7wlzA==,
-      }
 
   "@stablelib/aead@1.0.1":
     resolution:
@@ -4874,12 +4804,6 @@ packages:
         integrity: sha512-7HSX4QQb4CspciLpVFwyRe79O3xsIZDDLER21kERQ71oaPodF8jL725AgJMFAYbooIqolJoRLuM81SpeUkpkvA==,
       }
     engines: { node: ">=12" }
-
-  ansi-sequence-parser@1.1.1:
-    resolution:
-      {
-        integrity: sha512-vJXt3yiaUL4UU546s3rPXlsry/RnM730G1+HkpKE012AN0sx1eOrxSu95oKDIonskeLTijMgqWZ3uDEe3NFvyg==,
-      }
 
   ansi-styles@3.2.1:
     resolution:
@@ -8974,12 +8898,6 @@ packages:
       }
     engines: { node: ^12.22.0 || ^14.17.0 || >=16.0.0 }
 
-  jsonc-parser@3.3.1:
-    resolution:
-      {
-        integrity: sha512-HUgH65KyejrUFPvHFPbqOY0rsFip3Bo5wb4ngvdi1EpCYWUQDC5V+Y7mZws+DLkr4M//zQJoanu1SP+87Dv1oQ==,
-      }
-
   jsonify@0.0.1:
     resolution:
       {
@@ -9195,12 +9113,6 @@ packages:
     peerDependencies:
       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
-  lunr@2.3.9:
-    resolution:
-      {
-        integrity: sha512-zTU3DaZaF3Rt9rhN3uBMGQD3dD2/vFQqnvZCDv4dl5iOzq2IZQqTxu90r4E5J+nP70J3ilqVCrbho2eWaeW8Ow==,
-      }
-
   make-dir@2.1.0:
     resolution:
       {
@@ -9226,14 +9138,6 @@ packages:
       {
         integrity: sha512-JmqCvUhmt43madlpFzG4BQzG2Z3m6tvQDNKdClZnO3VbIudJYmxsT0FNJMeiB2+JTSlTQTSbU8QdesVmwJcmLg==,
       }
-
-  marked@4.3.0:
-    resolution:
-      {
-        integrity: sha512-PRsaiG84bK+AMvxziE/lCFss8juXjNaWzVbN5tXAm4XjeaS9NAHhop+PjQxz2A9h8Q4M/xGmzP8vqNwy6JeK0A==,
-      }
-    engines: { node: ">= 12" }
-    hasBin: true
 
   marky@1.2.5:
     resolution:
@@ -10264,15 +10168,6 @@ packages:
       }
     engines: { node: ">= 0.8.0" }
 
-  prettier-plugin-solidity@1.4.1:
-    resolution:
-      {
-        integrity: sha512-Mq8EtfacVZ/0+uDKTtHZGW3Aa7vEbX/BNx63hmVg6YTiTXSiuKP0amj0G6pGwjmLaOfymWh3QgXEZkjQbU8QRg==,
-      }
-    engines: { node: ">=16" }
-    peerDependencies:
-      prettier: ">=2.3.0"
-
   prettier-plugin-tailwindcss@0.6.10:
     resolution:
       {
@@ -11174,12 +11069,6 @@ packages:
       }
     engines: { node: ">= 0.4" }
 
-  shiki@0.14.7:
-    resolution:
-      {
-        integrity: sha512-dNPAPrxSc87ua2sKJ3H5dQ/6ZaY8RNnaAqK+t0eG7p0Soi2ydiqbGOTaZCqaYvA/uZYfS1LJnemt3Q+mSfcPCg==,
-      }
-
   side-channel-list@1.0.0:
     resolution:
       {
@@ -12033,16 +11922,6 @@ packages:
         integrity: sha512-zdu8XMNEDepKKR+XYOXAVPtWui0ly0NtohUscw+UmaHiAWT8hrV1rr//H6V+0DvJ3OQ19S979M0laLfX8rm82Q==,
       }
 
-  typedoc@0.25.13:
-    resolution:
-      {
-        integrity: sha512-pQqiwiJ+Z4pigfOnnysObszLiU3mVLWAExSPf+Mu06G/qsc3wzbuM56SZQvONhHLncLUhYzOVkjFFpFfL5AzhQ==,
-      }
-    engines: { node: ">= 16" }
-    hasBin: true
-    peerDependencies:
-      typescript: 4.6.x || 4.7.x || 4.8.x || 4.9.x || 5.0.x || 5.1.x || 5.2.x || 5.3.x || 5.4.x
-
   typescript-eslint@7.18.0:
     resolution:
       {
@@ -12360,18 +12239,6 @@ packages:
     resolution:
       {
         integrity: sha512-gQpnTgkubC6hQgdIcRdYGDSDc+SaujOdyesZQMv6JlfQee/9Mp0Qhnys6WxDWvQnL5WZdT7o2Ul187aSt0Rq+w==,
-      }
-
-  vscode-oniguruma@1.7.0:
-    resolution:
-      {
-        integrity: sha512-L9WMGRfrjOhgHSdOYgCt/yRMsXzLDJSL7BPrOZt73gU0iWO4mpqzqQzOz5srxqTvMBaR0XZTSrVWo4j55Rc6cA==,
-      }
-
-  vscode-textmate@8.0.0:
-    resolution:
-      {
-        integrity: sha512-AFbieoL7a5LMqcnOF04ji+rpXadgOXnZsxQr//r83kLPr7biP7am3g9zbaZIaBGwBRWeSvoMD4mgPdX3e4NWBg==,
       }
 
   w3c-hr-time@1.0.2:
@@ -14921,8 +14788,6 @@ snapshots:
       "@nodelib/fs.scandir": 2.1.5
       fastq: 1.17.1
 
-  "@openzeppelin/contracts@4.9.6": {}
-
   "@particle-network/analytics@1.0.2":
     dependencies:
       hash.js: 1.1.7
@@ -15009,8 +14874,6 @@ snapshots:
       - bufferutil
       - debug
       - utf-8-validate
-
-  "@pythnetwork/pyth-sdk-solidity@4.0.0": {}
 
   "@radix-ui/react-compose-refs@1.1.1(@types/react@19.0.7)(react@19.0.0)":
     dependencies:
@@ -16197,8 +16060,6 @@ snapshots:
       eventemitter3: 5.0.1
       uuid: 9.0.1
 
-  "@solidity-parser/parser@0.18.0": {}
-
   "@stablelib/aead@1.0.1": {}
 
   "@stablelib/binary@1.0.1":
@@ -17276,8 +17137,6 @@ snapshots:
   ansi-regex@5.0.1: {}
 
   ansi-regex@6.1.0: {}
-
-  ansi-sequence-parser@1.1.1: {}
 
   ansi-styles@3.2.1:
     dependencies:
@@ -20496,8 +20355,6 @@ snapshots:
       espree: 9.6.1
       semver: 7.6.3
 
-  jsonc-parser@3.3.1: {}
-
   jsonify@0.0.1: {}
 
   jsonparse@1.3.1: {}
@@ -20604,8 +20461,6 @@ snapshots:
     dependencies:
       react: 19.0.0
 
-  lunr@2.3.9: {}
-
   make-dir@2.1.0:
     dependencies:
       pify: 4.0.1
@@ -20620,8 +20475,6 @@ snapshots:
   makeerror@1.0.12:
     dependencies:
       tmpl: 1.0.5
-
-  marked@4.3.0: {}
 
   marky@1.2.5: {}
 
@@ -21316,12 +21169,6 @@ snapshots:
 
   prelude-ls@1.2.1: {}
 
-  prettier-plugin-solidity@1.4.1(prettier@2.8.8):
-    dependencies:
-      "@solidity-parser/parser": 0.18.0
-      prettier: 2.8.8
-      semver: 7.6.3
-
   prettier-plugin-tailwindcss@0.6.10(prettier@3.4.1):
     dependencies:
       prettier: 3.4.1
@@ -21933,13 +21780,6 @@ snapshots:
 
   shell-quote@1.8.2: {}
 
-  shiki@0.14.7:
-    dependencies:
-      ansi-sequence-parser: 1.1.1
-      jsonc-parser: 3.3.1
-      vscode-oniguruma: 1.7.0
-      vscode-textmate: 8.0.0
-
   side-channel-list@1.0.0:
     dependencies:
       es-errors: 1.3.0
@@ -22371,24 +22211,6 @@ snapshots:
 
   ts-log@2.2.7: {}
 
-  ts-node@10.9.1(@types/node@22.10.1)(typescript@5.5.4):
-    dependencies:
-      "@cspotcode/source-map-support": 0.8.1
-      "@tsconfig/node10": 1.0.11
-      "@tsconfig/node12": 1.0.11
-      "@tsconfig/node14": 1.0.3
-      "@tsconfig/node16": 1.0.4
-      "@types/node": 22.10.1
-      acorn: 8.14.0
-      acorn-walk: 8.3.4
-      arg: 4.1.3
-      create-require: 1.1.1
-      diff: 4.0.2
-      make-error: 1.3.6
-      typescript: 5.5.4
-      v8-compile-cache-lib: 3.0.1
-      yn: 3.1.1
-
   ts-node@10.9.1(@types/node@22.10.1)(typescript@5.7.2):
     dependencies:
       "@cspotcode/source-map-support": 0.8.1
@@ -22515,14 +22337,6 @@ snapshots:
   typedarray-to-buffer@3.1.5:
     dependencies:
       is-typedarray: 1.0.0
-
-  typedoc@0.25.13(typescript@5.5.4):
-    dependencies:
-      lunr: 2.3.9
-      marked: 4.3.0
-      minimatch: 9.0.5
-      shiki: 0.14.7
-      typescript: 5.5.4
 
   typescript-eslint@7.18.0(eslint@9.18.0(jiti@1.21.7))(typescript@5.7.2):
     dependencies:
@@ -22690,10 +22504,6 @@ snapshots:
       - zod
 
   vlq@1.0.1: {}
-
-  vscode-oniguruma@1.7.0: {}
-
-  vscode-textmate@8.0.0: {}
 
   w3c-hr-time@1.0.2:
     dependencies:
