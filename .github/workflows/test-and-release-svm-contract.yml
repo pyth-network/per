@@ -33,12 +33,10 @@ jobs:
         run: cargo test --target-dir ./target-tests
       - name: Print Hash
         run: sha256sum ./target/deploy/express_relay.so
-      - name: Debug path
-        run: ls -al ./target/deploy
       - name: Upload artifact
         if: github.event_name == 'push'
         uses: actions/upload-artifact@v4
         with:
           name: express_relay.so
-          path: ./target/deploy/express_relay.so
+          path: contracts/svm/target/deploy/express_relay.so
           retention-days: 90
