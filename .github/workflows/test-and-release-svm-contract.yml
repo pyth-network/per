@@ -7,6 +7,7 @@ on:
   push:
     branches:
       - main
+      - fix/svm-contract-release
     paths:
       - contracts/svm/**
 
@@ -32,6 +33,8 @@ jobs:
         run: cargo test --target-dir ./target-tests
       - name: Print Hash
         run: sha256sum ./target/deploy/express_relay.so
+      - name: Debug path
+        run: ls -al contracts/svm/target/deploy
       - name: Upload artifact
         if: github.event_name == 'push'
         uses: actions/upload-artifact@v4
