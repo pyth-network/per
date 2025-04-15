@@ -34,7 +34,7 @@ jobs:
       - name: Print Hash
         run: sha256sum ./target/deploy/express_relay.so
       - name: Debug path
-        run: ls -al contracts/svm/target/deploy
+        run: ls -al ./target/deploy
       - name: Upload artifact
         if: github.event_name == 'push'
         uses: actions/upload-artifact@v4
