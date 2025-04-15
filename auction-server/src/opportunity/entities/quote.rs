@@ -1,5 +1,5 @@
 use {
-    super::token_amount_svm::TokenAmountSvm,
+    super::token_amount::TokenAmountSvm,
     crate::kernel::entities::ChainId,
     express_relay_api_types::{
         bid::BidId,

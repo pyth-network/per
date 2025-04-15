@@ -1594,7 +1594,6 @@ mod tests {
             opportunity::{
                 entities::{
                     FeeToken,
-                    OpportunityCoreFields,
                     OpportunitySvm,
                     OpportunitySvmProgram,
                     OpportunitySvmProgramSwap,
@@ -1766,25 +1765,23 @@ mod tests {
         );
 
         let opp_user_token_specified = OpportunitySvm {
-            core_fields: OpportunityCoreFields {
-                id:             Uuid::new_v4(),
-                permission_key: OpportunitySvm::get_permission_key(
-                    BidPaymentInstructionType::Swap,
-                    router,
-                    permission_account_user_token_specified,
-                ),
-                chain_id:       chain_id.clone(),
-                sell_tokens:    vec![TokenAmountSvm {
-                    token:  searcher_token_address,
-                    amount: 0,
-                }],
-                buy_tokens:     vec![TokenAmountSvm {
-                    token: user_token_address,
-                    amount,
-                }],
-                creation_time:  now,
-                refresh_time:   now,
-            },
+            id: Uuid::new_v4(),
+            permission_key: OpportunitySvm::get_permission_key(
+                BidPaymentInstructionType::Swap,
+                router,
+                permission_account_user_token_specified,
+            ),
+            chain_id: chain_id.clone(),
+            sell_tokens: vec![TokenAmountSvm {
+                token:  searcher_token_address,
+                amount: 0,
+            }],
+            buy_tokens: vec![TokenAmountSvm {
+                token: user_token_address,
+                amount,
+            }],
+            creation_time: now,
+            refresh_time: now,
             router,
             permission_account: permission_account_user_token_specified,
             program: OpportunitySvmProgram::Swap(
@@ -1795,25 +1792,23 @@ mod tests {
         };
 
         let opp_searcher_token_specified = OpportunitySvm {
-            core_fields: OpportunityCoreFields {
-                id:             Uuid::new_v4(),
-                permission_key: OpportunitySvm::get_permission_key(
-                    BidPaymentInstructionType::Swap,
-                    router,
-                    permission_account_searcher_token_specified,
-                ),
-                chain_id:       chain_id.clone(),
-                sell_tokens:    vec![TokenAmountSvm {
-                    token: searcher_token_address,
-                    amount,
-                }],
-                buy_tokens:     vec![TokenAmountSvm {
-                    token:  user_token_address,
-                    amount: 0,
-                }],
-                creation_time:  now,
-                refresh_time:   now,
-            },
+            id: Uuid::new_v4(),
+            permission_key: OpportunitySvm::get_permission_key(
+                BidPaymentInstructionType::Swap,
+                router,
+                permission_account_searcher_token_specified,
+            ),
+            chain_id: chain_id.clone(),
+            sell_tokens: vec![TokenAmountSvm {
+                token: searcher_token_address,
+                amount,
+            }],
+            buy_tokens: vec![TokenAmountSvm {
+                token:  user_token_address,
+                amount: 0,
+            }],
+            creation_time: now,
+            refresh_time: now,
             router,
             permission_account: permission_account_searcher_token_specified,
             program: OpportunitySvmProgram::Swap(
@@ -1824,25 +1819,23 @@ mod tests {
         };
 
         let opp_user_token_wsol = OpportunitySvm {
-            core_fields: OpportunityCoreFields {
-                id:             Uuid::new_v4(),
-                permission_key: OpportunitySvm::get_permission_key(
-                    BidPaymentInstructionType::Swap,
-                    router,
-                    permission_account_user_token_wsol,
-                ),
-                chain_id:       chain_id.clone(),
-                sell_tokens:    vec![TokenAmountSvm {
-                    token:  searcher_token_address,
-                    amount: 0,
-                }],
-                buy_tokens:     vec![TokenAmountSvm {
-                    token: spl_token::native_mint::id(),
-                    amount,
-                }],
-                creation_time:  now,
-                refresh_time:   now,
-            },
+            id: Uuid::new_v4(),
+            permission_key: OpportunitySvm::get_permission_key(
+                BidPaymentInstructionType::Swap,
+                router,
+                permission_account_user_token_wsol,
+            ),
+            chain_id: chain_id.clone(),
+            sell_tokens: vec![TokenAmountSvm {
+                token:  searcher_token_address,
+                amount: 0,
+            }],
+            buy_tokens: vec![TokenAmountSvm {
+                token: spl_token::native_mint::id(),
+                amount,
+            }],
+            creation_time: now,
+            refresh_time: now,
             router,
             permission_account: permission_account_user_token_wsol,
             program: OpportunitySvmProgram::Swap(OpportunitySvmProgramSwap {
@@ -1857,25 +1850,23 @@ mod tests {
         };
 
         let opp_searcher_token_wsol = OpportunitySvm {
-            core_fields: OpportunityCoreFields {
-                id:             Uuid::new_v4(),
-                permission_key: OpportunitySvm::get_permission_key(
-                    BidPaymentInstructionType::Swap,
-                    router,
-                    permission_account_searcher_token_wsol,
-                ),
-                chain_id:       chain_id.clone(),
-                sell_tokens:    vec![TokenAmountSvm {
-                    token:  spl_token::native_mint::id(),
-                    amount: 0,
-                }],
-                buy_tokens:     vec![TokenAmountSvm {
-                    token: user_token_address,
-                    amount,
-                }],
-                creation_time:  now,
-                refresh_time:   now,
-            },
+            id: Uuid::new_v4(),
+            permission_key: OpportunitySvm::get_permission_key(
+                BidPaymentInstructionType::Swap,
+                router,
+                permission_account_searcher_token_wsol,
+            ),
+            chain_id: chain_id.clone(),
+            sell_tokens: vec![TokenAmountSvm {
+                token:  spl_token::native_mint::id(),
+                amount: 0,
+            }],
+            buy_tokens: vec![TokenAmountSvm {
+                token: user_token_address,
+                amount,
+            }],
+            creation_time: now,
+            refresh_time: now,
             router,
             permission_account: permission_account_searcher_token_wsol,
             program: OpportunitySvmProgram::Swap(
@@ -1894,25 +1885,23 @@ mod tests {
         );
 
         let opp_with_indicative_price_taker = OpportunitySvm {
-            core_fields: OpportunityCoreFields {
-                id:             Uuid::new_v4(),
-                permission_key: OpportunitySvm::get_permission_key(
-                    BidPaymentInstructionType::Swap,
-                    router,
-                    permission_account_indicative_price_taker,
-                ),
-                chain_id:       chain_id.clone(),
-                sell_tokens:    vec![TokenAmountSvm {
-                    token:  searcher_token_address,
-                    amount: 0,
-                }],
-                buy_tokens:     vec![TokenAmountSvm {
-                    token: user_token_address,
-                    amount,
-                }],
-                creation_time:  now,
-                refresh_time:   now,
-            },
+            id: Uuid::new_v4(),
+            permission_key: OpportunitySvm::get_permission_key(
+                BidPaymentInstructionType::Swap,
+                router,
+                permission_account_indicative_price_taker,
+            ),
+            chain_id: chain_id.clone(),
+            sell_tokens: vec![TokenAmountSvm {
+                token:  searcher_token_address,
+                amount: 0,
+            }],
+            buy_tokens: vec![TokenAmountSvm {
+                token: user_token_address,
+                amount,
+            }],
+            creation_time: now,
+            refresh_time: now,
             router,
             permission_account: permission_account_indicative_price_taker,
             program: OpportunitySvmProgram::Swap(
@@ -1924,25 +1913,23 @@ mod tests {
 
 
         let opp_with_user_payer = OpportunitySvm {
-            core_fields: OpportunityCoreFields {
-                id:             Uuid::new_v4(),
-                permission_key: OpportunitySvm::get_permission_key(
-                    BidPaymentInstructionType::Swap,
-                    router,
-                    permission_account_user_token_specified,
-                ),
-                chain_id:       chain_id.clone(),
-                sell_tokens:    vec![TokenAmountSvm {
-                    token:  searcher_token_address,
-                    amount: 0,
-                }],
-                buy_tokens:     vec![TokenAmountSvm {
-                    token: user_token_address,
-                    amount,
-                }],
-                creation_time:  now,
-                refresh_time:   now,
-            },
+            id: Uuid::new_v4(),
+            permission_key: OpportunitySvm::get_permission_key(
+                BidPaymentInstructionType::Swap,
+                router,
+                permission_account_user_token_specified,
+            ),
+            chain_id: chain_id.clone(),
+            sell_tokens: vec![TokenAmountSvm {
+                token:  searcher_token_address,
+                amount: 0,
+            }],
+            buy_tokens: vec![TokenAmountSvm {
+                token: user_token_address,
+                amount,
+            }],
+            creation_time: now,
+            refresh_time: now,
             router,
             permission_account: permission_account_user_token_specified,
             program: OpportunitySvmProgram::Swap(OpportunitySvmProgramSwap {
@@ -1958,25 +1945,23 @@ mod tests {
         };
 
         let opp_with_memo = OpportunitySvm {
-            core_fields: OpportunityCoreFields {
-                id:             Uuid::new_v4(),
-                permission_key: OpportunitySvm::get_permission_key(
-                    BidPaymentInstructionType::Swap,
-                    router,
-                    permission_account_user_token_specified,
-                ),
-                chain_id:       chain_id.clone(),
-                sell_tokens:    vec![TokenAmountSvm {
-                    token:  searcher_token_address,
-                    amount: 0,
-                }],
-                buy_tokens:     vec![TokenAmountSvm {
-                    token: user_token_address,
-                    amount,
-                }],
-                creation_time:  now,
-                refresh_time:   now,
-            },
+            id: Uuid::new_v4(),
+            permission_key: OpportunitySvm::get_permission_key(
+                BidPaymentInstructionType::Swap,
+                router,
+                permission_account_user_token_specified,
+            ),
+            chain_id: chain_id.clone(),
+            sell_tokens: vec![TokenAmountSvm {
+                token:  searcher_token_address,
+                amount: 0,
+            }],
+            buy_tokens: vec![TokenAmountSvm {
+                token: user_token_address,
+                amount,
+            }],
+            creation_time: now,
+            refresh_time: now,
             router,
             permission_account: permission_account_user_token_specified,
             program: OpportunitySvmProgram::Swap(OpportunitySvmProgramSwap {
@@ -1988,25 +1973,23 @@ mod tests {
         };
 
         let opp_with_minimum_lifetime = OpportunitySvm {
-            core_fields: OpportunityCoreFields {
-                id: Uuid::new_v4(),
-                permission_key: OpportunitySvm::get_permission_key(
-                    BidPaymentInstructionType::Swap,
-                    router,
-                    permission_account_user_token_specified,
-                ),
-                chain_id,
-                sell_tokens: vec![TokenAmountSvm {
-                    token:  searcher_token_address,
-                    amount: 0,
-                }],
-                buy_tokens: vec![TokenAmountSvm {
-                    token: user_token_address,
-                    amount,
-                }],
-                creation_time: now,
-                refresh_time: now,
-            },
+            id: Uuid::new_v4(),
+            permission_key: OpportunitySvm::get_permission_key(
+                BidPaymentInstructionType::Swap,
+                router,
+                permission_account_user_token_specified,
+            ),
+            chain_id,
+            sell_tokens: vec![TokenAmountSvm {
+                token:  searcher_token_address,
+                amount: 0,
+            }],
+            buy_tokens: vec![TokenAmountSvm {
+                token: user_token_address,
+                amount,
+            }],
+            creation_time: now,
+            refresh_time: now,
             router,
             permission_account: permission_account_user_token_specified,
             program: OpportunitySvmProgram::Swap(OpportunitySvmProgramSwap {
@@ -2036,9 +2019,7 @@ mod tests {
             .expect_get_live_opportunities()
             .returning(move |input| {
                 opps.iter()
-                    .filter(|opp| {
-                        opp.chain_id == input.key.0 && opp.core_fields.permission_key == input.key.1
-                    })
+                    .filter(|opp| opp.chain_id == input.key.0 && opp.permission_key == input.key.1)
                     .cloned()
                     .collect()
             });
@@ -2047,7 +2028,7 @@ mod tests {
             .returning(move |input| {
                 opps_cloned
                     .iter()
-                    .find(|opp| opp.core_fields.id == input.opportunity_id)
+                    .find(|opp| opp.id == input.opportunity_id)
                     .cloned()
             });
 
@@ -2150,7 +2131,7 @@ mod tests {
             initiation_time: OffsetDateTime::now_utc(),
             profile:         None,
             chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
-                opportunity_id: opportunity.core_fields.id,
+                opportunity_id: opportunity.id,
                 transaction:    transaction.into(),
             }),
         };
@@ -2183,7 +2164,7 @@ mod tests {
             initiation_time: OffsetDateTime::now_utc(),
             profile:         None,
             chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
-                opportunity_id: opportunity.core_fields.id,
+                opportunity_id: opportunity.id,
                 transaction:    transaction.clone().into(),
             }),
         };
@@ -2232,7 +2213,7 @@ mod tests {
             initiation_time: OffsetDateTime::now_utc(),
             profile:         None,
             chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
-                opportunity_id: opportunity.core_fields.id,
+                opportunity_id: opportunity.id,
                 transaction:    transaction.clone().into(),
             }),
         };
@@ -2272,7 +2253,7 @@ mod tests {
             initiation_time: OffsetDateTime::now_utc(),
             profile:         None,
             chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
-                opportunity_id: opportunity.core_fields.id,
+                opportunity_id: opportunity.id,
                 transaction:    transaction.clone().into(),
             }),
         };
@@ -2387,7 +2368,7 @@ mod tests {
         let (service, opportunities) = get_service(true);
         let searcher = Keypair::new();
         let mut opportunity = opportunities.user_token_specified.clone();
-        opportunity.core_fields.id = Uuid::new_v4();
+        opportunity.id = Uuid::new_v4();
         let result = get_verify_bid_result(service, searcher, vec![], opportunity).await;
         assert_eq!(result.unwrap_err(), RestError::SwapOpportunityNotFound);
     }
@@ -2705,9 +2686,9 @@ mod tests {
         let (service, opportunities) = get_service(true);
         let searcher = Keypair::new();
         let mut opportunity = opportunities.user_token_specified.clone();
-        let expected = opportunity.core_fields.sell_tokens[0].token;
-        opportunity.core_fields.sell_tokens[0].token = Pubkey::new_unique();
-        let found = opportunity.core_fields.sell_tokens[0].token;
+        let expected = opportunity.sell_tokens[0].token;
+        opportunity.sell_tokens[0].token = Pubkey::new_unique();
+        let found = opportunity.sell_tokens[0].token;
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
             searcher:             searcher.pubkey(),
             opportunity_params:   get_opportunity_params(opportunity.clone()),
@@ -2734,9 +2715,9 @@ mod tests {
         let (service, opportunities) = get_service(true);
         let searcher = Keypair::new();
         let mut opportunity = opportunities.user_token_specified.clone();
-        let expected = opportunity.core_fields.buy_tokens[0].token;
-        opportunity.core_fields.buy_tokens[0].token = Pubkey::new_unique();
-        let found = opportunity.core_fields.buy_tokens[0].token;
+        let expected = opportunity.buy_tokens[0].token;
+        opportunity.buy_tokens[0].token = Pubkey::new_unique();
+        let found = opportunity.buy_tokens[0].token;
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
             searcher:             searcher.pubkey(),
             opportunity_params:   get_opportunity_params(opportunity.clone()),
@@ -2828,9 +2809,9 @@ mod tests {
         let (service, opportunities) = get_service(true);
         let searcher = Keypair::new();
         let mut opportunity = opportunities.searcher_token_specified.clone();
-        let mut token = opportunity.core_fields.sell_tokens[0].clone();
+        let mut token = opportunity.sell_tokens[0].clone();
         token.amount += 1;
-        opportunity.core_fields.sell_tokens[0] = token.clone();
+        opportunity.sell_tokens[0] = token.clone();
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
             searcher:             searcher.pubkey(),
             opportunity_params:   get_opportunity_params(opportunity.clone()),
@@ -2857,9 +2838,9 @@ mod tests {
         let (service, opportunities) = get_service(true);
         let searcher = Keypair::new();
         let mut opportunity = opportunities.user_token_specified.clone();
-        let mut token = opportunity.core_fields.buy_tokens[0].clone();
+        let mut token = opportunity.buy_tokens[0].clone();
         token.amount += 1;
-        opportunity.core_fields.buy_tokens[0] = token.clone();
+        opportunity.buy_tokens[0] = token.clone();
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
             searcher:             searcher.pubkey(),
             opportunity_params:   get_opportunity_params(opportunity.clone()),
@@ -3350,7 +3331,7 @@ mod tests {
             initiation_time: OffsetDateTime::now_utc(),
             profile:         None,
             chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
-                opportunity_id: opportunity.core_fields.id,
+                opportunity_id: opportunity.id,
                 transaction:    transaction.clone().into(),
             }),
         };
@@ -3429,7 +3410,7 @@ mod tests {
             initiation_time: OffsetDateTime::now_utc(),
             profile:         None,
             chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
-                opportunity_id: opportunity.core_fields.id,
+                opportunity_id: opportunity.id,
                 transaction:    transaction.clone().into(),
             }),
         };
@@ -3665,7 +3646,7 @@ mod tests {
             initiation_time: OffsetDateTime::now_utc(),
             profile:         None,
             chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
-                opportunity_id: opportunity.core_fields.id,
+                opportunity_id: opportunity.id,
                 transaction:    transaction.clone().into(),
             }),
         };
@@ -3691,15 +3672,11 @@ mod tests {
     async fn test_verify_bid_when_invalid_associated_router_token_account() {
         let (service, opportunities) = get_service(true);
         let mut opportunity = opportunities.user_token_specified.clone();
-        let expected = get_associated_token_address(
-            &opportunity.router,
-            &opportunity.core_fields.buy_tokens[0].token,
-        );
+        let expected =
+            get_associated_token_address(&opportunity.router, &opportunity.buy_tokens[0].token);
         opportunity.router = Pubkey::new_unique();
-        let found = get_associated_token_address(
-            &opportunity.router,
-            &opportunity.core_fields.buy_tokens[0].token,
-        );
+        let found =
+            get_associated_token_address(&opportunity.router, &opportunity.buy_tokens[0].token);
         let bid_amount = 1;
         let searcher = Keypair::new();
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
@@ -3748,7 +3725,7 @@ mod tests {
             initiation_time: OffsetDateTime::now_utc(),
             profile:         None,
             chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
-                opportunity_id: opportunity.core_fields.id,
+                opportunity_id: opportunity.id,
                 transaction:    transaction.clone().into(),
             }),
         };
@@ -3789,7 +3766,7 @@ mod tests {
             initiation_time: OffsetDateTime::now_utc(),
             profile:         None,
             chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
-                opportunity_id: opportunity.core_fields.id,
+                opportunity_id: opportunity.id,
                 transaction:    transaction.clone().into(),
             }),
         };
@@ -3837,7 +3814,7 @@ mod tests {
             initiation_time: OffsetDateTime::now_utc(),
             profile:         None,
             chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
-                opportunity_id: opportunity.core_fields.id,
+                opportunity_id: opportunity.id,
                 transaction:    transaction.clone().into(),
             }),
         };
@@ -3880,7 +3857,7 @@ mod tests {
             initiation_time: OffsetDateTime::now_utc(),
             profile:         None,
             chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
-                opportunity_id: opportunity.core_fields.id,
+                opportunity_id: opportunity.id,
                 transaction:    transaction.clone().into(),
             }),
         };
@@ -3937,7 +3914,7 @@ mod tests {
             initiation_time: OffsetDateTime::now_utc(),
             profile:         None,
             chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
-                opportunity_id: opportunity.core_fields.id,
+                opportunity_id: opportunity.id,
                 transaction:    transaction.clone().into(),
             }),
         };
@@ -3982,7 +3959,7 @@ mod tests {
             initiation_time: OffsetDateTime::now_utc(),
             profile:         None,
             chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
-                opportunity_id: opportunity.core_fields.id,
+                opportunity_id: opportunity.id,
                 transaction:    transaction.clone().into(),
             }),
         };
@@ -4110,7 +4087,7 @@ mod tests {
             initiation_time: OffsetDateTime::now_utc(),
             profile:         None,
             chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
-                opportunity_id: opportunity.core_fields.id,
+                opportunity_id: opportunity.id,
                 transaction:    transaction.clone().into(),
             }),
         };
@@ -4251,7 +4228,7 @@ mod tests {
             initiation_time: OffsetDateTime::now_utc(),
             profile:         None,
             chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
-                opportunity_id: opportunity.core_fields.id,
+                opportunity_id: opportunity.id,
                 transaction:    transaction.clone().into(),
             }),
         };
@@ -5027,7 +5004,7 @@ mod tests {
             initiation_time: OffsetDateTime::now_utc(),
             profile:         None,
             chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
-                opportunity_id: opportunity.core_fields.id,
+                opportunity_id: opportunity.id,
                 transaction:    transaction.clone().into(),
             }),
         };

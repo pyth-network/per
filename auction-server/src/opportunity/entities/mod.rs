@@ -1,11 +1,9 @@
 mod opportunity;
-mod opportunity_svm;
 mod quote;
-mod token_amount_svm;
+mod token_amount;
 
 pub use {
     opportunity::*,
-    opportunity_svm::*,
     quote::*,
-    token_amount_svm::*,
+    token_amount::*,
 };
