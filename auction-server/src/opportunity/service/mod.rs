@@ -47,7 +47,6 @@ pub mod get_opportunities;
 pub mod get_quote;
 pub mod remove_invalid_or_expired_opportunities;
 pub mod remove_opportunities;
-pub mod verification;
 
 mod get_express_relay_metadata;
 mod get_quote_request_account_balances;
@@ -245,9 +244,5 @@ mock! {
             input: get_opportunities::GetOpportunitiesInput,
         ) -> Result<Vec<OpportunitySvm>, crate::api::RestError>;
         pub async fn get_quote(&self, input: get_quote::GetQuoteInput) -> Result<crate::opportunity::entities::Quote, crate::api::RestError>;
-        pub async fn verify_opportunity(
-            &self,
-            input: verification::VerifyOpportunityInput,
-        ) -> Result<crate::opportunity::entities::OpportunityVerificationResult, crate::api::RestError>;
     }
 }

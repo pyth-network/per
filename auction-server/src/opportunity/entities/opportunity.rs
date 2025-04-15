@@ -69,10 +69,6 @@ pub enum OpportunityRemovalReason {
     Invalid(RestError),
 }
 
-pub enum OpportunityVerificationResult {
-    UnableToSpoof,
-}
-
 impl From<OpportunityRemovalReason> for repository::OpportunityRemovalReason {
     fn from(reason: OpportunityRemovalReason) -> Self {
         match reason {
