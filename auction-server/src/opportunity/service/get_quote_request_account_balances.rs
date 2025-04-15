@@ -204,7 +204,6 @@ impl Service {
                         StateWithExtensions::<TokenAccount>::unpack(&acc.data)
                             .map_err(|err| {
                                 tracing::error!(error = ?err, "Failed to deserialize a token account");
-                                dbg!(err);
                                 RestError::TemporarilyUnavailable
                             })
                             .map(|token_account| token_account.base.amount)
@@ -332,6 +331,7 @@ mod tests {
             })
             .await;
 
+        // the first account is a native wallet not a token account, but initializing the state here is easier this way
         let mut accounts = vec![TokenAccountWithLamports {
             lamports:      100,
             token_account: TokenAccount {
