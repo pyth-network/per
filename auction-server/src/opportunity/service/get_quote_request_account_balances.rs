@@ -195,8 +195,7 @@ impl Service {
         let token_balances: Vec<TokenAccountBalance> = accounts[1..].iter()
             .map(|account| {
                 account
-                    .as_ref()
-                    .map_or(None, |acc| {
+                    .as_ref().and_then(|acc| {
                         if acc.data.is_empty() {
                             return None;
                         }
