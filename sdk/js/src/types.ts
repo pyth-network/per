@@ -1,17 +1,9 @@
-import { Address, Hex } from "viem";
 import type { components } from "./serverTypes";
 import { PublicKey, Transaction } from "@solana/web3.js";
 import { OrderStateAndAddress } from "@kamino-finance/limo-sdk/dist/utils";
 import { VersionedTransaction } from "@solana/web3.js";
 import * as anchor from "@coral-xyz/anchor";
 
-/**
- * ERC20 token with contract address and amount
- */
-export type TokenAmount = {
-  token: Address;
-  amount: bigint;
-};
 /**
  * SVM token with contract address and amount
  */
@@ -20,13 +12,6 @@ export type TokenAmountSvm = {
   amount: bigint;
 };
 
-/**
- * TokenPermissions struct for permit2
- */
-export type TokenPermissions = {
-  token: Address;
-  amount: bigint;
-};
 export type BidId = string;
 export type ChainId = string;
 /**
@@ -48,28 +33,6 @@ export type BidParams = {
   deadline: bigint;
 };
 
-export type OpportunityAdapterConfig = {
-  /**
-   * The chain id as a u64
-   */
-  chain_id: number;
-  /**
-   * The opportunity factory address
-   */
-  opportunity_adapter_factory: Address;
-  /**
-   * The hash of the bytecode used to initialize the opportunity adapter
-   */
-  opportunity_adapter_init_bytecode_hash: Hex;
-  /**
-   * The permit2 address
-   */
-  permit2: Address;
-  /**
-   * The weth address
-   */
-  weth: Address;
-};
 export type OpportunitySvmMetadata = {
   /**
    * The chain id where the opportunity will be executed.
@@ -137,29 +100,6 @@ export type OpportunitySvm = OpportunitySvmLimo | OpportunitySvmSwap;
 export type OpportunityCreate = Omit<OpportunitySvmLimo, "opportunityId">;
 
 export type Opportunity = OpportunitySvm;
-/**
- * Represents a bid for an opportunity
- */
-export type OpportunityBid = {
-  /**
-   * Opportunity unique identifier in uuid format
-   */
-  opportunityId: string;
-  /**
-   * The permission key required for successful execution of the opportunity.
-   */
-  permissionKey: Hex;
-  /**
-   * Executor address
-   */
-  executor: Address;
-  /**
-   * Signature of the executor
-   */
-  signature: Hex;
-
-  bid: BidParams;
-};
 /**
  * All the parameters necessary to represent an opportunity
  */

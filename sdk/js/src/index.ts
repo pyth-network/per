@@ -12,7 +12,6 @@ import {
   ExpressRelaySvmConfig,
   Opportunity,
   OpportunityCreate,
-  TokenAmount,
   SvmChainUpdate,
   OpportunityDelete,
   ChainType,
@@ -84,16 +83,6 @@ export function checkAddress(address: string): Address {
     return address;
   }
   throw new ClientError(`Invalid address: ${address}`);
-}
-
-export function checkTokenQty(token: {
-  token: string;
-  amount: string;
-}): TokenAmount {
-  return {
-    token: checkAddress(token.token),
-    amount: BigInt(token.amount),
-  };
 }
 
 export class Client {

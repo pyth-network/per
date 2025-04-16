@@ -1,18 +1,6 @@
 from typing import Any, Union
 
-from express_relay.models.base import IntString, UUIDString
-from express_relay.models.evm import (
-    Address,
-    BidEvm,
-    BidResponseEvm,
-    BidStatusEvm,
-    Bytes32,
-    HexString,
-    OpportunityDeleteEvm,
-    OpportunityEvm,
-    SignedMessageString,
-    TokenAmount,
-)
+from express_relay.models.base import UUIDString
 from express_relay.models.svm import (
     BidResponseSvm,
     BidStatusSvm,
@@ -20,11 +8,12 @@ from express_relay.models.svm import (
     OpportunityDeleteSvm,
     OpportunitySvm,
     SvmTransaction,
+    TokenAmountSvm,
 )
 from pydantic import BaseModel, Discriminator, Field, RootModel, Tag
 from typing_extensions import Annotated, Literal
 
-Bid = Union[BidEvm, BidSvm]
+Bid = BidSvm
 
 
 class BidCancel(BaseModel):
@@ -46,49 +35,11 @@ class BidStatusUpdate(BaseModel):
     """
 
     id: UUIDString
-    bid_status: Union[BidStatusEvm, BidStatusSvm]
+    bid_status: BidStatusSvm
 
 
-BidResponse = Union[BidResponseEvm, BidResponseSvm]
+BidResponse = BidResponseSvm
 BidResponseRoot = RootModel[BidResponse]
-
-
-class OpportunityBidParams(BaseModel):
-    """
-    Attributes:
-        amount: The amount of the bid in wei.
-        nonce: The nonce of the bid.
-        deadline: The unix timestamp after which the bid becomes invalid.
-    """
-
-    amount: IntString
-    nonce: IntString
-    deadline: IntString
-
-
-class OpportunityBid(BaseModel):
-    """
-    Attributes:
-        opportunity_id: The ID of the opportunity.
-        amount: The amount of the bid in wei.
-        executor: The address of the executor.
-        permission_key: The permission key to bid on.
-        signature: The signature of the bid.
-        deadline: The unix timestamp after which the bid becomes invalid.
-        nonce: The nonce of the bid.
-    """
-
-    opportunity_id: UUIDString
-    amount: IntString
-    executor: Address
-    permission_key: HexString
-    signature: SignedMessageString
-    deadline: IntString
-    nonce: IntString
-
-    model_config = {
-        "arbitrary_types_allowed": True,
-    }
 
 
 class OpportunityParamsV1(BaseModel):
@@ -104,13 +55,9 @@ class OpportunityParamsV1(BaseModel):
         version: The version of the opportunity.
     """
 
-    target_calldata: HexString
     chain_id: str
-    target_contract: Address
-    permission_key: HexString
-    buy_tokens: list[TokenAmount]
-    sell_tokens: list[TokenAmount]
-    target_call_value: IntString
+    buy_tokens: list[TokenAmountSvm]
+    sell_tokens: list[TokenAmountSvm]
     version: Literal["v1"]
 
 
@@ -123,9 +70,9 @@ class OpportunityParams(BaseModel):
     params: Union[OpportunityParamsV1] = Field(..., discriminator="version")
 
 
-Opportunity = Union[OpportunityEvm, OpportunitySvm]
+Opportunity = OpportunitySvm
 OpportunityRoot = RootModel[Opportunity]
-OpportunityDelete = Union[OpportunityDeleteEvm | OpportunityDeleteSvm]
+OpportunityDelete = OpportunityDeleteSvm
 OpportunityDeleteRoot = RootModel[OpportunityDelete]
 
 
@@ -149,25 +96,6 @@ class UnsubscribeMessageParams(BaseModel):
 
     method: Literal["unsubscribe"]
     chain_ids: list[str]
-
-
-class PostBidMessageParamsEvm(BaseModel):
-    """
-    Attributes:
-        method: A string literal "post_bid".
-        amount: The amount of the bid in wei.
-        target_calldata: The calldata for the contract call.
-        chain_id: The chain ID to bid on.
-        target_contract: The contract address to call.
-        permission_key: The permission key to bid on.
-    """
-
-    method: Literal["post_bid"]
-    amount: IntString
-    target_calldata: HexString
-    chain_id: str
-    target_contract: Address
-    permission_key: HexString
 
 
 class PostOnChainBidMessageParamsSvm(BaseModel):
@@ -203,52 +131,21 @@ class PostSwapBidMessageParamsSvm(BaseModel):
 
 
 def get_discriminator_value(v: Any) -> str:
-    if isinstance(v, dict):
-        if "transaction" in v:
-            return "svm"
-        return "evm"
-    if getattr(v, "transaction", None):
-        return "svm"
-    return "evm"
+    if "opportunity_id" in v:
+        return "swap"
+    return "on_chain"
 
 
 PostBidMessageParams = Annotated[
     Union[
-        Annotated[PostBidMessageParamsEvm, Tag("evm")],
+        Annotated[PostSwapBidMessageParamsSvm, Tag("swap")],
         Annotated[
-            Union[PostOnChainBidMessageParamsSvm, PostSwapBidMessageParamsSvm],
-            Tag("svm"),
+            PostOnChainBidMessageParamsSvm,
+            Tag("on_chain"),
         ],
     ],
     Discriminator(get_discriminator_value),
 ]
-
-
-class PostOpportunityBidMessageParams(BaseModel):
-    """
-    Attributes:
-        method: A string literal "post_opportunity_bid".
-        opportunity_id: The ID of the opportunity.
-        amount: The amount of the bid in wei.
-        executor: The address of the executor.
-        permission_key: The permission key to bid on.
-        signature: The signature of the bid.
-        deadline: The unix timestamp after which the bid becomes invalid.
-        nonce: The nonce of the bid.
-    """
-
-    method: Literal["post_opportunity_bid"]
-    opportunity_id: UUIDString
-    amount: IntString
-    executor: Address
-    permission_key: HexString
-    signature: SignedMessageString
-    deadline: IntString
-    nonce: IntString
-
-    model_config = {
-        "arbitrary_types_allowed": True,
-    }
 
 
 class CancelBidMessageParams(BaseModel):
@@ -272,23 +169,5 @@ class ClientMessage(BaseModel):
         SubscribeMessageParams,
         UnsubscribeMessageParams,
         PostBidMessageParams,
-        PostOpportunityBidMessageParams,
         CancelBidMessageParams,
     ] = Field(..., discriminator="method")
-
-
-class OpportunityAdapterConfig(BaseModel):
-    """
-    Attributes:
-        chain_id: The chain ID.
-        opportunity_adapter_factory: The address of the opportunity adapter factory contract.
-        opportunity_adapter_init_bytecode_hash: The hash of the init bytecode of the opportunity adapter.
-        permit2: The address of the permit2 contract.
-        weth: The address of the WETH contract.
-    """
-
-    chain_id: int
-    opportunity_adapter_factory: Address
-    opportunity_adapter_init_bytecode_hash: Bytes32
-    permit2: Address
-    weth: Address
