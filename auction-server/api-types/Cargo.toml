@@ -13,7 +13,7 @@ uuid = { workspace = true, features = ["serde", "v4"] }
 serde_json = { workspace = true }
 serde_with = { workspace = true, features = ["base64"] }
 solana-sdk = { workspace = true }
-time = { workspace = true, features = ["serde"] }
+time = { workspace = true, features = ["serde", "formatting" ,"parsing"] }
 base64 = { workspace = true }
 bincode = { workspace = true }
 email_address = { workspace = true }
