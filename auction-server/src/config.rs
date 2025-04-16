@@ -8,7 +8,6 @@ use {
         Args,
         Parser,
     },
-    ethers::abi::Address,
     serde_with::{
         serde_as,
         DisplayFromStr,
@@ -105,36 +104,7 @@ impl ConfigMap {
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 #[serde(untagged)] // Remove tags to avoid key-value wrapping
 pub enum Config {
-    Evm(ConfigEvm),
     Svm(ConfigSvm),
-}
-
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-pub struct ConfigEvm {
-    /// URL of a Geth RPC endpoint to use for interacting with the blockchain.
-    pub geth_rpc_addr: String,
-
-    /// URL of a Geth WS endpoint to use for interacting with the blockchain.
-    pub geth_ws_addr: String,
-
-    /// Timeout for RPC requests in seconds.
-    pub rpc_timeout: u64,
-
-    /// Polling interval for event filters and pending transactions in seconds.
-    pub poll_interval: u64,
-
-    /// Address of the express relay contract to interact with.
-    pub express_relay_contract: Address,
-
-    /// Address of the opportunity adapter factory contract to interact with.
-    pub adapter_factory_contract: Address,
-
-    /// Subwallets available for relaying bids. Only used in the subwallet sync command.
-    pub subwallets: Option<Vec<Address>>,
-
-    /// Use the legacy transaction format (for networks without EIP 1559).
-    #[serde(default)]
-    pub legacy_tx: bool,
 }
 
 fn default_rpc_timeout_svm() -> u64 {

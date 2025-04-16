@@ -8,7 +8,7 @@ use {
             db::DB,
             entities::{
                 ChainId,
-                PermissionKey,
+                PermissionKeySvm,
             },
         },
         models::ChainType,
@@ -151,13 +151,12 @@ pub trait Database: Debug + Send + Sync + 'static {
     async fn get_opportunities(
         &self,
         chain_id: ChainId,
-        permission_key: Option<PermissionKey>,
         from_time: Option<OffsetDateTime>,
     ) -> Result<Vec<OpportunitySvm>, RestError>;
     async fn remove_opportunities(
         &self,
-        permission_key: PermissionKey,
-        chain_id: ChainId,
+        permission_key: &PermissionKeySvm,
+        chain_id: &ChainId,
         reason: OpportunityRemovalReason,
     ) -> anyhow::Result<()>;
     async fn remove_opportunity(
@@ -221,34 +220,25 @@ impl Database for DB {
     async fn get_opportunities(
         &self,
         chain_id: ChainId,
-        permission_key: Option<PermissionKey>,
         from_time: Option<OffsetDateTime>,
     ) -> Result<Vec<OpportunitySvm>, RestError> {
         let mut query = QueryBuilder::new("SELECT * from opportunity WHERE chain_type = ");
         query.push_bind(OpportunityMetadataSvm::get_chain_type());
         query.push(" AND chain_id = ");
         query.push_bind(chain_id.clone());
-        if let Some(permission_key) = permission_key.clone() {
-            query.push(" AND permission_key = ");
-            query.push_bind(permission_key.to_vec());
-        }
         if let Some(from_time) = from_time {
             query.push(" AND creation_time >= ");
             query.push_bind(from_time);
         }
         query.push(" ORDER BY creation_time ASC LIMIT ");
         query.push_bind(super::OPPORTUNITY_PAGE_SIZE_CAP as i64);
-        let opps: Vec<models::Opportunity<OpportunityMetadataSvm>> = query
-            .build_query_as()
-            .fetch_all(self)
-            .await
-            .map_err(|e| {
+        let opps: Vec<models::Opportunity<OpportunityMetadataSvm>> =
+            query.build_query_as().fetch_all(self).await.map_err(|e| {
                 tracing::Span::current().record("result", "error");
                 tracing::error!(
-                    "DB: Failed to fetch opportunities: {} - chain_id: {:?} - permission_key: {:?} - from_time: {:?}",
+                    "DB: Failed to fetch opportunities: {} - chain_id: {:?} - from_time: {:?}",
                     e,
                     chain_id,
-                    permission_key,
                     from_time,
                 );
                 RestError::TemporarilyUnavailable
@@ -257,10 +247,9 @@ impl Database for DB {
         opps.into_iter().map(|opp| opp.clone().try_into().map_err(
             |_| {
                 tracing::error!(
-                    "Failed to convert database opportunity to entity opportunity: {:?} - chain_id: {:?} - permission_key: {:?} - from_time: {:?}",
+                    "Failed to convert database opportunity to entity opportunity: {:?} - chain_id: {:?} - from_time: {:?}",
                     opp,
                     chain_id,
-                    permission_key,
                     from_time,
                 );
                 RestError::TemporarilyUnavailable
@@ -281,8 +270,8 @@ impl Database for DB {
     )]
     async fn remove_opportunities(
         &self,
-        permission_key: PermissionKey,
-        chain_id: ChainId,
+        permission_key: &PermissionKeySvm,
+        chain_id: &ChainId,
         reason: OpportunityRemovalReason,
     ) -> anyhow::Result<()> {
         let now = OffsetDateTime::now_utc();
@@ -290,7 +279,7 @@ impl Database for DB {
             .bind(PrimitiveDateTime::new(now.date(), now.time()))
             .bind(reason)
             .bind(permission_key.as_ref())
-            .bind(&chain_id)
+            .bind(chain_id)
             .execute(self)
             .await
             .inspect_err(|_| {

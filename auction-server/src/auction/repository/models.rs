@@ -19,10 +19,6 @@ use {
         models::ProfileId,
     },
     axum::async_trait,
-    ethers::types::{
-        Address,
-        Bytes,
-    },
     serde::{
         Deserialize,
         Serialize,
@@ -100,14 +96,6 @@ impl Deref for BundleIndex {
     fn deref(&self) -> &Self::Target {
         &self.0
     }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct BidMetadataEvm {
-    pub target_contract: Address,
-    pub target_calldata: Bytes,
-    pub bundle_index:    BundleIndex,
-    pub gas_limit:       u64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

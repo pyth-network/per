@@ -10,7 +10,7 @@ use {
         },
         kernel::entities::{
             ChainId,
-            PermissionKey,
+            PermissionKeySvm,
         },
         opportunity::{
             entities::{
@@ -21,7 +21,6 @@ use {
         },
     },
     ::express_relay::FeeToken as ProgramFeeToken,
-    ethers::types::Bytes,
     express_relay::state::FEE_SPLIT_PRECISION,
     express_relay_api_types::opportunity::{
         self as api,
@@ -49,7 +48,7 @@ use {
 pub type OpportunityId = Uuid;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct OpportunityKey(pub ChainId, pub PermissionKey);
+pub struct OpportunityKey(pub ChainId, pub PermissionKeySvm);
 
 #[derive(Debug, Clone)]
 pub enum OpportunityComparison {
@@ -162,7 +161,7 @@ pub enum OpportunitySvmProgram {
 #[derive(Debug, Clone, PartialEq)]
 pub struct OpportunitySvm {
     pub id:                 OpportunityId,
-    pub permission_key:     Bytes,
+    pub permission_key:     PermissionKeySvm,
     pub chain_id:           ChainId,
     pub sell_tokens:        Vec<TokenAmountSvm>,
     pub buy_tokens:         Vec<TokenAmountSvm>,
@@ -175,7 +174,7 @@ pub struct OpportunitySvm {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct OpportunityCreateSvm {
-    pub permission_key:     Bytes,
+    pub permission_key:     PermissionKeySvm,
     pub chain_id:           ChainId,
     pub sell_tokens:        Vec<TokenAmountSvm>,
     pub buy_tokens:         Vec<TokenAmountSvm>,
@@ -516,11 +515,21 @@ impl TryFrom<repository::Opportunity<repository::OpportunityMetadataSvm>> for Op
                 })
             }
         };
+        let permission_key =
+            PermissionKeySvm::try_from(val.permission_key.as_slice()).map_err(|e| {
+                tracing::error!(
+                    "Failed to deserialize permission key for database opportunity svm: {:?} - {}",
+                    val.permission_key,
+                    e
+                );
+                anyhow::anyhow!(e)
+            })?;
+
         Ok(OpportunitySvm {
             id: val.id,
             creation_time: val.creation_time.assume_utc(),
             refresh_time: val.creation_time.assume_utc(),
-            permission_key: PermissionKey::from(val.permission_key),
+            permission_key,
             chain_id: val.chain_id,
             sell_tokens,
             buy_tokens,
@@ -584,12 +593,12 @@ fn get_permission_key(
     bid_type: BidPaymentInstructionType,
     router: Pubkey,
     permission_account: Pubkey,
-) -> PermissionKey {
+) -> PermissionKeySvm {
     let mut permission_key: [u8; 65] = [0; 65];
     permission_key[0] = bid_type.into();
     permission_key[1..33].copy_from_slice(&router.to_bytes());
     permission_key[33..65].copy_from_slice(&permission_account.to_bytes());
-    permission_key.into()
+    PermissionKeySvm(permission_key)
 }
 
 impl OpportunitySvm {
@@ -627,7 +636,7 @@ impl OpportunitySvm {
         bid_type: BidPaymentInstructionType,
         router: Pubkey,
         permission_account: Pubkey,
-    ) -> PermissionKey {
+    ) -> PermissionKeySvm {
         get_permission_key(bid_type, router, permission_account)
     }
 }

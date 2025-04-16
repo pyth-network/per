@@ -17,7 +17,6 @@ use {
     anyhow::Result,
     axum::async_trait,
     axum_prometheus::metrics,
-    ethers::types::Bytes,
     futures::{
         future::join_all,
         Stream,
@@ -329,7 +328,7 @@ impl AuctionManager for Service {
                     .get_live_opportunities(GetLiveOpportunitiesInput {
                         key: opportunity::entities::OpportunityKey(
                             self.config.chain_id.clone(),
-                            Bytes::from(permission_key.0),
+                            permission_key.clone(),
                         ),
                     })
                     .await

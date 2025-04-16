@@ -91,11 +91,10 @@ impl SimpleSearcher {
         let opportunities = self
             .client
             .get_opportunities(Some(GetOpportunitiesQueryParams {
-                chain_id:       Some(self.chain_ids[0].clone()),
-                mode:           OpportunityMode::Live,
-                permission_key: None,
-                limit:          100,
-                from_time:      Some(OffsetDateTime::now_utc() - Duration::days(1)),
+                chain_id:  Some(self.chain_ids[0].clone()),
+                mode:      OpportunityMode::Live,
+                limit:     100,
+                from_time: Some(OffsetDateTime::now_utc() - Duration::days(1)),
             }))
             .await
             .map_err(|e| {

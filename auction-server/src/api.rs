@@ -57,7 +57,6 @@ use {
         PrometheusMetricLayerBuilder,
     },
     clap::crate_version,
-    ethers::types::Bytes,
     express_relay_api_types::{
         self as api_types,
         profile::Route as ProfileRoute,
@@ -395,7 +394,7 @@ pub enum RestError {
     /// The chain id is not supported.
     InvalidChainId,
     /// The simulation failed.
-    SimulationError { result: Bytes, reason: String },
+    SimulationError { reason: String },
     /// The opportunity was not found.
     OpportunityNotFound,
     /// The bid was not found.
@@ -462,9 +461,9 @@ impl RestError {
                 StatusCode::NOT_FOUND,
                 "The chain id is not found".to_string(),
             ),
-            RestError::SimulationError { result, reason } => (
+            RestError::SimulationError { reason } => (
                 StatusCode::BAD_REQUEST,
-                format!("Simulation failed: {} ({})", result, reason),
+                format!("Simulation failed: {}", reason),
             ),
             RestError::OpportunityNotFound => (
                 StatusCode::NOT_FOUND,

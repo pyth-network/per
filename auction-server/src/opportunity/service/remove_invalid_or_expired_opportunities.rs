@@ -70,6 +70,7 @@ mod test {
         crate::{
             api::ws::UpdateEvent,
             kernel::{
+                entities::PermissionKeySvm,
                 rpc_client_svm_tester::RpcClientSvmTester,
                 test_utils::DEFAULT_CHAIN_ID,
             },
@@ -83,10 +84,6 @@ mod test {
                 repository::MockDatabase,
                 service::Service,
             },
-        },
-        ethers::{
-            prelude::Bytes,
-            utils::hex::FromHex,
         },
         express_relay_api_types::opportunity::{
             OpportunityDelete,
@@ -109,7 +106,7 @@ mod test {
     ) -> OpportunitySvm {
         OpportunitySvm {
             id: Uuid::from_u128(id),
-            permission_key: Bytes::from_hex("0xdeadbeef").unwrap(),
+            permission_key: PermissionKeySvm::try_from(&[2; 65][..]).expect("permission key"),
             chain_id: DEFAULT_CHAIN_ID.to_string(),
             sell_tokens: vec![TokenAmountSvm {
                 token:  Pubkey::new_unique(),

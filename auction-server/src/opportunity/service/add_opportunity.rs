@@ -20,7 +20,7 @@ pub struct AddOpportunityInput {
 #[derive(Debug, Clone)]
 enum OpportunityAction {
     Add,
-    Refresh(OpportunitySvm),
+    Refresh(Box<OpportunitySvm>),
     Ignore,
 }
 
@@ -36,7 +36,7 @@ impl Service {
                 return OpportunityAction::Ignore;
             }
             if let entities::OpportunityComparison::NeedsRefresh = comparison {
-                return OpportunityAction::Refresh(opp);
+                return OpportunityAction::Refresh(Box::new(opp));
             }
         }
         OpportunityAction::Add
@@ -56,7 +56,7 @@ impl Service {
         }
 
         let opportunity = if let OpportunityAction::Refresh(opp) = action {
-            self.repo.refresh_in_memory_opportunity(opp.clone()).await
+            self.repo.refresh_in_memory_opportunity(*opp).await
         } else {
             self.repo
                 .add_opportunity(opportunity_create.clone())
@@ -94,7 +94,10 @@ mod tests {
     use {
         crate::{
             api::ws,
-            kernel::rpc_client_svm_tester::RpcClientSvmTester,
+            kernel::{
+                entities::PermissionKeySvm,
+                rpc_client_svm_tester::RpcClientSvmTester,
+            },
             opportunity::{
                 entities::{
                     OpportunityCreateSvm,
@@ -109,10 +112,6 @@ mod tests {
                     Service,
                 },
             },
-        },
-        ethers::{
-            types::Bytes,
-            utils::hex::FromHex,
         },
         solana_sdk::pubkey::Pubkey,
     };
@@ -136,7 +135,7 @@ mod tests {
         let buy_token = Pubkey::new_unique();
         let buy_amount = 1;
 
-        let permission_key = Bytes::from_hex("0xdeadbeef").unwrap();
+        let permission_key = PermissionKeySvm::try_from(&[1; 65][..]).expect("permission key");
         let slot = 3;
 
         let order_address = Pubkey::new_unique();

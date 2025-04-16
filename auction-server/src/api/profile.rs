@@ -96,7 +96,7 @@ pub async fn get_profile(
             email: profile.email.0,
             role:  profile.role.into(),
         });
-    Ok(Json(profile.ok_or_else(|| RestError::ProfileNotFound)?))
+    Ok(Json(profile.ok_or(RestError::ProfileNotFound)?))
 }
 
 /// Create a new profile access token if no valid token exists.

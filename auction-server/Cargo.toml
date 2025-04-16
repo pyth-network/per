@@ -26,7 +26,6 @@ async-stream = {workspace = true}
 utoipa = { workspace = true, features = ["axum_extras"] }
 utoipa-redoc = { version = "5.0.0", features = ["axum"] }
 serde_yaml = { workspace = true }
-ethers = { workspace = true, features = ["ws"] }
 axum-macros = "0.4.0"
 sqlx = { version = "0.7.4", features = [ "runtime-tokio", "tls-native-tls", "postgres", "time", "uuid", "bigdecimal", "json" ] }
 tokio-util = { version = "0.7.10", features = ["rt"] }

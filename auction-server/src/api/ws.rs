@@ -411,13 +411,7 @@ impl Subscriber {
     }
 
     async fn handle_subscribe(&mut self, message_id: String, chain_ids: Vec<String>) {
-        let available_chain_ids: Vec<&ChainId> = self
-            .store
-            .store
-            .chains_evm
-            .keys()
-            .chain(self.store.store.chains_svm.keys())
-            .collect();
+        let available_chain_ids: Vec<&ChainId> = self.store.store.chains_svm.keys().collect();
         let not_found_chain_ids: Vec<&ChainId> = chain_ids
             .iter()
             .filter(|chain_id| !available_chain_ids.contains(chain_id))

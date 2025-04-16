@@ -9,7 +9,6 @@ use {
         auction::service as auction_service,
         config::{
             ChainId,
-            ConfigEvm,
             ConfigSvm,
         },
         models,
@@ -47,14 +46,6 @@ use {
 
 pub type GetOrCreate<T> = (T, bool);
 
-pub struct ChainStoreEvm {}
-
-impl ChainStoreEvm {
-    pub async fn create_store(_chain_id: String, _config: ConfigEvm) -> anyhow::Result<Self> {
-        Ok(Self {})
-    }
-}
-
 pub struct ChainStoreSvm {
     pub log_sender:          Sender<Response<RpcLogsResponse>>,
     // only to avoid closing the channel
@@ -79,7 +70,6 @@ pub struct ServerState {
 }
 
 pub struct Store {
-    pub chains_evm:    HashMap<ChainId, Arc<ChainStoreEvm>>,
     pub chains_svm:    HashMap<ChainId, Arc<ChainStoreSvm>>,
     pub ws:            WsState,
     pub db:            sqlx::PgPool,

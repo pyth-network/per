@@ -27,7 +27,6 @@ use {
         },
         per_metrics,
         state::{
-            ChainStoreEvm,
             ChainStoreSvm,
             ServerState,
             Store,
@@ -182,29 +181,6 @@ pub fn setup_metrics_recorder() -> Result<PrometheusHandle> {
         .map_err(|err| anyhow!("Failed to set up metrics recorder: {:?}", err))
 }
 
-async fn setup_chain_store_evm(config_map: ConfigMap) -> Result<HashMap<ChainId, ChainStoreEvm>> {
-    join_all(
-        config_map
-            .chains
-            .iter()
-            .filter_map(|(chain_id, config)| match config {
-                Config::Svm(_) => None,
-                Config::Evm(chain_config) => {
-                    let (chain_id, chain_config) = (chain_id.clone(), chain_config.clone());
-                    Some(async move {
-                        Ok((
-                            chain_id.clone(),
-                            ChainStoreEvm::create_store(chain_id, chain_config).await?,
-                        ))
-                    })
-                }
-            }),
-    )
-    .await
-    .into_iter()
-    .collect()
-}
-
 const NOTIFICATIONS_CHAN_LEN: usize = 1000;
 
 // TODO move to kernel repo
@@ -290,7 +266,6 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
         )
     })?;
 
-    let chains_evm = setup_chain_store_evm(config_map.clone()).await?;
     let chains_svm = setup_chain_store_svm(config_map)?;
 
     let pool = create_pg_pool(
@@ -303,10 +278,6 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
     let config_opportunity_service_svm =
         opportunity_service::ConfigSvm::from_chains(&chains_svm).await?;
 
-    let chains_evm = chains_evm
-        .into_iter()
-        .map(|(k, v)| (k, Arc::new(v)))
-        .collect::<HashMap<_, _>>();
     let chains_svm = chains_svm
         .into_iter()
         .map(|(k, v)| (k, Arc::new(v)))
@@ -315,7 +286,6 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
     let access_tokens = fetch_access_tokens(&pool).await;
     let store = Arc::new(Store {
         db:            pool.clone(),
-        chains_evm:    chains_evm.clone(),
         chains_svm:    chains_svm.clone(),
         ws:            ws::WsState::new(
             run_options.server.requester_ip_header_name.clone(),
@@ -525,9 +495,8 @@ fn setup_chain_store_svm(config_map: ConfigMap) -> Result<HashMap<ChainId, Chain
     let svm_chains: Vec<_> = config_map
         .chains
         .iter()
-        .filter_map(|(chain_id, config)| match config {
-            Config::Evm(_) => None,
-            Config::Svm(chain_config) => Some((chain_id.clone(), chain_config.clone())),
+        .map(|(chain_id, config)| match config {
+            Config::Svm(chain_config) => (chain_id.clone(), chain_config.clone()),
         })
         .collect();
     if svm_chains.is_empty() {
