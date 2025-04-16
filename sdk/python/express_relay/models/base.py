@@ -17,13 +17,6 @@ class UnsupportedOpportunityDeleteChainTypeException(Exception):
     pass
 
 
-class BidStatusVariantsEvm(Enum):
-    PENDING = "pending"
-    SUBMITTED = "submitted"
-    LOST = "lost"
-    WON = "won"
-
-
 class BidStatusVariantsSvm(Enum):
     PENDING = "pending"
     AWAITING_SIGNATURE = "awaiting_signature"

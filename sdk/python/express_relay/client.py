@@ -5,22 +5,13 @@ import warnings
 from asyncio import Task
 from collections.abc import Coroutine
 from datetime import datetime
-from typing import Any, Callable, List, TypedDict, Union, cast
+from typing import Any, Callable, List, TypedDict
 from uuid import UUID
 
 import express_relay.svm.generated.express_relay.types.fee_token as swap_fee_token
 import httpx
-import web3
 import websockets
-from eth_abi.abi import encode
-from eth_account.account import Account
-from eth_account.datastructures import SignedMessage
-from eth_utils import to_checksum_address
-from express_relay.constants import (
-    EXECUTION_PARAMS_TYPESTRING,
-    OPPORTUNITY_ADAPTER_CONFIGS,
-    SVM_CONFIGS,
-)
+from express_relay.constants import SVM_CONFIGS
 from express_relay.models import (
     Bid,
     BidResponse,
@@ -28,21 +19,12 @@ from express_relay.models import (
     BidStatusUpdate,
     ClientMessage,
     Opportunity,
-    OpportunityBid,
-    OpportunityBidParams,
     OpportunityDelete,
     OpportunityDeleteRoot,
     OpportunityParams,
     OpportunityRoot,
 )
 from express_relay.models.base import UnsupportedOpportunityVersionException
-from express_relay.models.evm import (
-    Address,
-    BidEvm,
-    Bytes32,
-    OpportunityEvm,
-    TokenAmount,
-)
 from express_relay.models.svm import (
     SvmChainUpdate,
     SwapOpportunitySvm,
@@ -66,55 +48,12 @@ from express_relay.svm.token_utils import (
     unwrap_sol,
     wrap_sol,
 )
-from hexbytes import HexBytes
 from solders.instruction import Instruction
 from solders.pubkey import Pubkey
 from solders.sysvar import INSTRUCTIONS
 from spl.memo.constants import MEMO_PROGRAM_ID
 from spl.token.constants import WRAPPED_SOL_MINT
 from websockets.client import WebSocketClientProtocol
-
-
-def _get_permitted_tokens(
-    sell_tokens: list[TokenAmount],
-    bid_amount: int,
-    call_value: int,
-    weth_address: Address,
-) -> list[dict[str, Union[str, int]]]:
-    """
-    Extracts the sell tokens in the permit format.
-
-    Args:
-        sell_tokens: A list of TokenAmount objects representing the sell tokens.
-        bid_amount: An integer representing the amount of the bid (in wei).
-        call_value: An integer representing the call value of the bid (in wei).
-        weth_address: The address of the WETH token.
-    Returns:
-        A list of dictionaries representing the sell tokens in the permit format.
-    """
-    permitted_tokens: list[dict[str, Union[str, int]]] = [
-        {
-            "token": token.token,
-            "amount": int(token.amount),
-        }
-        for token in sell_tokens
-    ]
-
-    for token in permitted_tokens:
-        if token["token"] == weth_address:
-            sell_token_amount = cast(int, token["amount"])
-            token["amount"] = sell_token_amount + call_value + bid_amount
-            return permitted_tokens
-
-    if bid_amount + call_value > 0:
-        permitted_tokens.append(
-            {
-                "token": weth_address,
-                "amount": bid_amount + call_value,
-            }
-        )
-
-    return permitted_tokens
 
 
 class ExpressRelayClientException(Exception):
@@ -840,241 +779,3 @@ class ExpressRelayClient:
         ):
             instructions.append(unwrap_sol(accs["user"]))
         return instructions
-
-
-def compute_create2_address(
-    searcher_address: Address,
-    opportunity_adapter_factory_address: Address,
-    opportunity_adapter_init_bytecode_hash: Bytes32,
-) -> Address:
-    """
-    Computes the CREATE2 address for the opportunity adapter belonging to the searcher.
-
-    Args:
-        searcher_address: The address of the searcher's wallet.
-        opportunity_adapter_factory_address: The address of the opportunity adapter factory.
-        opportunity_adapter_init_bytecode_hash: The hash of the init code for the opportunity adapter.
-    Returns:
-        The computed CREATE2 address for the opportunity adapter.
-    """
-    pre = b"\xff"
-    opportunity_adapter_factory = bytes.fromhex(
-        opportunity_adapter_factory_address.replace("0x", "")
-    )
-    wallet = bytes.fromhex(searcher_address.replace("0x", ""))
-    salt = bytes(12) + wallet
-    init_code_hash = bytes.fromhex(
-        opportunity_adapter_init_bytecode_hash.replace("0x", "")
-    )
-    result = web3.Web3.keccak(pre + opportunity_adapter_factory + salt + init_code_hash)
-    return to_checksum_address(result[12:].hex())
-
-
-def make_adapter_calldata(
-    opportunity: OpportunityEvm,
-    permitted: list[dict[str, Union[str, int]]],
-    executor: Address,
-    bid_params: OpportunityBidParams,
-    signature: HexBytes,
-):
-    """
-    Constructs the calldata for the opportunity adapter contract.
-
-    Args:
-        opportunity: An object representing the opportunity, of type Opportunity.
-        permitted: A list of dictionaries representing the permitted tokens, in the format outputted by _get_permitted_tokens.
-        executor: The address of the searcher's wallet.
-        bid_params: An object representing the bid parameters, of type OpportunityBidParams.
-        signature: The signature of the searcher's bid, as a HexBytes object.
-    """
-    function_selector = web3.Web3.solidity_keccak(
-        ["string"], [f"executeOpportunity({EXECUTION_PARAMS_TYPESTRING},bytes)"]
-    )[:4]
-    function_args = encode(
-        [EXECUTION_PARAMS_TYPESTRING, "bytes"],
-        [
-            (
-                (
-                    [(token["token"], token["amount"]) for token in permitted],
-                    bid_params.nonce,
-                    bid_params.deadline,
-                ),
-                (
-                    [(token.token, token.amount) for token in opportunity.buy_tokens],
-                    executor,
-                    opportunity.target_contract,
-                    bytes.fromhex(opportunity.target_calldata.replace("0x", "")),
-                    opportunity.target_call_value,
-                    bid_params.amount,
-                ),
-            ),
-            signature,
-        ],
-    )
-    calldata = f"0x{(function_selector + function_args).hex().replace('0x', '')}"
-    return calldata
-
-
-def get_opportunity_adapter_config(chain_id: str):
-    opportunity_adapter_config = OPPORTUNITY_ADAPTER_CONFIGS.get(chain_id)
-    if not opportunity_adapter_config:
-        raise ExpressRelayClientException(
-            f"Opportunity adapter config not found for chain id {chain_id}"
-        )
-    return opportunity_adapter_config
-
-
-def get_signature(
-    opportunity: OpportunityEvm,
-    bid_params: OpportunityBidParams,
-    private_key: str,
-) -> SignedMessage:
-    """
-    Constructs a signature for a searcher's bid and opportunity.
-
-    Args:
-        opportunity: An object representing the opportunity, of type Opportunity.
-        bid_params: An object representing the bid parameters, of type OpportunityBidParams.
-        private_key: A 0x-prefixed hex string representing the searcher's private key.
-    Returns:
-        A SignedMessage object, representing the signature of the searcher's bid.
-    """
-    opportunity_adapter_config = get_opportunity_adapter_config(opportunity.chain_id)
-    domain_data = {
-        "name": "Permit2",
-        "chainId": opportunity_adapter_config.chain_id,
-        "verifyingContract": opportunity_adapter_config.permit2,
-    }
-
-    executor = Account.from_key(private_key).address
-    message_types = {
-        "PermitBatchWitnessTransferFrom": [
-            {"name": "permitted", "type": "TokenPermissions[]"},
-            {"name": "spender", "type": "address"},
-            {"name": "nonce", "type": "uint256"},
-            {"name": "deadline", "type": "uint256"},
-            {"name": "witness", "type": "OpportunityWitness"},
-        ],
-        "OpportunityWitness": [
-            {"name": "buyTokens", "type": "TokenAmount[]"},
-            {"name": "executor", "type": "address"},
-            {"name": "targetContract", "type": "address"},
-            {"name": "targetCalldata", "type": "bytes"},
-            {"name": "targetCallValue", "type": "uint256"},
-            {"name": "bidAmount", "type": "uint256"},
-        ],
-        "TokenAmount": [
-            {"name": "token", "type": "address"},
-            {"name": "amount", "type": "uint256"},
-        ],
-        "TokenPermissions": [
-            {"name": "token", "type": "address"},
-            {"name": "amount", "type": "uint256"},
-        ],
-    }
-
-    permitted = _get_permitted_tokens(
-        opportunity.sell_tokens,
-        bid_params.amount,
-        opportunity.target_call_value,
-        opportunity_adapter_config.weth,
-    )
-
-    # the data to be signed
-    message_data = {
-        "permitted": permitted,
-        "spender": compute_create2_address(
-            executor,
-            opportunity_adapter_config.opportunity_adapter_factory,
-            opportunity_adapter_config.opportunity_adapter_init_bytecode_hash,
-        ),
-        "nonce": bid_params.nonce,
-        "deadline": bid_params.deadline,
-        "witness": {
-            "buyTokens": [
-                {
-                    "token": token.token,
-                    "amount": int(token.amount),
-                }
-                for token in opportunity.buy_tokens
-            ],
-            "executor": executor,
-            "targetContract": opportunity.target_contract,
-            "targetCalldata": bytes.fromhex(
-                opportunity.target_calldata.replace("0x", "")
-            ),
-            "targetCallValue": opportunity.target_call_value,
-            "bidAmount": bid_params.amount,
-        },
-    }
-
-    signed_typed_data = Account.sign_typed_data(
-        private_key, domain_data, message_types, message_data
-    )
-
-    return signed_typed_data
-
-
-def sign_opportunity_bid(
-    opportunity: OpportunityEvm,
-    bid_params: OpportunityBidParams,
-    private_key: str,
-) -> OpportunityBid:
-    """
-    Constructs a signature for a searcher's bid and returns the OpportunityBid object to be submitted to the server.
-
-    Args:
-        opportunity: An object representing the opportunity, of type Opportunity.
-        bid_params: An object representing the bid parameters, of type OpportunityBidParams.
-        private_key: A 0x-prefixed hex string representing the searcher's private key.
-    Returns:
-        A OpportunityBid object, representing the transaction to submit to the server. This object contains the searcher's signature.
-    """
-    executor = Account.from_key(private_key).address
-    opportunity_bid = OpportunityBid(
-        opportunity_id=opportunity.opportunity_id,
-        permission_key=opportunity.permission_key,
-        amount=bid_params.amount,
-        deadline=bid_params.deadline,
-        nonce=bid_params.nonce,
-        executor=executor,
-        signature=get_signature(opportunity, bid_params, private_key),
-    )
-
-    return opportunity_bid
-
-
-def sign_bid(
-    opportunity: OpportunityEvm, bid_params: OpportunityBidParams, private_key: str
-) -> BidEvm:
-    """
-    Constructs a signature for a searcher's bid and returns the Bid object to be submitted to the server.
-
-    Args:
-        opportunity: An object representing the opportunity, of type Opportunity.
-        bid_params: An object representing the bid parameters, of type OpportunityBidParams.
-        private_key: A 0x-prefixed hex string representing the searcher's private key.
-    Returns:
-        A Bid object, representing the transaction to submit to the server. This object contains the searcher's signature.
-    """
-    opportunity_adapter_config = get_opportunity_adapter_config(opportunity.chain_id)
-    permitted = _get_permitted_tokens(
-        opportunity.sell_tokens,
-        bid_params.amount,
-        opportunity.target_call_value,
-        opportunity_adapter_config.weth,
-    )
-    executor = Account.from_key(private_key).address
-
-    signature = get_signature(opportunity, bid_params, private_key).signature
-    calldata = make_adapter_calldata(
-        opportunity, permitted, executor, bid_params, signature
-    )
-
-    return BidEvm(
-        amount=bid_params.amount,
-        target_calldata=calldata,
-        chain_id=opportunity.chain_id,
-        target_contract=opportunity_adapter_config.opportunity_adapter_factory,
-        permission_key=opportunity.permission_key,
-    )
