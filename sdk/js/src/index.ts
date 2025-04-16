@@ -7,13 +7,10 @@ import WebSocket from "isomorphic-ws";
 import {
   Bid,
   BidId,
-  BidParams,
   BidsResponse,
   BidStatusUpdate,
   ExpressRelaySvmConfig,
   Opportunity,
-  OpportunityBid,
-  OpportunityEvm,
   OpportunityCreate,
   TokenAmount,
   SvmChainUpdate,
@@ -35,7 +32,6 @@ import {
 import * as anchor from "@coral-xyz/anchor";
 import { limoId, Order } from "@kamino-finance/limo-sdk";
 import { getPdaAuthority } from "@kamino-finance/limo-sdk/dist/utils";
-import * as evm from "./evm";
 import * as svm from "./svm";
 import { VersionedTransaction } from "@solana/web3.js";
 import { base64 } from "@coral-xyz/anchor/dist/cjs/utils/bytes";
@@ -208,24 +204,15 @@ export class Client {
         }
       } else if ("type" in message && message.type === "remove_opportunities") {
         if (typeof this.websocketRemoveOpportunitiesCallback === "function") {
-          const opportunityDelete: OpportunityDelete =
-            message.opportunity_delete.chain_type === ChainType.EVM
-              ? {
-                  chainType: ChainType.EVM,
-                  chainId: message.opportunity_delete.chain_id,
-                  permissionKey: checkHex(
-                    message.opportunity_delete.permission_key,
-                  ),
-                }
-              : {
-                  chainType: ChainType.SVM,
-                  chainId: message.opportunity_delete.chain_id,
-                  program: message.opportunity_delete.program,
-                  permissionAccount: new PublicKey(
-                    message.opportunity_delete.permission_account,
-                  ),
-                  router: new PublicKey(message.opportunity_delete.router),
-                };
+          const opportunityDelete: OpportunityDelete = {
+            chainType: ChainType.SVM,
+            chainId: message.opportunity_delete.chain_id,
+            program: message.opportunity_delete.program,
+            permissionAccount: new PublicKey(
+              message.opportunity_delete.permission_account,
+            ),
+            router: new PublicKey(message.opportunity_delete.router),
+          };
 
           await this.websocketRemoveOpportunitiesCallback(opportunityDelete);
         }
@@ -393,67 +380,48 @@ export class Client {
    */
   async submitOpportunity(opportunity: OpportunityCreate) {
     const client = createClient<paths>(this.clientOptions);
-    let body;
-    if ("order" in opportunity) {
-      const encoded_order = Buffer.alloc(
-        Order.discriminator.length + Order.layout.span,
-      );
-      Order.discriminator.copy(encoded_order);
-      Order.layout.encode(
-        opportunity.order.state,
-        encoded_order,
-        Order.discriminator.length,
-      );
-      const remainingOutputAmount = anchor.BN.max(
-        opportunity.order.state.expectedOutputAmount.sub(
-          opportunity.order.state.filledOutputAmount,
-        ),
-        new anchor.BN(0),
-      );
-      body = {
-        chain_id: opportunity.chainId,
-        version: "v1" as const,
-        program: opportunity.program,
+    const encoded_order = Buffer.alloc(
+      Order.discriminator.length + Order.layout.span,
+    );
+    Order.discriminator.copy(encoded_order);
+    Order.layout.encode(
+      opportunity.order.state,
+      encoded_order,
+      Order.discriminator.length,
+    );
+    const remainingOutputAmount = anchor.BN.max(
+      opportunity.order.state.expectedOutputAmount.sub(
+        opportunity.order.state.filledOutputAmount,
+      ),
+      new anchor.BN(0),
+    );
+    const body = {
+      chain_id: opportunity.chainId,
+      version: "v1" as const,
+      program: opportunity.program,
 
-        order: encoded_order.toString("base64"),
-        slot: opportunity.slot,
-        order_address: opportunity.order.address.toBase58(),
-        buy_tokens: [
-          {
-            token: opportunity.order.state.inputMint.toBase58(),
-            amount: opportunity.order.state.remainingInputAmount.toNumber(),
-          },
-        ],
-        sell_tokens: [
-          {
-            token: opportunity.order.state.outputMint.toBase58(),
-            amount: remainingOutputAmount.toNumber(),
-          },
-        ],
-        permission_account: opportunity.order.address.toBase58(),
-        router: getPdaAuthority(
-          limoId,
-          opportunity.order.state.globalConfig,
-        ).toBase58(),
-      };
-    } else {
-      body = {
-        chain_id: opportunity.chainId,
-        version: "v1" as const,
-        permission_key: opportunity.permissionKey,
-        target_contract: opportunity.targetContract,
-        target_calldata: opportunity.targetCalldata,
-        target_call_value: opportunity.targetCallValue.toString(),
-        sell_tokens: opportunity.sellTokens.map(({ token, amount }) => ({
-          token,
-          amount: amount.toString(),
-        })),
-        buy_tokens: opportunity.buyTokens.map(({ token, amount }) => ({
-          token,
-          amount: amount.toString(),
-        })),
-      };
-    }
+      order: encoded_order.toString("base64"),
+      slot: opportunity.slot,
+      order_address: opportunity.order.address.toBase58(),
+      buy_tokens: [
+        {
+          token: opportunity.order.state.inputMint.toBase58(),
+          amount: opportunity.order.state.remainingInputAmount.toNumber(),
+        },
+      ],
+      sell_tokens: [
+        {
+          token: opportunity.order.state.outputMint.toBase58(),
+          amount: remainingOutputAmount.toNumber(),
+        },
+      ],
+      permission_account: opportunity.order.address.toBase58(),
+      router: getPdaAuthority(
+        limoId,
+        opportunity.order.state.globalConfig,
+      ).toBase58(),
+    };
+
     const response = await client.POST("/v1/opportunities", {
       body: body,
     });
@@ -470,10 +438,6 @@ export class Client {
    * @param opportunity Opportunity to be removed
    */
   async removeOpportunity(opportunity: OpportunityDelete) {
-    if (opportunity.chainType === ChainType.EVM) {
-      throw new ClientError("Only SVM opportunities can be removed");
-    }
-
     if (opportunity.program !== "limo") {
       throw new ClientError("Only limo opportunities can be removed");
     }
@@ -645,18 +609,7 @@ export class Client {
       );
       return undefined;
     }
-    if ("target_calldata" in opportunity) {
-      return {
-        chainId: opportunity.chain_id,
-        opportunityId: opportunity.opportunity_id,
-        permissionKey: checkHex(opportunity.permission_key),
-        targetContract: checkAddress(opportunity.target_contract),
-        targetCalldata: checkHex(opportunity.target_calldata),
-        targetCallValue: BigInt(opportunity.target_call_value),
-        sellTokens: opportunity.sell_tokens.map(checkTokenQty),
-        buyTokens: opportunity.buy_tokens.map(checkTokenQty),
-      };
-    }
+
     if (opportunity.program === "limo") {
       const order = Order.decode(Buffer.from(opportunity.order, "base64"));
       return {
@@ -741,15 +694,6 @@ export class Client {
   }
 
   private toServerBid(bid: Bid): components["schemas"]["BidCreate"] {
-    if (bid.env === "evm") {
-      return {
-        amount: bid.amount.toString(),
-        target_calldata: bid.targetCalldata,
-        chain_id: bid.chainId,
-        target_contract: bid.targetContract,
-        permission_key: bid.permissionKey,
-      };
-    }
     if (bid.type === "swap") {
       return {
         chain_id: bid.chainId,
@@ -798,53 +742,6 @@ export class Client {
         : undefined,
       referenceId: quoteResponse.reference_id,
     };
-  }
-
-  // EVM specific functions
-
-  /**
-   * Creates a signed opportunity bid for an opportunity
-   * @param opportunity EVM Opportunity to bid on
-   * @param bidParams Bid amount and valid until timestamp
-   * @param privateKey Private key to sign the bid with
-   * @returns Signed opportunity bid
-   */
-  async signOpportunityBid(
-    opportunity: OpportunityEvm,
-    bidParams: BidParams,
-    privateKey: Hex,
-  ): Promise<OpportunityBid> {
-    return evm.signOpportunityBid(opportunity, bidParams, privateKey);
-  }
-
-  /**
-   * Creates a signed bid for an EVM opportunity
-   * @param opportunity EVM Opportunity to bid on
-   * @param bidParams Bid amount, nonce, and deadline timestamp
-   * @param privateKey Private key to sign the bid with
-   * @returns Signed bid
-   */
-  async signBid(
-    opportunity: OpportunityEvm,
-    bidParams: BidParams,
-    privateKey: Hex,
-  ): Promise<Bid> {
-    return evm.signBid(opportunity, bidParams, privateKey);
-  }
-
-  /**
-   * Creates a signature for the bid and opportunity
-   * @param opportunity EVM Opportunity to bid on
-   * @param bidParams Bid amount, nonce, and deadline timestamp
-   * @param privateKey Private key to sign the bid with
-   * @returns Signature for the bid and opportunity
-   */
-  async getSignature(
-    opportunity: OpportunityEvm,
-    bidParams: BidParams,
-    privateKey: Hex,
-  ): Promise<`0x${string}`> {
-    return evm.getSignature(opportunity, bidParams, privateKey);
   }
 
   // SVM specific functions
