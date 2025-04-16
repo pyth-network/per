@@ -241,9 +241,14 @@ impl Service {
             .repo
             .get_or_create_in_memory_bid_lock(winner_bid.id)
             .await;
-        self.submit_auction_bid_for_lock(bid.clone(), auction, bid_lock)
-            .await?;
+        // NOTE: Don't use ? here to make sure we are going to call the remove_in_memory_bid_lock function
+        let result = self
+            .submit_auction_bid_for_lock(bid.clone(), auction, bid_lock)
+            .await;
         self.repo.remove_in_memory_bid_lock(&winner_bid.id).await;
-        Ok(bid.chain_data.transaction)
+        match result {
+            Ok(()) => Ok(bid.chain_data.transaction),
+            Err(e) => Err(e),
+        }
     }
 }
