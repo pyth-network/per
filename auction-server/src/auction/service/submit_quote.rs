@@ -33,7 +33,7 @@ pub struct SubmitQuoteInput {
 const MIN_DEADLINE_BUFFER_SECS: i64 = 2;
 
 impl Service {
-    async fn get_winner_bid(
+    async fn get_winner_bid_for_submission(
         &self,
         auction_id: entities::AuctionId,
     ) -> Result<(entities::Auction, entities::Bid), RestError> {
@@ -90,7 +90,7 @@ impl Service {
         let _lock = lock.lock().await;
 
         // Make sure the bid is still not cancelled, we also get the latest saved version of the auction
-        let (auction, bid_latest_version) = self.get_winner_bid(auction.id).await?;
+        let (auction, bid_latest_version) = self.get_winner_bid_for_submission(auction.id).await?;
         if bid_latest_version.status.is_submitted() {
             return Ok(());
         }
@@ -195,7 +195,7 @@ impl Service {
         &self,
         input: SubmitQuoteInput,
     ) -> Result<VersionedTransaction, RestError> {
-        let (auction, winner_bid) = self.get_winner_bid(input.auction_id).await?;
+        let (auction, winner_bid) = self.get_winner_bid_for_submission(input.auction_id).await?;
 
         let mut bid = winner_bid.clone();
         tracing::Span::current().record("bid_id", bid.id.to_string());
