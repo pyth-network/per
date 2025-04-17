@@ -14,7 +14,9 @@ $ poetry add express-relay
 
 ## Development
 
-You can use `anchorpy` to generate a Python client of the Express Relay program. `anchorpy` only works with anchor versions `>=0.29`, so you will need to use such a version. Building may fail due to backward incompatibility with anchor `0.29.0`, so you may have to use `anchor idl parse --file` to generate the IDL.
+You can use `anchorpy` to generate a Python client of the Express Relay program.
+
+`anchorpy` only works with the old Anchor IDL standard. You will need to use `anchor` `0.29.0`: make sure you modify `anchor_version` in `Anchor.toml` to `0.29.0` and run `anchor idl parse --file` to generate the IDL.
 
 You can generate the Python client from the IDL via:
 
