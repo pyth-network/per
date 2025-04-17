@@ -98,23 +98,22 @@ impl Service {
         if !self.is_within_deadline_buffer(bid_latest_version.chain_id.clone(), swap_args) {
             if bid_latest_version.status.is_sent_to_user_for_submission() {
                 // TODO we are losing information here, need a better way for handling this situation
-                // NOTE: These bids maybe submitted by the user, so we need to update the status to submission failed
+                // NOTE: These bids maybe submitted by the user, so we don't need to update the status to submission failed
                 tracing::warn!(bid_id = ?bid_latest_version.id, auction_id = ?auction.id, "A non cancellable bid is submitted after the deadline buffer");
-                return Err(RestError::QuoteIsExpired);
-            }
-
-            let tx_hash = bid_latest_version.chain_data.transaction.signatures[0];
-            self.update_bid_status(UpdateBidStatusInput {
-                bid:        bid_latest_version,
-                new_status: entities::BidStatusSvm::SubmissionFailed {
-                    auction: entities::BidStatusAuction {
-                        id: auction.id,
-                        tx_hash,
+            } else {
+                let tx_hash = bid_latest_version.chain_data.transaction.signatures[0];
+                self.update_bid_status(UpdateBidStatusInput {
+                    bid:        bid_latest_version,
+                    new_status: entities::BidStatusSvm::SubmissionFailed {
+                        auction: entities::BidStatusAuction {
+                            id: auction.id,
+                            tx_hash,
+                        },
+                        reason:  entities::BidSubmissionFailedReason::DeadlinePassed,
                     },
-                    reason:  entities::BidSubmissionFailedReason::DeadlinePassed,
-                },
-            })
-            .await?;
+                })
+                .await?;
+            }
             return Err(RestError::QuoteIsExpired);
         }
 
