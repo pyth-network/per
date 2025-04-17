@@ -52,16 +52,7 @@ impl Service {
                     || bid.status.is_cancelled()
             })
             .cloned()
-            .ok_or(RestError::BadParameters(
-                "This quote has already been finalized. No further changes are allowed."
-                    .to_string(),
-            ))?;
-
-        if winner_bid.status.is_submitted() {
-            return Err(RestError::BadParameters(
-                "Quote is already submitted on-chain.".to_string(),
-            ));
-        }
+            .ok_or(RestError::QuoteIsFinalized)?;
 
         Ok((auction, winner_bid))
     }
@@ -93,12 +84,40 @@ impl Service {
         &self,
         signed_bid: entities::Bid,
         auction: entities::Auction,
+        swap_args: express_relay::SwapArgs,
         lock: entities::BidLock,
     ) -> Result<(), RestError> {
         let _lock = lock.lock().await;
 
         // Make sure the bid is still not cancelled, we also get the latest saved version of the auction
         let (auction, bid_latest_version) = self.get_winner_bid(auction.id).await?;
+        if bid_latest_version.status.is_submitted() {
+            return Ok(());
+        }
+
+        if !self.is_within_deadline_buffer(bid_latest_version.chain_id.clone(), swap_args) {
+            if bid_latest_version.status.is_sent_to_user_for_submission() {
+                // TODO we are losing information here, need a better way for handling this situation
+                // NOTE: These bids maybe submitted by the user, so we need to update the status to submission failed
+                tracing::warn!(bid_id = ?bid_latest_version.id, auction_id = ?auction.id, "A non cancellable bid is submitted after the deadline buffer");
+                return Err(RestError::QuoteIsExpired);
+            }
+
+            let tx_hash = bid_latest_version.chain_data.transaction.signatures[0];
+            self.update_bid_status(UpdateBidStatusInput {
+                bid:        bid_latest_version,
+                new_status: entities::BidStatusSvm::SubmissionFailed {
+                    auction: entities::BidStatusAuction {
+                        id: auction.id,
+                        tx_hash,
+                    },
+                    reason:  entities::BidSubmissionFailedReason::DeadlinePassed,
+                },
+            })
+            .await?;
+            return Err(RestError::QuoteIsExpired);
+        }
+
         if bid_latest_version.status.is_cancelled() {
             self.update_bid_status(UpdateBidStatusInput {
                 bid:        bid_latest_version.clone(),
@@ -111,9 +130,7 @@ impl Service {
                 },
             })
             .await?;
-            return Err(RestError::BadParameters(
-                "This quote has already been cancelled.".to_string(),
-            ));
+            return Err(RestError::QuoteIsCancelled);
         }
 
         let tx_hash = signed_bid.chain_data.transaction.signatures[0];
@@ -193,24 +210,6 @@ impl Service {
             .extract_swap_accounts(&bid.chain_data.transaction, &swap_instruction)
             .await
             .map_err(|_| RestError::BadParameters("Invalid quote.".to_string()))?;
-        let swap_args = Self::extract_swap_data(&swap_instruction)
-            .map_err(|_| RestError::BadParameters("Invalid quote.".to_string()))?;
-
-        if !self.is_within_deadline_buffer(bid.chain_id.clone(), swap_args) {
-            let tx_hash = bid.chain_data.transaction.signatures[0];
-            self.update_bid_status(UpdateBidStatusInput {
-                bid,
-                new_status: entities::BidStatusSvm::SubmissionFailed {
-                    auction: entities::BidStatusAuction {
-                        id: auction.id,
-                        tx_hash,
-                    },
-                    reason:  entities::BidSubmissionFailedReason::DeadlinePassed,
-                },
-            })
-            .await?;
-            return Err(RestError::BadParameters("Quote is expired.".to_string()));
-        }
 
         if !input.user_signature.verify(
             &user_wallet.to_bytes(),
@@ -237,13 +236,16 @@ impl Service {
             return Err(RestError::BadParameters("Invalid quote.".to_string()));
         }
 
+        let swap_args = Self::extract_swap_data(&swap_instruction)
+            .map_err(|_| RestError::BadParameters("Invalid quote.".to_string()))?;
+
         let bid_lock = self
             .repo
             .get_or_create_in_memory_bid_lock(winner_bid.id)
             .await;
         // NOTE: Don't use ? here to make sure we are going to call the remove_in_memory_bid_lock function
         let result = self
-            .submit_auction_bid_for_lock(bid.clone(), auction, bid_lock)
+            .submit_auction_bid_for_lock(bid.clone(), auction, swap_args, bid_lock)
             .await;
         self.repo.remove_in_memory_bid_lock(&winner_bid.id).await;
         match result {

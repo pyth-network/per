@@ -444,6 +444,12 @@ pub enum RestError {
     DuplicateBid,
     /// Too many open websocket connections
     TooManyOpenWebsocketConnections,
+    /// Quote is expired
+    QuoteIsExpired,
+    /// Quote is cancelled
+    QuoteIsCancelled,
+    /// Quote is already finalized
+    QuoteIsFinalized,
 }
 
 
@@ -560,6 +566,18 @@ impl RestError {
             RestError::TooManyOpenWebsocketConnections => (
                 StatusCode::TOO_MANY_REQUESTS,
                 "Too many open websocket connections".to_string(),
+            ),
+            RestError::QuoteIsExpired => (
+                StatusCode::GONE,
+                "Quote is expired.".to_string(),
+            ),
+            RestError::QuoteIsCancelled => (
+                StatusCode::CONFLICT,
+                "Quote is cancelled.".to_string(),
+            ),
+            RestError::QuoteIsFinalized => (
+                StatusCode::CONFLICT,
+                "This quote has already been finalized. No further changes are allowed".to_string(),
             ),
         }
     }
