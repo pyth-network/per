@@ -152,7 +152,7 @@ pub async fn ws_route_handler(
     let requester_ip = headers
         .get(ws_state.requester_ip_header_name.as_str())
         .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.split(',').next()) // Only take the first ip if there are multiple
+        .and_then(|value| value.split(',').last()) // Only take the last ip if there are multiple
         .and_then(|value| value.parse().ok());
 
     if requester_ip.is_none() {
