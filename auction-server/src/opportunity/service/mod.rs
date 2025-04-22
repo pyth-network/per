@@ -19,6 +19,7 @@ use {
         },
     },
     arc_swap::ArcSwap,
+    jupiter_swap_api_client::JupiterUltraSwapApiClient,
     mockall_double::double,
     solana_client::{
         nonblocking::rpc_client::RpcClient,
@@ -100,7 +101,7 @@ pub struct ConfigSvm {
     pub accepted_token_programs:   Vec<Pubkey>,
     pub ordered_fee_tokens:        Vec<Pubkey>,
     pub auction_service_container: AuctionServiceContainer,
-    pub jupiter_ultra_url:         String,
+    pub jupiter_ultra_client:      JupiterUltraSwapApiClient,
 }
 
 impl ConfigSvm {
@@ -125,7 +126,9 @@ impl ConfigSvm {
                             .clone(),
                         ordered_fee_tokens:        chain_store.config.ordered_fee_tokens.clone(),
                         auction_service_container: AuctionServiceContainer::new(),
-                        jupiter_ultra_url:         chain_store.config.jupiter_ultra_url.clone(),
+                        jupiter_ultra_client:      JupiterUltraSwapApiClient::new(
+                            chain_store.config.jupiter_ultra_url.clone(),
+                        ),
                     },
                 )
             })
@@ -190,7 +193,7 @@ pub mod tests {
                 accepted_token_programs:   vec![],
                 ordered_fee_tokens:        vec![],
                 auction_service_container: AuctionServiceContainer::new(),
-                jupiter_ultra_url:         "".to_string(),
+                jupiter_ultra_client:      JupiterUltraSwapApiClient::new("".to_string()),
             };
 
             let mut chains_svm = HashMap::new();
