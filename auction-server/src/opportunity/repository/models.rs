@@ -15,6 +15,7 @@ use {
         opportunity::entities::{
             FeeToken,
             OpportunitySvm,
+            OtherQuote,
             TokenAccountInitializationConfigs,
         },
     },
@@ -89,6 +90,7 @@ pub struct OpportunityMetadataSvmProgramSwap {
     #[serde(default = "default_cancellable")]
     pub cancellable:                          bool,
     pub minimum_lifetime:                     Option<u32>,
+    pub other_quotes:                         Vec<OtherQuote>,
 }
 
 fn default_cancellable() -> bool {

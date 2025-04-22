@@ -31,6 +31,7 @@ use {
                 self,
                 OpportunitySvmProgram,
                 OpportunitySvmProgramSwap,
+                OtherQuote,
                 TokenAccountInitializationConfigs,
                 TokenAmountSvm,
             },
@@ -46,6 +47,15 @@ use {
     },
     axum_prometheus::metrics,
     express_relay_api_types::opportunity::ProgramSvm,
+    jupiter_swap_api_client::{
+        quote::{
+            ParamsMode,
+            SwapMode as UltraSwapMode,
+            SwapType,
+            UltraQuoteRequest,
+        },
+        JupiterUltraSwapApiClient,
+    },
     rand::Rng,
     solana_sdk::pubkey::Pubkey,
     spl_associated_token_account::get_associated_token_address_with_program_id,
@@ -262,7 +272,7 @@ impl Service {
             ),
         };
         // this uses the fee-adjusted token amounts to correctly calculate the permission account
-        let tokens_for_permission = match quote_create.tokens {
+        let tokens_for_permission = match quote_create.tokens.clone() {
             entities::QuoteTokens::UserTokenSpecified {
                 user_token,
                 searcher_token,
@@ -324,6 +334,45 @@ impl Service {
             referral_fee_info.referral_fee_bps,
         );
 
+        let ultra_client = JupiterUltraSwapApiClient::new(config.jupiter_ultra_url.clone());
+        let (ultra_amount, swap_mode) = match quote_create.tokens {
+            entities::QuoteTokens::UserTokenSpecified { user_token, .. } => {
+                (user_token.amount, Some(UltraSwapMode::ExactIn))
+            }
+            entities::QuoteTokens::SearcherTokenSpecified { searcher_token, .. } => {
+                (searcher_token.amount, Some(UltraSwapMode::ExactOut))
+            }
+        };
+        let ultra_response = ultra_client
+            .quote(&UltraQuoteRequest {
+                input_mint:  mint_user,
+                output_mint: mint_searcher,
+                amount:      ultra_amount,
+                swap_mode:   swap_mode.clone(),
+                mode:        ParamsMode::Ultra,
+                taker:       quote_create.user_wallet_address,
+            })
+            .await;
+        let mut other_quotes = vec![];
+        if let Ok(ultra_response) = ultra_response {
+            other_quotes.push(OtherQuote {
+                quoter:        "JupiterUltra".to_string(),
+                amount_quoted: match swap_mode {
+                    None | Some(UltraSwapMode::ExactIn) => ultra_response.out_amount,
+                    Some(UltraSwapMode::ExactOut) => ultra_response.in_amount,
+                },
+                slippage_bps:  Some(ultra_response.slippage_bps),
+                fee_mint:      ultra_response.fee_mint,
+                fee_bps:       Some(ultra_response.fee_bps),
+                deadline:      ultra_response.expire_at,
+                transaction:   ultra_response.transaction,
+                swap_details:  match ultra_response.swap_type {
+                    SwapType::Aggregator => "aggregator".to_string(),
+                    SwapType::Rfq => "rfq".to_string(),
+                },
+            });
+        }
+
         let program_opportunity =
             entities::OpportunitySvmProgram::Swap(entities::OpportunitySvmProgramSwap {
                 user_wallet_address,
@@ -343,6 +392,7 @@ impl Service {
                         .map(|lifetime| Duration::from_secs(lifetime as u64))
                         .unwrap_or(BID_MINIMUM_LIFE_TIME_SVM_OTHER),
                 ),
+                other_quotes,
             });
 
         Ok(entities::OpportunityCreateSvm {

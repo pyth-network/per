@@ -1,15 +1,4 @@
 chains:
-  development:
-    geth_rpc_addr: http://localhost:8545
-    geth_ws_addr: ws://127.0.0.1:9545
-    rpc_timeout: 5
-    express_relay_contract: 0xa513E6E4b8f2a923D98304ec87F64353C4D5C853
-    adapter_factory_contract: 0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e
-    legacy_tx: false
-    poll_interval: 1
-    subwallets:
-      - 0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef
-      - 0xdecafdecafdecafdecafdecafdecafdecafdecaf
   development-solana:
     express_relay_program_id: PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou
     rpc_read_url: http://localhost:8899
@@ -23,3 +12,4 @@ chains:
       - EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
       - Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB
       - So11111111111111111111111111111111111111112
+    jupiter_ultra_url: https://ultra-api.jup.ag

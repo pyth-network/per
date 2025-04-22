@@ -1667,6 +1667,7 @@ mod tests {
                     BID_MINIMUM_LIFE_TIME_SVM_OTHER,
                 ),
                 cancellable: true,
+                other_quotes: vec![],
             }
         }
     }

@@ -30,11 +30,16 @@ use {
         Deserialize,
         Serialize,
     },
+    serde_with::{
+        serde_as,
+        DisplayFromStr,
+    },
     solana_sdk::{
         clock::Slot,
         program_pack::Pack,
         pubkey::Pubkey,
         rent::Rent,
+        transaction::VersionedTransaction,
     },
     spl_token_2022::state::Account as TokenAccount,
     std::{
@@ -135,6 +140,21 @@ impl TokenAccountInitializationConfigs {
     }
 }
 
+#[serde_as]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct OtherQuote {
+    pub quoter:        String,
+    pub amount_quoted: u64,
+    pub slippage_bps:  Option<u16>,
+    #[serde_as(as = "Option<DisplayFromStr>")]
+    pub fee_mint:      Option<Pubkey>,
+    pub fee_bps:       Option<u16>,
+    pub deadline:      Option<u64>,
+    #[serde(with = "express_relay_api_types::serde::nullable_transaction_svm")]
+    pub transaction:   Option<VersionedTransaction>,
+    pub swap_details:  String,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct OpportunitySvmProgramSwap {
     pub user_wallet_address:                  Pubkey,
@@ -150,6 +170,7 @@ pub struct OpportunitySvmProgramSwap {
     pub cancellable:                          bool,
     pub minimum_lifetime:                     Option<u32>,
     pub minimum_deadline:                     OffsetDateTime,
+    pub other_quotes:                         Vec<OtherQuote>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -238,6 +259,7 @@ impl OpportunitySvm {
                         memo:                                 program.memo,
                         cancellable:                          program.cancellable,
                         minimum_lifetime:                     program.minimum_lifetime,
+                        other_quotes:                         program.other_quotes,
                     },
                 )
             }
@@ -512,6 +534,7 @@ impl TryFrom<repository::Opportunity<repository::OpportunityMetadataSvm>> for Op
                             .map(|lifetime| Duration::from_secs(lifetime as u64))
                             .unwrap_or(BID_MINIMUM_LIFE_TIME_SVM_OTHER),
                     ),
+                    other_quotes:                         program.other_quotes,
                 })
             }
         };

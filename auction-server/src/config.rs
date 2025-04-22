@@ -137,4 +137,6 @@ pub struct ConfigSvm {
     /// Ordered list of fee tokens, with first being the most preferred.
     #[serde_as(as = "Vec<DisplayFromStr>")]
     pub ordered_fee_tokens:            Vec<Pubkey>,
+    /// URL for Jupiter Ultra API.
+    pub jupiter_ultra_url:             String,
 }
