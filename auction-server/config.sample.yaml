@@ -23,3 +23,9 @@ chains:
       - EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
       - Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB
       - So11111111111111111111111111111111111111112
+    token_whitelist:
+      enabled: true
+      whitelist_mints:
+        - Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB
+        - So11111111111111111111111111111111111111112
+        - EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
