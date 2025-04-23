@@ -149,15 +149,25 @@ pub async fn ws_route_handler(
     headers: HeaderMap,
 ) -> impl IntoResponse {
     let ws_state = &store.store.ws;
-    let requester_ip = headers
+    let ip_header = headers
         .get(ws_state.requester_ip_header_name.as_str())
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.split(',').next()) // Only take the first ip if there are multiple
-        .and_then(|value| value.parse().ok());
+        .and_then(|value| value.to_str().ok());
 
-    if requester_ip.is_none() {
+    let requester_ip = if let Some(ip_header) = ip_header {
+        let parts = ip_header.split(',').collect::<Vec<_>>();
+        // Only take the first ip if there are multiple
+        let client_ip = parts.first().and_then(|ip| ip.parse::<IpAddr>().ok());
+        let obfuscated_proxy_chain = parts.into_iter().map(obfuscate_ip);
+
+        tracing::info!(
+            "Websocket connection established with: `{:?}`",
+            obfuscated_proxy_chain
+        );
+        client_ip
+    } else {
         tracing::warn!("Failed to get requester IP address");
-    }
+        None
+    };
 
     match ws_state.get_new_subscriber_id(requester_ip).await {
         Some(subscriber_id) => ws.on_upgrade(move |socket| {
@@ -608,4 +618,25 @@ pub fn get_routes(store: Arc<StoreNew>) -> Router<Arc<StoreNew>> {
     WrappedRouter::new(store)
         .route(Route::Ws, ws_route_handler)
         .router
+}
+
+/// Keeps the first 8 characters of the ip
+fn obfuscate_ip(ip: &str) -> String {
+    let mut chars = ip.chars();
+    let first_8: String = chars.by_ref().take(8).collect();
+    let stars = "*".repeat(chars.count());
+
+    first_8 + &stars
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::api::ws::obfuscate_ip;
+
+    #[test]
+    fn test_obfuscate_ip() {
+        let obf = obfuscate_ip("127.188.42.1");
+
+        assert_eq!(obf, "127.188.****");
+    }
 }
