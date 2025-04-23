@@ -137,4 +137,18 @@ pub struct ConfigSvm {
     /// Ordered list of fee tokens, with first being the most preferred.
     #[serde_as(as = "Vec<DisplayFromStr>")]
     pub ordered_fee_tokens:            Vec<Pubkey>,
+    /// Whitelisted token mints
+    #[serde(default)]
+    pub token_whitelist:               TokenWhitelistConfig,
+}
+
+/// Optional whitelist of token mints to a
+#[serde_as]
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
+pub struct TokenWhitelistConfig {
+    #[serde(default)]
+    pub enabled:         bool,
+    #[serde(default)]
+    #[serde_as(as = "Vec<DisplayFromStr>")]
+    pub whitelist_mints: Vec<Pubkey>,
 }

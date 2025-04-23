@@ -9,6 +9,7 @@ use {
         auction::service::{
             self as auction_service,
         },
+        config::TokenWhitelistConfig,
         kernel::{
             entities::ChainId,
             traced_sender_svm::TracedSenderSvm,
@@ -100,6 +101,7 @@ pub struct ConfigSvm {
     pub accepted_token_programs:   Vec<Pubkey>,
     pub ordered_fee_tokens:        Vec<Pubkey>,
     pub auction_service_container: AuctionServiceContainer,
+    pub token_whitelist:           TokenWhitelist,
 }
 
 impl ConfigSvm {
@@ -124,10 +126,41 @@ impl ConfigSvm {
                             .clone(),
                         ordered_fee_tokens:        chain_store.config.ordered_fee_tokens.clone(),
                         auction_service_container: AuctionServiceContainer::new(),
+                        token_whitelist:           chain_store
+                            .config
+                            .token_whitelist
+                            .clone()
+                            .into(),
                     },
                 )
             })
             .collect())
+    }
+}
+
+/// Option whitelist of token mints
+#[derive(Clone, Default)]
+pub struct TokenWhitelist {
+    pub enabled:         bool,
+    pub whitelist_mints: Vec<Pubkey>,
+}
+
+impl TokenWhitelist {
+    /// Returns true if the token is whitelisted or if the whitelist feature is disabled
+    pub fn is_token_mint_allowed(&self, token_mint: &Pubkey) -> bool {
+        !self.enabled || self.whitelist_mints.binary_search(token_mint).is_ok()
+    }
+}
+
+impl From<TokenWhitelistConfig> for TokenWhitelist {
+    fn from(value: TokenWhitelistConfig) -> Self {
+        let mut whitelist = value.whitelist_mints;
+        whitelist.sort();
+
+        Self {
+            enabled:         value.enabled,
+            whitelist_mints: whitelist,
+        }
     }
 }
 
@@ -188,6 +221,7 @@ pub mod tests {
                 accepted_token_programs:   vec![],
                 ordered_fee_tokens:        vec![],
                 auction_service_container: AuctionServiceContainer::new(),
+                token_whitelist:           Default::default(),
             };
 
             let mut chains_svm = HashMap::new();

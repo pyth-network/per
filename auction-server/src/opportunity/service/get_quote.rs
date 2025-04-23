@@ -183,16 +183,6 @@ impl Service {
         &self,
         quote_create: entities::QuoteCreate,
     ) -> Result<entities::OpportunityCreateSvm, RestError> {
-        let referral_fee_info =
-            self.unwrap_referral_fee_info(quote_create.referral_fee_info, &quote_create.chain_id)?;
-
-        // TODO*: we should fix the Opportunity struct (or create a new format) to more clearly distinguish Swap opps from traditional opps
-        // currently, we are using the same struct and just setting the unspecified token amount to 0
-        let metadata = self
-            .get_express_relay_metadata(GetExpressRelayMetadata {
-                chain_id: quote_create.chain_id.clone(),
-            })
-            .await?;
         let (mint_user, mint_searcher) = match quote_create.tokens.clone() {
             entities::QuoteTokens::UserTokenSpecified {
                 user_token,
@@ -204,6 +194,26 @@ impl Service {
             } => (user_token, searcher_token.token),
         };
         let config = self.get_config(&quote_create.chain_id)?;
+
+        // validate token mints being whitelisted at the earliest point to fail fast
+        if !config.token_whitelist.is_token_mint_allowed(&mint_user) {
+            return Err(RestError::TokenMintNotAllowed("User".to_string()));
+        }
+        if !config.token_whitelist.is_token_mint_allowed(&mint_searcher) {
+            return Err(RestError::TokenMintNotAllowed("Searcher".to_string()));
+        }
+
+        let referral_fee_info =
+            self.unwrap_referral_fee_info(quote_create.referral_fee_info, &quote_create.chain_id)?;
+
+        // TODO*: we should fix the Opportunity struct (or create a new format) to more clearly distinguish Swap opps from traditional opps
+        // currently, we are using the same struct and just setting the unspecified token amount to 0
+        let metadata = self
+            .get_express_relay_metadata(GetExpressRelayMetadata {
+                chain_id: quote_create.chain_id.clone(),
+            })
+            .await?;
+
         let fee_token = get_fee_token(mint_user, mint_searcher, &config.ordered_fee_tokens);
         let (searcher_amount, user_amount) = match (quote_create.tokens.clone(), fee_token.clone())
         {
@@ -689,6 +699,7 @@ mod tests {
                     StatefulMockAuctionService,
                 },
             },
+            config::TokenWhitelistConfig,
             kernel::{
                 rpc_client_svm_tester::{
                     RpcClientSvmTester,
@@ -703,6 +714,7 @@ mod tests {
                     ReferralFeeInfo,
                 },
                 repository::MockDatabase,
+                service::TokenWhitelist,
             },
         },
         anchor_lang::{
@@ -860,6 +872,7 @@ mod tests {
     struct QuoteSequenceParams {
         auction_service_sequence: AuctionServiceSequenceParams,
         metadata:                 Option<ExpressRelayMetadata>,
+        enable_token_whitelist:   bool,
     }
 
     struct QuoteSequence {
@@ -869,12 +882,16 @@ mod tests {
 
         token_program_user:     Pubkey,
         token_program_searcher: Pubkey,
+
+        allowed_token_mint_1: Pubkey,
+        allowed_token_mint_2: Pubkey,
     }
 
     async fn setup_basic_sequence(params: QuoteSequenceParams) -> QuoteSequence {
         let QuoteSequenceParams {
             auction_service_sequence: auction_service_params,
             metadata,
+            enable_token_whitelist,
         } = params;
 
         let chain_id = DEFAULT_CHAIN_ID.to_string();
@@ -886,12 +903,17 @@ mod tests {
         let test_token_program_user = Pubkey::new_unique();
         let test_token_program_searcher = Pubkey::new_unique();
         let (mut service, _) = Service::new_with_mocks_svm(chain_id.clone(), mock_db, &rpc_client);
-        service
-            .config
-            .get_mut(&chain_id)
-            .unwrap()
+        let config = service.config.get_mut(&chain_id).unwrap();
+
+        let allowed_token_mint_1 = Pubkey::new_unique();
+        let allowed_token_mint_2 = Pubkey::new_unique();
+        config
             .accepted_token_programs
             .extend([test_token_program_user, test_token_program_searcher]);
+        config.token_whitelist = TokenWhitelist::from(TokenWhitelistConfig {
+            enabled:         enable_token_whitelist,
+            whitelist_mints: vec![allowed_token_mint_1, allowed_token_mint_2],
+        });
 
         service
             .repo
@@ -906,6 +928,8 @@ mod tests {
             rpc_client,
             token_program_user: test_token_program_user,
             token_program_searcher: test_token_program_searcher,
+            allowed_token_mint_1,
+            allowed_token_mint_2,
         }
     }
 
@@ -940,6 +964,8 @@ mod tests {
             mut auction_service,
             token_program_user,
             token_program_searcher,
+            allowed_token_mint_1,
+            allowed_token_mint_2,
             ..
         } = setup_basic_sequence(QuoteSequenceParams {
             auction_service_sequence: AuctionServiceSequenceParams {
@@ -958,6 +984,7 @@ mod tests {
                 skip_bid_update: true,
                 ..Default::default()
             },
+            enable_token_whitelist: true,
             ..Default::default()
         })
         .await;
@@ -982,8 +1009,8 @@ mod tests {
 
         inject_auction_service(&service, auction_service);
 
-        let user_token = Pubkey::new_unique();
-        let searcher_token = Pubkey::new_unique();
+        let user_token = allowed_token_mint_1;
+        let searcher_token = allowed_token_mint_2;
         service
             .repo
             .cache_token_program(searcher_token, token_program_user)
@@ -1317,6 +1344,7 @@ mod tests {
             rpc_client,
             token_program_user,
             token_program_searcher,
+            ..
         } = setup_basic_sequence(QuoteSequenceParams {
             auction_service_sequence: AuctionServiceSequenceParams {
                 swap_args: Some(SwapArgs {
@@ -1404,6 +1432,7 @@ mod tests {
             rpc_client,
             token_program_user,
             token_program_searcher,
+            ..
         } = setup_basic_sequence(QuoteSequenceParams {
             auction_service_sequence: AuctionServiceSequenceParams {
                 swap_args: Some(SwapArgs {
@@ -1476,5 +1505,76 @@ mod tests {
         // quote became indicative
         assert_eq!(quote.transaction, None);
         rpc_client.check_all_uncanned().await;
+    }
+
+    #[tokio::test]
+    async fn test_get_quote_token_not_whitelisted() {
+        let QuoteSequence {
+            service,
+            auction_service,
+            allowed_token_mint_1,
+            ..
+        } = setup_basic_sequence(QuoteSequenceParams {
+            enable_token_whitelist: true,
+            ..Default::default()
+        })
+        .await;
+        inject_auction_service(&service, auction_service);
+
+        let result = service
+            .get_quote(GetQuoteInput {
+                quote_create: QuoteCreate {
+                    user_wallet_address: None,
+                    tokens:              QuoteTokens::UserTokenSpecified {
+                        user_token:     TokenAmountSvm {
+                            token:  Pubkey::new_unique(), // invalid token
+                            amount: 2,
+                        },
+                        searcher_token: allowed_token_mint_1,
+                    },
+                    referral_fee_info:   Some(ReferralFeeInfo {
+                        router:           Pubkey::new_unique(),
+                        referral_fee_bps: 200,
+                    }),
+                    chain_id:            DEFAULT_CHAIN_ID.to_string(),
+                    memo:                None,
+                    cancellable:         true,
+                    minimum_lifetime:    None,
+                },
+            })
+            .await;
+
+        assert_eq!(
+            result,
+            Err(RestError::TokenMintNotAllowed("User".to_string()))
+        );
+
+        let result = service
+            .get_quote(GetQuoteInput {
+                quote_create: QuoteCreate {
+                    user_wallet_address: None,
+                    tokens:              QuoteTokens::UserTokenSpecified {
+                        user_token:     TokenAmountSvm {
+                            token:  allowed_token_mint_1, // invalid token
+                            amount: 2,
+                        },
+                        searcher_token: Pubkey::new_unique(),
+                    },
+                    referral_fee_info:   Some(ReferralFeeInfo {
+                        router:           Pubkey::new_unique(),
+                        referral_fee_bps: 200,
+                    }),
+                    chain_id:            DEFAULT_CHAIN_ID.to_string(),
+                    memo:                None,
+                    cancellable:         true,
+                    minimum_lifetime:    None,
+                },
+            })
+            .await;
+
+        assert_eq!(
+            result,
+            Err(RestError::TokenMintNotAllowed("Searcher".to_string()))
+        );
     }
 }
