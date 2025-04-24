@@ -85,9 +85,11 @@ pub struct OpportunityMetadataSvmProgramSwap {
     pub user_mint_user_balance:               u64,
     #[serde(default = "TokenAccountInitializationConfigs::searcher_payer")]
     pub token_account_initialization_configs: TokenAccountInitializationConfigs,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub memo:                                 Option<String>,
     #[serde(default = "default_cancellable")]
     pub cancellable:                          bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub minimum_lifetime:                     Option<u32>,
 }
 
@@ -107,7 +109,7 @@ pub enum OpportunityMetadataSvmProgram {
 }
 
 #[serde_as]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct OpportunityMetadataSvm {
     #[serde(flatten)]
     pub program:            OpportunityMetadataSvmProgram,
@@ -315,5 +317,62 @@ impl Database for DB {
                 tracing::Span::current().record("result", "error");
             })?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use {
+        crate::{
+            kernel::entities::PermissionKeySvm,
+            opportunity::entities::{
+                OpportunitySvm,
+                OpportunitySvmProgram,
+                OpportunitySvmProgramSwap,
+                TokenAmountSvm,
+            },
+        },
+        solana_sdk::pubkey::Pubkey,
+        time::OffsetDateTime,
+    };
+
+    #[test]
+    fn test_svm_program_metadata_json_roundtrip() {
+        let op = OpportunitySvm {
+            id:                 Default::default(),
+            permission_key:     PermissionKeySvm([1; 65]),
+            chain_id:           "".to_string(),
+            sell_tokens:        vec![TokenAmountSvm {
+                token:  Pubkey::new_unique(),
+                amount: 2,
+            }],
+            buy_tokens:         vec![TokenAmountSvm {
+                token:  Pubkey::new_unique(),
+                amount: 1,
+            }],
+            creation_time:      OffsetDateTime::now_utc(),
+            refresh_time:       OffsetDateTime::now_utc(),
+            router:             Default::default(),
+            permission_account: Default::default(),
+            program:            OpportunitySvmProgram::Swap(
+                OpportunitySvmProgramSwap::default_test_with_user_wallet_address(
+                    Pubkey::new_unique(),
+                ),
+            ),
+        };
+
+        let metadata = op.get_models_metadata();
+        let json = serde_json::to_string(&metadata).unwrap();
+        assert!(!json.contains("memo"));
+
+        let metadata_2 = serde_json::from_str(&json).unwrap();
+        assert_eq!(metadata, metadata_2);
+
+        let mut json = serde_json::to_value(&metadata).unwrap();
+        json.as_object_mut()
+            .unwrap()
+            .insert("memo".to_string(), serde_json::Value::Null);
+        let metadata_3 = serde_json::from_value(json).unwrap();
+        assert_eq!(metadata, metadata_3);
     }
 }
