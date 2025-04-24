@@ -367,5 +367,12 @@ mod tests {
 
         let metadata_2 = serde_json::from_str(&json).unwrap();
         assert_eq!(metadata, metadata_2);
+
+        let mut json = serde_json::to_value(&metadata).unwrap();
+        json.as_object_mut()
+            .unwrap()
+            .insert("memo".to_string(), serde_json::Value::Null);
+        let metadata_3 = serde_json::from_value(json).unwrap();
+        assert_eq!(metadata, metadata_3);
     }
 }
