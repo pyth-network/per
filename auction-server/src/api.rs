@@ -582,7 +582,7 @@ impl RestError {
                 "This quote has already been finalized. No further changes are allowed".to_string(),
             ),
             RestError::TokenMintNotAllowed(msg, mint) => (
-                StatusCode::UNPROCESSABLE_ENTITY,
+                StatusCode::NOT_FOUND,
                 format!("Token mint address is not allowed for: {}, mint: {}", msg, mint)
             ),
         }
