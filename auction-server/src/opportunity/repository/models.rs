@@ -150,7 +150,7 @@ pub struct Opportunity<T: OpportunityMetadata> {
 #[async_trait]
 pub trait Database: Debug + Send + Sync + 'static {
     async fn add_opportunity(&self, opportunity: &OpportunitySvm) -> Result<(), RestError>;
-    async fn add_other_quote_info(
+    async fn add_other_quotes(
         &self,
         opportunity_id: Uuid,
         other_quotes: Vec<OtherQuote>,
@@ -215,16 +215,16 @@ impl Database for DB {
 
     #[instrument(
         target = "metrics",
-        name = "db_add_other_quote_info",
+        name = "db_add_other_quotes",
         fields(
             category = "db_queries",
             result = "success",
-            name = "add_other_quote_info",
+            name = "add_other_quotes",
             tracing_enabled
         ),
         skip_all
     )]
-    async fn add_other_quote_info(
+    async fn add_other_quotes(
         &self,
         opportunity_id: Uuid,
         other_quotes: Vec<OtherQuote>,

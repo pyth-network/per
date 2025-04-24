@@ -26,7 +26,7 @@ pub const QUOTER_ULTRA: &str = "JupiterUltra";
 pub const RATE_LIMIT_ULTRA_PER_SECOND: u32 = 1;
 
 impl Repository {
-    pub async fn add_other_quote_info(
+    pub async fn add_other_quotes(
         &self,
         opportunity_id: Uuid,
         jupiter_ultra_client: JupiterUltraSwapApiClient,
@@ -35,9 +35,7 @@ impl Repository {
         let other_quotes = self
             .get_other_quotes(jupiter_ultra_client, quote_create)
             .await;
-        self.db
-            .add_other_quote_info(opportunity_id, other_quotes)
-            .await
+        self.db.add_other_quotes(opportunity_id, other_quotes).await
     }
 
     async fn get_other_quotes(
@@ -68,7 +66,7 @@ impl Repository {
         let mut other_quotes = vec![];
 
         let limiter = self
-            .last_other_quotes_pull
+            .last_other_quotes_call
             .entry(QUOTER_ULTRA.to_string())
             .or_insert_with(|| {
                 Arc::new(RateLimiter::direct(governor::Quota::per_second(

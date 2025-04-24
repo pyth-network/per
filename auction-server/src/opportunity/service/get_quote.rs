@@ -444,7 +444,7 @@ impl Service {
             let opportunity_id = opportunity.id;
             async move {
                 let result = async {
-                    repo.add_other_quote_info(opportunity_id, jupiter_ultra_client, quote_create).await
+                    repo.add_other_quotes(opportunity_id, jupiter_ultra_client, quote_create).await
                 }
                 .await;
 

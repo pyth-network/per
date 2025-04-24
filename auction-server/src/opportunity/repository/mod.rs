@@ -18,7 +18,7 @@ use {
 };
 
 mod add_opportunity;
-mod add_other_quote_info;
+mod add_other_quotes;
 mod get_express_relay_metadata;
 mod get_in_memory_opportunities;
 mod get_in_memory_opportunities_by_key;
@@ -39,7 +39,7 @@ type Limiter = RateLimiter<governor::state::NotKeyed, InMemoryState, DefaultCloc
 pub struct Repository {
     pub in_memory_store:    InMemoryStoreSvm,
     pub db:                 Box<dyn Database>,
-    last_other_quotes_pull: DashMap<String, Arc<Limiter>>,
+    last_other_quotes_call: DashMap<String, Arc<Limiter>>,
 }
 
 
@@ -85,7 +85,7 @@ impl Repository {
         Self {
             in_memory_store:        InMemoryStoreSvm::new(),
             db:                     Box::new(db),
-            last_other_quotes_pull: DashMap::new(),
+            last_other_quotes_call: DashMap::new(),
         }
     }
     pub(super) async fn update_metrics(&self) {
