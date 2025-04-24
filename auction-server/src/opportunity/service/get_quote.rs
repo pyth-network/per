@@ -197,10 +197,16 @@ impl Service {
 
         // validate token mints being whitelisted at the earliest point to fail fast
         if !config.token_whitelist.is_token_mint_allowed(&mint_user) {
-            return Err(RestError::TokenMintNotAllowed("User".to_string()));
+            return Err(RestError::TokenMintNotAllowed(
+                "Input".to_string(),
+                mint_user.to_string(),
+            ));
         }
         if !config.token_whitelist.is_token_mint_allowed(&mint_searcher) {
-            return Err(RestError::TokenMintNotAllowed("Searcher".to_string()));
+            return Err(RestError::TokenMintNotAllowed(
+                "Output".to_string(),
+                mint_searcher.to_string(),
+            ));
         }
 
         let referral_fee_info =
@@ -1520,6 +1526,7 @@ mod tests {
         })
         .await;
         inject_auction_service(&service, auction_service);
+        let invalid_mint = Pubkey::new_unique();
 
         let result = service
             .get_quote(GetQuoteInput {
@@ -1527,7 +1534,7 @@ mod tests {
                     user_wallet_address: None,
                     tokens:              QuoteTokens::UserTokenSpecified {
                         user_token:     TokenAmountSvm {
-                            token:  Pubkey::new_unique(), // invalid token
+                            token:  invalid_mint,
                             amount: 2,
                         },
                         searcher_token: allowed_token_mint_1,
@@ -1546,7 +1553,10 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(RestError::TokenMintNotAllowed("User".to_string()))
+            Err(RestError::TokenMintNotAllowed(
+                "Input".to_string(),
+                invalid_mint.to_string()
+            ))
         );
 
         let result = service
@@ -1558,7 +1568,7 @@ mod tests {
                             token:  allowed_token_mint_1, // invalid token
                             amount: 2,
                         },
-                        searcher_token: Pubkey::new_unique(),
+                        searcher_token: invalid_mint,
                     },
                     referral_fee_info:   Some(ReferralFeeInfo {
                         router:           Pubkey::new_unique(),
@@ -1574,7 +1584,10 @@ mod tests {
 
         assert_eq!(
             result,
-            Err(RestError::TokenMintNotAllowed("Searcher".to_string()))
+            Err(RestError::TokenMintNotAllowed(
+                "Output".to_string(),
+                invalid_mint.to_string()
+            ))
         );
     }
 }

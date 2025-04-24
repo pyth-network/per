@@ -142,7 +142,7 @@ pub struct ConfigSvm {
     pub token_whitelist:               TokenWhitelistConfig,
 }
 
-/// Optional whitelist of token mints to a
+/// Optional whitelist of token mints to allow for getting quotes for
 #[serde_as]
 #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct TokenWhitelistConfig {

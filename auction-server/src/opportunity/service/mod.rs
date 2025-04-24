@@ -138,7 +138,7 @@ impl ConfigSvm {
     }
 }
 
-/// Option whitelist of token mints
+/// Optional whitelist for token mints
 #[derive(Clone, Default)]
 pub struct TokenWhitelist {
     pub enabled:         bool,
