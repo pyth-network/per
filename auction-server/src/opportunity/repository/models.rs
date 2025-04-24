@@ -150,6 +150,11 @@ pub struct Opportunity<T: OpportunityMetadata> {
 #[async_trait]
 pub trait Database: Debug + Send + Sync + 'static {
     async fn add_opportunity(&self, opportunity: &OpportunitySvm) -> Result<(), RestError>;
+    async fn add_other_quote_info(
+        &self,
+        opportunity_id: Uuid,
+        other_quotes: Vec<OtherQuote>,
+    ) -> Result<(), RestError>;
     async fn get_opportunities(
         &self,
         chain_id: ChainId,
@@ -208,6 +213,33 @@ impl Database for DB {
         Ok(())
     }
 
+    #[instrument(
+        target = "metrics",
+        name = "db_add_other_quote_info",
+        fields(
+            category = "db_queries",
+            result = "success",
+            name = "add_other_quote_info",
+            tracing_enabled
+        ),
+        skip_all
+    )]
+    async fn add_other_quote_info(
+        &self,
+        opportunity_id: Uuid,
+        other_quotes: Vec<OtherQuote>,
+    ) -> Result<(), RestError> {
+        sqlx::query!("UPDATE opportunity SET metadata = jsonb_set(metadata, '{other_quotes}', $1::jsonb, false) WHERE id = $2",
+            serde_json::to_value(other_quotes).expect("Failed to serialize other quotes"),
+            opportunity_id)
+            .execute(self)
+            .await.map_err(|e| {
+                tracing::Span::current().record("result", "error");
+                tracing::error!("DB: Failed to update opportunity other quotes: {}", e);
+                RestError::TemporarilyUnavailable
+            })?;
+        Ok(())
+    }
     #[instrument(
         target = "metrics",
         name = "db_get_opportunities",

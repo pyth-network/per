@@ -59,6 +59,8 @@ mockall_double = "0.3.1"
 spl-memo-client = { workspace = true }
 spl-token-2022 = { workspace = true }
 jupiter-swap-api-client = { git = "https://github.com/anihamde/jupiter-swap-api-client.git", package = "jupiter-swap-api-client" }
+dashmap = "6.1.0"
+governor = "0.10.0"
 
 [dev-dependencies]
 mockall = "0.13.1"

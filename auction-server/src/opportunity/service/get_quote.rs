@@ -31,7 +31,6 @@ use {
                 self,
                 OpportunitySvmProgram,
                 OpportunitySvmProgramSwap,
-                OtherQuote,
                 TokenAccountInitializationConfigs,
                 TokenAmountSvm,
             },
@@ -47,12 +46,6 @@ use {
     },
     axum_prometheus::metrics,
     express_relay_api_types::opportunity::ProgramSvm,
-    jupiter_swap_api_client::quote::{
-        ParamsMode,
-        SwapMode as UltraSwapMode,
-        SwapType,
-        UltraQuoteRequest,
-    },
     rand::Rng,
     solana_sdk::pubkey::Pubkey,
     spl_associated_token_account::get_associated_token_address_with_program_id,
@@ -185,64 +178,6 @@ fn get_fee_token(
 }
 
 impl Service {
-    async fn get_other_quotes(&self, quote_create: entities::QuoteCreate) -> Vec<OtherQuote> {
-        let config = match self.get_config(&quote_create.chain_id) {
-            Ok(config) => config,
-            Err(_) => return vec![],
-        };
-        let ultra_client = &config.jupiter_ultra_client;
-        let (input_mint, output_mint, amount, swap_mode) = match quote_create.tokens {
-            entities::QuoteTokens::UserTokenSpecified {
-                user_token,
-                searcher_token,
-            } => (
-                user_token.token,
-                searcher_token,
-                user_token.amount,
-                Some(UltraSwapMode::ExactIn),
-            ),
-            entities::QuoteTokens::SearcherTokenSpecified {
-                user_token,
-                searcher_token,
-            } => (
-                user_token,
-                searcher_token.token,
-                searcher_token.amount,
-                Some(UltraSwapMode::ExactOut),
-            ),
-        };
-        let ultra_response = ultra_client
-            .quote(&UltraQuoteRequest {
-                input_mint,
-                output_mint,
-                amount,
-                swap_mode: swap_mode.clone(),
-                mode: ParamsMode::Ultra,
-                taker: quote_create.user_wallet_address,
-            })
-            .await;
-        let mut other_quotes = vec![];
-        if let Ok(ultra_response) = ultra_response {
-            other_quotes.push(OtherQuote {
-                quoter:        "JupiterUltra".to_string(),
-                amount_quoted: match swap_mode {
-                    None | Some(UltraSwapMode::ExactIn) => ultra_response.out_amount,
-                    Some(UltraSwapMode::ExactOut) => ultra_response.in_amount,
-                },
-                slippage_bps:  Some(ultra_response.slippage_bps),
-                fee_mint:      ultra_response.fee_mint,
-                fee_bps:       Some(ultra_response.fee_bps),
-                deadline:      ultra_response.expire_at,
-                transaction:   ultra_response.transaction,
-                swap_details:  match ultra_response.swap_type {
-                    SwapType::Aggregator => "aggregator".to_string(),
-                    SwapType::Rfq => "rfq".to_string(),
-                },
-            });
-        }
-        other_quotes
-    }
-
     #[tracing::instrument(skip_all, err(level = tracing::Level::TRACE))]
     async fn get_opportunity_create_for_quote(
         &self,
@@ -391,8 +326,6 @@ impl Service {
             referral_fee_info.referral_fee_bps,
         );
 
-        let other_quotes = self.get_other_quotes(quote_create.clone()).await;
-
         let program_opportunity =
             entities::OpportunitySvmProgram::Swap(entities::OpportunitySvmProgramSwap {
                 user_wallet_address,
@@ -412,7 +345,7 @@ impl Service {
                         .map(|lifetime| Duration::from_secs(lifetime as u64))
                         .unwrap_or(BID_MINIMUM_LIFE_TIME_SVM_OTHER),
                 ),
-                other_quotes,
+                other_quotes: vec![],
             });
 
         Ok(entities::OpportunityCreateSvm {
@@ -504,6 +437,22 @@ impl Service {
             ));
         }
 
+        let repo = self.repo.clone();
+        let jupiter_ultra_client = config.jupiter_ultra_client.clone();
+        self.task_tracker.spawn({
+            let quote_create = input.quote_create.clone();
+            let opportunity_id = opportunity.id;
+            async move {
+                let result = async {
+                    repo.add_other_quote_info(opportunity_id, jupiter_ultra_client, quote_create).await
+                }
+                .await;
+
+                if let Err(e) = result {
+                    tracing::warn!(error = ?e, "Failed to add other quotes in background for opportunity {}", opportunity_id);
+                }
+            }
+        });
         // Wait to make sure searchers had enough time to submit bids
         sleep(BID_COLLECTION_TIME).await;
 

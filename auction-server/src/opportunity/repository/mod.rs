@@ -1,16 +1,24 @@
 use {
     super::entities,
     axum_prometheus::metrics,
+    dashmap::DashMap,
     express_relay::state::ExpressRelayMetadata,
+    governor::{
+        clock::DefaultClock,
+        state::InMemoryState,
+        RateLimiter,
+    },
     solana_sdk::pubkey::Pubkey,
     std::{
         collections::HashMap,
         ops::Deref,
+        sync::Arc,
     },
     tokio::sync::RwLock,
 };
 
 mod add_opportunity;
+mod add_other_quote_info;
 mod get_express_relay_metadata;
 mod get_in_memory_opportunities;
 mod get_in_memory_opportunities_by_key;
@@ -26,9 +34,12 @@ pub use models::*;
 
 pub const OPPORTUNITY_PAGE_SIZE_CAP: usize = 100;
 
+type Limiter = RateLimiter<governor::state::NotKeyed, InMemoryState, DefaultClock>;
+
 pub struct Repository {
-    pub in_memory_store: InMemoryStoreSvm,
-    pub db:              Box<dyn Database>,
+    pub in_memory_store:    InMemoryStoreSvm,
+    pub db:                 Box<dyn Database>,
+    last_other_quotes_pull: DashMap<String, Arc<Limiter>>,
 }
 
 
@@ -72,8 +83,9 @@ impl Deref for InMemoryStoreSvm {
 impl Repository {
     pub fn new(db: impl Database) -> Self {
         Self {
-            in_memory_store: InMemoryStoreSvm::new(),
-            db:              Box::new(db),
+            in_memory_store:        InMemoryStoreSvm::new(),
+            db:                     Box::new(db),
+            last_other_quotes_pull: DashMap::new(),
         }
     }
     pub(super) async fn update_metrics(&self) {
