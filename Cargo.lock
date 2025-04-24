@@ -653,7 +653,7 @@ dependencies = [
 
 [[package]]
 name = "auction-server"
-version = "0.23.0"
+version = "0.24.0"
 dependencies = [
  "anchor-lang",
  "anchor-lang-idl",
@@ -1876,7 +1876,7 @@ dependencies = [
 
 [[package]]
 name = "express-relay-api-types"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "base64 0.22.1",
  "bincode",
@@ -1895,7 +1895,7 @@ dependencies = [
 
 [[package]]
 name = "express-relay-client"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "borsh 1.5.5",
  "express-relay",

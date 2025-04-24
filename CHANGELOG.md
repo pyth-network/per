@@ -4,6 +4,10 @@ All notable changes to the searcher sdks will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Rust: 0.10.0, Python 0.25.0, Javascript 0.26.0] - 2025-04-24
+
+- Support for EVM chains has been removed. The SDKs no longer support EVM-compatible chains. [495](https://github.com/pyth-network/per/pull/495) [513](https://github.com/pyth-network/per/pull/513) [516](https://github.com/pyth-network/per/pull/516)
+
 ## [Rust: 0.9.0, Python 0.24.0, Javascript 0.25.0] - 2025-04-15
 
 ### Added
