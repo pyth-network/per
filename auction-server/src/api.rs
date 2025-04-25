@@ -450,6 +450,8 @@ pub enum RestError {
     QuoteIsCancelled,
     /// Quote is already finalized
     QuoteIsFinalized,
+    /// Token mint is not allowed
+    TokenMintNotAllowed(String, String),
 }
 
 
@@ -578,6 +580,10 @@ impl RestError {
             RestError::QuoteIsFinalized => (
                 StatusCode::CONFLICT,
                 "This quote has already been finalized. No further changes are allowed".to_string(),
+            ),
+            RestError::TokenMintNotAllowed(msg, mint) => (
+                StatusCode::NOT_FOUND,
+                format!("Token mint address is not allowed for: {}, mint: {}", msg, mint)
             ),
         }
     }
