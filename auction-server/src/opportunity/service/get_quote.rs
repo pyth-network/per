@@ -183,8 +183,10 @@ impl Service {
         &self,
         quote_create: entities::QuoteCreate,
     ) -> Result<entities::OpportunityCreateSvm, RestError> {
-        let referral_fee_info =
-            self.unwrap_referral_fee_info(quote_create.referral_fee_info, &quote_create.chain_id)?;
+        let referral_fee_info = self.unwrap_referral_fee_info(
+            quote_create.referral_fee_info.clone(),
+            &quote_create.chain_id,
+        )?;
 
         // TODO*: we should fix the Opportunity struct (or create a new format) to more clearly distinguish Swap opps from traditional opps
         // currently, we are using the same struct and just setting the unspecified token amount to 0
@@ -262,7 +264,7 @@ impl Service {
             ),
         };
         // this uses the fee-adjusted token amounts to correctly calculate the permission account
-        let tokens_for_permission = match quote_create.tokens {
+        let tokens_for_permission = match quote_create.tokens.clone() {
             entities::QuoteTokens::UserTokenSpecified {
                 user_token,
                 searcher_token,
@@ -343,6 +345,7 @@ impl Service {
                         .map(|lifetime| Duration::from_secs(lifetime as u64))
                         .unwrap_or(BID_MINIMUM_LIFE_TIME_SVM_OTHER),
                 ),
+                other_quotes: vec![],
             });
 
         Ok(entities::OpportunityCreateSvm {
@@ -434,6 +437,22 @@ impl Service {
             ));
         }
 
+        let repo = self.repo.clone();
+        let jupiter_ultra_client = config.jupiter_ultra_client.clone();
+        self.task_tracker.spawn({
+            let quote_create = input.quote_create.clone();
+            let opportunity_id = opportunity.id;
+            async move {
+                let result = async {
+                    repo.add_other_quotes(opportunity_id, jupiter_ultra_client, quote_create).await
+                }
+                .await;
+
+                if let Err(e) = result {
+                    tracing::warn!(error = ?e, "Failed to add other quotes in background for opportunity {}", opportunity_id);
+                }
+            }
+        });
         // Wait to make sure searchers had enough time to submit bids
         sleep(BID_COLLECTION_TIME).await;
 

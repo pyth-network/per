@@ -28,6 +28,7 @@ chains:
       - TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA
       - TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb
     ordered_fee_tokens: []
+    jupiter_ultra_url: https://ultra-api.jup.ag
 '''
     with open('auction-server/config.yaml', 'w') as f:
         f.write(template)

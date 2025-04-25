@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE opportunity SET metadata = jsonb_set(metadata, '{other_quotes}', $1::jsonb, false) WHERE id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Jsonb",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "fde34e23ad414f690193010b69b8ef33d8a914eda185b0ea7daf321edcf69413"
+}
