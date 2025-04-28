@@ -238,7 +238,7 @@ pub enum OpportunityParamsV1ProgramSvm {
         #[schema(example = 10)]
         platform_fee_bps: u64,
 
-        /// The platform fee in basis points.
+        /// The platform fee in parts per million.
         #[schema(example = 1000)]
         platform_fee_ppm: u64,
 
