@@ -104,7 +104,7 @@ pub struct GetQuoteInput {
     pub quote_create: entities::QuoteCreate,
 }
 
-/// Get a pubkey based on router_token_account, user_wallet_address, referral_fee_bps, mints, and token amounts
+/// Get a pubkey based on router_token_account, user_wallet_address, referral_fee_ppm, mints, and token amounts
 /// This pubkey is never mentioned on-chain and is only used internally
 /// to distinguish between different swap bids
 pub fn get_quote_virtual_permission_account(
@@ -1557,7 +1557,7 @@ mod tests {
                     },
                     referral_fee_info:   Some(ReferralFeeInfo {
                         router:           Pubkey::new_unique(),
-                        referral_fee_ppm: 200_000,
+                        referral_fee_ppm: 20_000,
                     }),
                     chain_id:            DEFAULT_CHAIN_ID.to_string(),
                     memo:                None,
@@ -1588,7 +1588,7 @@ mod tests {
                     },
                     referral_fee_info:   Some(ReferralFeeInfo {
                         router:           Pubkey::new_unique(),
-                        referral_fee_ppm: 200_000,
+                        referral_fee_ppm: 20_000,
                     }),
                     chain_id:            DEFAULT_CHAIN_ID.to_string(),
                     memo:                None,

@@ -21,7 +21,10 @@ use {
         },
     },
     ::express_relay::FeeToken as ProgramFeeToken,
-    express_relay::state::FEE_SPLIT_PRECISION,
+    express_relay::state::{
+        FEE_SPLIT_PRECISION,
+        FEE_SPLIT_PRECISION_PPM,
+    },
     express_relay_api_types::opportunity::{
         self as api,
         QuoteTokensWithTokenPrograms,
@@ -404,9 +407,9 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                             FeeToken::UserToken => {
                                 // TODO: Do this calculation based on express relay metadata
                                 let router_fee = (u128::from(user_token.amount)
-                                    * u128::from(program.referral_fee_bps) // this multiplication is safe because user_token.amount and program.referral_fee_bps are u64
-                                    / u128::from(FEE_SPLIT_PRECISION))
-                                    as u64; // this cast is safe because we know referral_fee_bps is less than FEE_SPLIT_PRECISION
+                                    * u128::from(program.referral_fee_ppm) // this multiplication is safe because user_token.amount and program.referral_fee_ppm are u64
+                                    / u128::from(FEE_SPLIT_PRECISION_PPM))
+                                    as u64; // this cast is safe because we know referral_fee_ppm is less than FEE_SPLIT_PRECISION_PPM
                                 let platform_fee = (u128::from(user_token.amount)
                                     * u128::from(program.platform_fee_bps) // this multiplication is safe because user_token.amount and program.platform_fee_bps are u64
                                     / u128::from(FEE_SPLIT_PRECISION))
