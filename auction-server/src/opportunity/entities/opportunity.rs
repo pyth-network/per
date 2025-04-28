@@ -21,7 +21,7 @@ use {
         },
     },
     ::express_relay::FeeToken as ProgramFeeToken,
-    express_relay::state::FEE_SPLIT_PRECISION,
+    express_relay::state::FEE_SPLIT_PRECISION_PPM,
     express_relay_api_types::opportunity::{
         self as api,
         QuoteTokensWithTokenPrograms,
@@ -141,7 +141,9 @@ pub struct OpportunitySvmProgramSwap {
     pub user_mint_user_balance:               u64,
     pub fee_token:                            FeeToken,
     pub referral_fee_bps:                     u16,
+    pub referral_fee_ppm:                     u64,
     pub platform_fee_bps:                     u64,
+    pub platform_fee_ppm:                     u64,
     // TODO*: these really should not live here. they should live in the opportunity core fields, but we don't want to introduce a breaking change. in any case, the need for the token programs is another sign that quotes should be separated from the traditional opportunity struct.
     pub token_program_user:                   Pubkey,
     pub token_program_searcher:               Pubkey,
@@ -229,7 +231,9 @@ impl OpportunitySvm {
                         user_wallet_address:                  program.user_wallet_address,
                         fee_token:                            program.fee_token,
                         referral_fee_bps:                     program.referral_fee_bps,
+                        referral_fee_ppm:                     program.referral_fee_ppm,
                         platform_fee_bps:                     program.platform_fee_bps,
+                        platform_fee_ppm:                     program.platform_fee_ppm,
                         token_program_user:                   program.token_program_user,
                         token_program_searcher:               program.token_program_searcher,
                         token_account_initialization_configs: program
@@ -402,13 +406,13 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                             FeeToken::UserToken => {
                                 // TODO: Do this calculation based on express relay metadata
                                 let router_fee = (u128::from(user_token.amount)
-                                    * u128::from(program.referral_fee_bps) // this multiplication is safe because user_token.amount and program.referral_fee_bps are u64
-                                    / u128::from(FEE_SPLIT_PRECISION))
-                                    as u64; // this cast is safe because we know referral_fee_bps is less than FEE_SPLIT_PRECISION
+                                    * u128::from(program.referral_fee_ppm) // this multiplication is safe because user_token.amount and program.referral_fee_ppm are u64
+                                    / u128::from(FEE_SPLIT_PRECISION_PPM))
+                                    as u64; // this cast is safe because we know referral_fee_ppm is less than FEE_SPLIT_PRECISION_PPM
                                 let platform_fee = (u128::from(user_token.amount)
-                                    * u128::from(program.platform_fee_bps) // this multiplication is safe because user_token.amount and program.platform_fee_bps are u64
-                                    / u128::from(FEE_SPLIT_PRECISION))
-                                    as u64; // this cast is safe because we know platform_fee_bps is less than FEE_SPLIT_PRECISION
+                                    * u128::from(program.platform_fee_ppm) // this multiplication is safe because user_token.amount and program.platform_fee_ppm are u64
+                                    / u128::from(FEE_SPLIT_PRECISION_PPM))
+                                    as u64; // this cast is safe because we know platform_fee_ppm is less than FEE_SPLIT_PRECISION_PPM
                                 user_token
                                     .amount
                                     .saturating_sub(router_fee)
@@ -436,7 +440,9 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                     router_account: val.router,
                     fee_token,
                     referral_fee_bps: program.referral_fee_bps,
+                    referral_fee_ppm: program.referral_fee_ppm,
                     platform_fee_bps: program.platform_fee_bps,
+                    platform_fee_ppm: program.platform_fee_ppm,
                     tokens: QuoteTokensWithTokenPrograms {
                         tokens,
                         token_program_user: program.token_program_user,
@@ -497,7 +503,9 @@ impl TryFrom<repository::Opportunity<repository::OpportunityMetadataSvm>> for Op
                     user_wallet_address:                  program.user_wallet_address,
                     fee_token:                            program.fee_token,
                     referral_fee_bps:                     program.referral_fee_bps,
+                    referral_fee_ppm:                     program.referral_fee_ppm,
                     platform_fee_bps:                     program.platform_fee_bps,
+                    platform_fee_ppm:                     program.platform_fee_ppm,
                     token_program_user:                   program.token_program_user,
                     token_program_searcher:               program.token_program_searcher,
                     token_account_initialization_configs: program

@@ -8,11 +8,12 @@ use {
         },
         state::{
             ExpressRelayMetadata,
-            FEE_SPLIT_PRECISION,
+            FEE_BPS_TO_PPM,
+            FEE_SPLIT_PRECISION_PPM,
             SEED_METADATA,
         },
         FeeToken,
-        SwapArgs,
+        SwapV2Args,
     },
     express_relay_api_types::opportunity::{
         FeeToken as ApiFeeToken,
@@ -135,7 +136,7 @@ struct OpportunitySwapData<'a> {
     tokens:           &'a QuoteTokensWithTokenPrograms,
     fee_token:        &'a ApiFeeToken,
     router_account:   &'a Pubkey,
-    referral_fee_bps: &'a u16,
+    referral_fee_ppm: &'a u64,
     platform_fee_bps: &'a u64,
 }
 pub struct GetSwapCreateAccountsIdempotentInstructionsParams {
@@ -311,7 +312,7 @@ impl Svm {
                 user_wallet_address,
                 tokens,
                 fee_token,
-                referral_fee_bps,
+                referral_fee_ppm,
                 router_account,
                 platform_fee_bps,
                 ..
@@ -320,7 +321,7 @@ impl Svm {
                 tokens,
                 fee_token,
                 router_account,
-                referral_fee_bps,
+                referral_fee_ppm,
                 platform_fee_bps,
             }),
             _ => Err(ClientError::SvmError(
@@ -417,11 +418,12 @@ impl Svm {
             &fee_token_program,
         );
 
-        let swap_args = SwapArgs {
+        let swap_args = SwapV2Args {
             deadline: params.deadline,
             amount_searcher,
             amount_user,
-            referral_fee_bps: *swap_data.referral_fee_bps,
+            referral_fee_ppm: *swap_data.referral_fee_ppm,
+            swap_platform_fee_ppm: *swap_data.platform_fee_bps * FEE_BPS_TO_PPM,
             fee_token,
         };
 
@@ -508,10 +510,10 @@ impl Svm {
         Ok(match (&swap_data.tokens.tokens, &swap_data.fee_token) {
             // scale bid amount by FEE_SPLIT_PRECISION/(FEE_SPLIT_PRECISION-fees) to account for fees
             (QuoteTokens::SearcherTokenSpecified { .. }, ApiFeeToken::UserToken) => {
-                let denominator = FEE_SPLIT_PRECISION
-                    - <u16 as Into<u64>>::into(*swap_data.referral_fee_bps)
-                    - *swap_data.platform_fee_bps;
-                let numerator = bid_amount * FEE_SPLIT_PRECISION;
+                let denominator = FEE_SPLIT_PRECISION_PPM
+                    - *swap_data.referral_fee_ppm
+                    - *swap_data.platform_fee_bps * FEE_BPS_TO_PPM;
+                let numerator = bid_amount * FEE_SPLIT_PRECISION_PPM;
                 numerator.div_ceil(denominator)
             }
             _ => bid_amount,

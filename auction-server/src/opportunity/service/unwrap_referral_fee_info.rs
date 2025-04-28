@@ -8,7 +8,7 @@ use {
 };
 
 impl Service {
-    /// Extracts router and referral_fee_bps from an option.
+    /// Extracts router and referral_fee_ppm from an option.
     /// If the option is None, it uses the express relay metadata address as the router.
     /// This is because no fees need to be paid, and the express relay metadata token account must already exist as per the program.
     pub fn unwrap_referral_fee_info(
@@ -22,7 +22,7 @@ impl Service {
                 let config = self.get_config(chain_id)?;
                 Ok(ReferralFeeInfo {
                     router:           Service::calculate_metadata_address(config),
-                    referral_fee_bps: 0,
+                    referral_fee_ppm: 0,
                 })
             }
         }

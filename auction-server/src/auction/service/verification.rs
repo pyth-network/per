@@ -28,6 +28,7 @@ use {
                 TokenAccountInitializationConfigs,
             },
             service::{
+                get_express_relay_metadata::GetExpressRelayMetadataInput,
                 get_live_opportunities::GetLiveOpportunitiesInput,
                 get_opportunities::GetLiveOpportunityByIdInput,
                 get_quote::{
@@ -278,14 +279,35 @@ impl Service {
         })
     }
 
-    pub fn extract_swap_data(
+    pub async fn extract_swap_data(
+        &self,
         instruction: &CompiledInstruction,
-    ) -> Result<express_relay_svm::SwapArgs, RestError> {
-        let discriminator = express_relay_svm::instruction::Swap::DISCRIMINATOR;
-        express_relay_svm::SwapArgs::try_from_slice(
-            &instruction.data.as_slice()[discriminator.len()..],
-        )
-        .map_err(|e| RestError::BadParameters(format!("Invalid swap instruction data: {}", e)))
+    ) -> Result<express_relay_svm::SwapV2Args, RestError> {
+        if instruction
+            .data
+            .starts_with(express_relay_svm::instruction::Swap::DISCRIMINATOR)
+        {
+            let discriminator = express_relay_svm::instruction::Swap::DISCRIMINATOR;
+            let express_relay_metadata = self
+                .opportunity_service
+                .get_express_relay_metadata(GetExpressRelayMetadataInput {
+                    chain_id: self.config.chain_id.clone(),
+                })
+                .await?;
+            let swap_args = express_relay_svm::SwapArgs::try_from_slice(
+                &instruction.data.as_slice()[discriminator.len()..],
+            )
+            .map_err(|e| {
+                RestError::BadParameters(format!("Invalid swap instruction data: {}", e))
+            })?;
+            Ok(swap_args.convert_to_v2(express_relay_metadata.swap_platform_fee_bps))
+        } else {
+            let discriminator = express_relay_svm::instruction::SwapV2::DISCRIMINATOR;
+            express_relay_svm::SwapV2Args::try_from_slice(
+                &instruction.data.as_slice()[discriminator.len()..],
+            )
+            .map_err(|e| RestError::BadParameters(format!("Invalid swap instruction data: {}", e)))
+        }
     }
 
     pub fn extract_express_relay_instruction(
@@ -293,11 +315,14 @@ impl Service {
         transaction: VersionedTransaction,
         instruction_type: BidPaymentInstructionType,
     ) -> Result<(usize, CompiledInstruction), RestError> {
-        let discriminator = match instruction_type {
+        let valid_discriminators = match instruction_type {
             BidPaymentInstructionType::SubmitBid => {
-                express_relay_svm::instruction::SubmitBid::DISCRIMINATOR
+                vec![express_relay_svm::instruction::SubmitBid::DISCRIMINATOR]
             }
-            BidPaymentInstructionType::Swap => express_relay_svm::instruction::Swap::DISCRIMINATOR,
+            BidPaymentInstructionType::Swap => vec![
+                express_relay_svm::instruction::Swap::DISCRIMINATOR,
+                express_relay_svm::instruction::SwapV2::DISCRIMINATOR,
+            ],
         };
         let instructions = Self::extract_program_instructions(
             &transaction,
@@ -316,7 +341,10 @@ impl Service {
                 instructions.len(),
             )),
         }?;
-        if !instruction.data.starts_with(discriminator) {
+        if valid_discriminators
+            .iter()
+            .all(|discriminator| !instruction.data.starts_with(discriminator))
+        {
             return Err(RestError::BadParameters(
                 "Wrong instruction type for Express Relay Program".to_string(),
             ));
@@ -398,7 +426,7 @@ impl Service {
             bid_data.transaction.clone(),
             BidPaymentInstructionType::Swap,
         )?;
-        let swap_data = Self::extract_swap_data(&swap_instruction)?;
+        let swap_data = self.extract_swap_data(&swap_instruction).await?;
         let SwapAccounts {
             user_wallet,
             mint_searcher,
@@ -508,11 +536,20 @@ impl Service {
             ));
         }
 
-        if swap_data.referral_fee_bps != opportunity_swap_data.referral_fee_bps {
+        if swap_data.referral_fee_ppm != opportunity_swap_data.referral_fee_ppm {
             return Err(RestError::InvalidSwapInstruction(
                 SwapInstructionError::ReferralFee {
-                    expected: opportunity_swap_data.referral_fee_bps,
-                    found:    swap_data.referral_fee_bps,
+                    expected: opportunity_swap_data.referral_fee_ppm,
+                    found:    swap_data.referral_fee_ppm,
+                },
+            ));
+        }
+
+        if swap_data.swap_platform_fee_ppm != opportunity_swap_data.platform_fee_ppm {
+            return Err(RestError::InvalidSwapInstruction(
+                SwapInstructionError::PlatformFee {
+                    expected: opportunity_swap_data.platform_fee_ppm,
+                    found:    swap_data.swap_platform_fee_ppm,
                 },
             ));
         }
@@ -604,7 +641,7 @@ impl Service {
     async fn check_transfer_instruction(
         &self,
         tx: &VersionedTransaction,
-        swap_data: &express_relay_svm::SwapArgs,
+        swap_data: &express_relay_svm::SwapV2Args,
         swap_accounts: &SwapAccounts,
         opportunity_swap_data: &OpportunitySvmProgramSwap,
     ) -> Result<(), RestError> {
@@ -1081,7 +1118,7 @@ impl Service {
     async fn check_wrap_unwrap_native_token_instructions(
         &self,
         tx: &VersionedTransaction,
-        swap_data: &express_relay_svm::SwapArgs,
+        swap_data: &express_relay_svm::SwapV2Args,
         swap_accounts: &SwapAccounts,
         opportunity_swap_data: &OpportunitySvmProgramSwap,
     ) -> Result<(), RestError> {
@@ -1170,7 +1207,7 @@ impl Service {
                         bid_data.transaction.clone(),
                         BidPaymentInstructionType::Swap,
                     )?;
-                let swap_data = Self::extract_swap_data(&swap_instruction)?;
+                let swap_data = self.extract_swap_data(&swap_instruction).await?;
                 let swap_accounts = self
                     .extract_swap_accounts(&bid_data.transaction, &swap_instruction)
                     .await?;
@@ -1229,7 +1266,7 @@ impl Service {
                     &quote_tokens,
                     &user_wallet,
                     &router_token_account,
-                    swap_data.referral_fee_bps,
+                    swap_data.referral_fee_ppm,
                 );
 
                 Ok(BidDataSvm {
@@ -1607,6 +1644,7 @@ mod tests {
             },
         },
         borsh::BorshDeserialize,
+        express_relay::state::FEE_BPS_TO_PPM,
         express_relay_api_types::opportunity as opportunity_api,
         express_relay_client::svm::{
             self,
@@ -1654,10 +1692,12 @@ mod tests {
             Self {
                 user_wallet_address,
                 platform_fee_bps: 0,
+                platform_fee_ppm: 0,
                 token_program_user: spl_token::id(),
                 token_program_searcher: spl_token::id(),
                 fee_token: FeeToken::UserToken,
                 referral_fee_bps: 10,
+                referral_fee_ppm: 1_000,
                 user_mint_user_balance: LAMPORTS_PER_SOL,
                 token_account_initialization_configs:
                     TokenAccountInitializationConfigs::searcher_payer(),
@@ -1721,6 +1761,7 @@ mod tests {
             searcher_token: spl_token::native_mint::id(),
         };
         let referral_fee_bps = 10;
+        let referral_fee_ppm = referral_fee_bps * FEE_BPS_TO_PPM;
 
         let router_token_account = get_associated_token_address_with_program_id(
             &router,
@@ -1737,25 +1778,25 @@ mod tests {
             &tokens_user_specified,
             &user_wallet_address,
             &router_token_account,
-            referral_fee_bps,
+            referral_fee_ppm,
         );
         let permission_account_searcher_token_specified = get_quote_virtual_permission_account(
             &tokens_searcher_specified,
             &user_wallet_address,
             &router_token_account,
-            referral_fee_bps,
+            referral_fee_ppm,
         );
         let permission_account_user_token_wsol = get_quote_virtual_permission_account(
             &tokens_user_wsol,
             &user_wallet_address,
             &router_token_account_wsol,
-            referral_fee_bps,
+            referral_fee_ppm,
         );
         let permission_account_searcher_token_wsol = get_quote_virtual_permission_account(
             &tokens_searcher_wsol,
             &user_wallet_address,
             &router_token_account,
-            referral_fee_bps,
+            referral_fee_ppm,
         );
 
         let opp_user_token_specified = OpportunitySvm {
@@ -1875,7 +1916,7 @@ mod tests {
             &tokens_user_specified,
             &indicative_price_taker,
             &router_token_account,
-            referral_fee_bps,
+            referral_fee_ppm,
         );
 
         let opp_with_indicative_price_taker = OpportunitySvm {
@@ -2024,6 +2065,24 @@ mod tests {
                     .iter()
                     .find(|opp| opp.id == input.opportunity_id)
                     .cloned()
+            });
+
+        opportunity_service
+            .expect_get_express_relay_metadata()
+            .returning(move |_| {
+                Ok(express_relay::state::ExpressRelayMetadata {
+                    admin:                    Pubkey::new_unique(),
+                    relayer_signer:           Pubkey::new_unique(),
+                    fee_receiver_relayer:     Pubkey::new_unique(),
+                    // the portion of the bid that goes to the router, in bps
+                    split_router_default:     10,
+                    // the portion of the remaining bid (after router fees) that goes to the relayer, in bps
+                    split_relayer:            20,
+                    // the portion of the swap amount that should go to the platform (relayer + express relay), in bps
+                    swap_platform_fee_bps:    30,
+                    // secondary relayer signer, useful for 0-downtime transitioning to a new relayer
+                    secondary_relayer_signer: Pubkey::new_unique(),
+                })
             });
 
         (
@@ -2897,7 +2956,7 @@ mod tests {
             OpportunitySvmProgram::Swap(program) => program,
             _ => panic!("Expected swap program"),
         };
-        program.referral_fee_bps += 1;
+        program.referral_fee_ppm += 1;
         opportunity.program = OpportunitySvmProgram::Swap(program.clone());
         let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
             searcher:             searcher.pubkey(),
@@ -2914,8 +2973,8 @@ mod tests {
         assert_eq!(
             result.unwrap_err(),
             RestError::InvalidSwapInstruction(SwapInstructionError::ReferralFee {
-                expected: program.referral_fee_bps - 1,
-                found:    program.referral_fee_bps,
+                expected: program.referral_fee_ppm - 1,
+                found:    program.referral_fee_ppm,
             })
         );
     }
