@@ -31,6 +31,7 @@ use {
                 self,
                 OpportunitySvmProgram,
                 OpportunitySvmProgramSwap,
+                TokenAccountInitializationConfig,
                 TokenAccountInitializationConfigs,
                 TokenAmountSvm,
             },
@@ -301,7 +302,7 @@ impl Service {
                 },
             },
         };
-        let (user_wallet_address, user_mint_user_balance, token_account_initialization_configs) =
+        let (user_wallet_address, user_mint_user_balance, mut token_account_initialization_configs) =
             match quote_create.user_wallet_address {
                 Some(address) => {
                     let balances = self
@@ -333,6 +334,19 @@ impl Service {
                     )
                 }
             };
+
+        if referral_fee_info.referral_fee_ppm == 0 {
+            // If the referral fee is 0, we can skip the initialization of the router token account
+            token_account_initialization_configs.router_fee_receiver_ta =
+                TokenAccountInitializationConfig::Unneeded;
+        }
+        if metadata.swap_platform_fee_bps == 0 {
+            // If the platform fee is 0, we can skip the initialization of the router token account
+            token_account_initialization_configs.express_relay_fee_receiver_ata =
+                TokenAccountInitializationConfig::Unneeded;
+            token_account_initialization_configs.relayer_fee_receiver_ata =
+                TokenAccountInitializationConfig::Unneeded;
+        }
 
         let permission_account = get_quote_virtual_permission_account(
             &tokens_for_permission,
