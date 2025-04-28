@@ -31,6 +31,7 @@ chains:
       - TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA
       - TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb
     ordered_fee_tokens: []
+    auction_time: 250ms
     token_whitelist:
       enabled: true
       whitelist_mints:
