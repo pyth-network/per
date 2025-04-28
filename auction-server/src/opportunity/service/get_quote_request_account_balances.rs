@@ -130,7 +130,6 @@ impl QuoteRequestAccountBalances {
     }
 }
 
-
 impl Service {
     #[tracing::instrument(skip_all, err(level = tracing::Level::TRACE))]
     pub async fn get_quote_request_account_balances(

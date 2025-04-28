@@ -139,9 +139,9 @@ class SimpleSearcherSvm:
 
     async def get_mint_decimals(self, mint: Pubkey) -> int:
         if str(mint) not in self.mint_decimals_cache:
-            self.mint_decimals_cache[
-                str(mint)
-            ] = await self.limo_client.get_mint_decimals(mint)
+            self.mint_decimals_cache[str(mint)] = (
+                await self.limo_client.get_mint_decimals(mint)
+            )
         return self.mint_decimals_cache[str(mint)]
 
     async def generate_bid(self, opp: OpportunitySvm) -> BidSvm:
