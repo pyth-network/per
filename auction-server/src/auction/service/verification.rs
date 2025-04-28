@@ -48,10 +48,7 @@ use {
     },
     axum::async_trait,
     borsh::de::BorshDeserialize,
-    express_relay::{
-        error::ErrorCode,
-        state::FEE_BPS_TO_PPM,
-    },
+    express_relay::error::ErrorCode,
     litesvm::types::FailedTransactionMetadata,
     solana_sdk::{
         address_lookup_table::state::AddressLookupTable,
@@ -548,13 +545,11 @@ impl Service {
             ));
         }
 
-        if swap_data.swap_platform_fee_ppm
-            != opportunity_swap_data.platform_fee_bps * FEE_BPS_TO_PPM
-        {
+        if swap_data.swap_platform_fee_ppm != opportunity_swap_data.platform_fee_ppm {
             return Err(RestError::InvalidSwapInstruction(
-                SwapInstructionError::ReferralFee {
-                    expected: opportunity_swap_data.referral_fee_ppm,
-                    found:    swap_data.referral_fee_ppm,
+                SwapInstructionError::PlatformFee {
+                    expected: opportunity_swap_data.platform_fee_ppm,
+                    found:    swap_data.swap_platform_fee_ppm,
                 },
             ));
         }
@@ -1697,6 +1692,7 @@ mod tests {
             Self {
                 user_wallet_address,
                 platform_fee_bps: 0,
+                platform_fee_ppm: 0,
                 token_program_user: spl_token::id(),
                 token_program_searcher: spl_token::id(),
                 fee_token: FeeToken::UserToken,

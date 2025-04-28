@@ -387,7 +387,7 @@ impl std::fmt::Display for SwapInstructionError {
             ),
             SwapInstructionError::PlatformFee { expected, found } => write!(
                 f,
-                "Invalid platform fee bps {} in swap instruction data. Value does not match the platform fee bps in swap opportunity {}",
+                "Invalid platform fee ppm {} in swap instruction data. Value does not match the platform fee ppm in swap opportunity {}",
                 found, expected
             ),
         }

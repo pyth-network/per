@@ -224,6 +224,7 @@ pub enum OpportunityParamsV1ProgramSvm {
         #[serde_as(as = "DisplayFromStr")]
         router_account: Pubkey,
 
+        // TODO this should be deleted
         /// The referral fee in basis points.
         #[schema(example = 10)]
         referral_fee_bps: u16,
@@ -236,6 +237,10 @@ pub enum OpportunityParamsV1ProgramSvm {
         /// The platform fee in basis points.
         #[schema(example = 10)]
         platform_fee_bps: u64,
+
+        /// The platform fee in basis points.
+        #[schema(example = 1000)]
+        platform_fee_ppm: u64,
 
         /// Specifies whether the fees are to be paid in the searcher or user token.
         #[schema(example = "searcher_token")]

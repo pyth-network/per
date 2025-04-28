@@ -349,9 +349,10 @@ impl Service {
             entities::OpportunitySvmProgram::Swap(entities::OpportunitySvmProgramSwap {
                 user_wallet_address,
                 fee_token,
-                referral_fee_ppm: referral_fee_info.referral_fee_ppm,
                 referral_fee_bps,
+                referral_fee_ppm: referral_fee_info.referral_fee_ppm,
                 platform_fee_bps: metadata.swap_platform_fee_bps,
+                platform_fee_ppm: metadata.swap_platform_fee_bps * FEE_BPS_TO_PPM,
                 token_program_user,
                 user_mint_user_balance,
                 token_account_initialization_configs,
