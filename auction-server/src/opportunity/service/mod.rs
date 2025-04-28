@@ -43,13 +43,13 @@ use {
 
 pub mod add_opportunity;
 pub mod get_config;
+pub mod get_express_relay_metadata;
 pub mod get_live_opportunities;
 pub mod get_opportunities;
 pub mod get_quote;
 pub mod remove_invalid_or_expired_opportunities;
 pub mod remove_opportunities;
 
-mod get_express_relay_metadata;
 mod get_quote_request_account_balances;
 mod get_token_program;
 mod unwrap_referral_fee_info;
@@ -274,5 +274,6 @@ mock! {
             input: get_opportunities::GetOpportunitiesInput,
         ) -> Result<Vec<OpportunitySvm>, crate::api::RestError>;
         pub async fn get_quote(&self, input: get_quote::GetQuoteInput) -> Result<crate::opportunity::entities::Quote, crate::api::RestError>;
+        pub async fn get_express_relay_metadata(&self, input: get_express_relay_metadata::GetExpressRelayMetadataInput) -> Result<express_relay::state::ExpressRelayMetadata, crate::api::RestError>;
     }
 }

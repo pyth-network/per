@@ -31,7 +31,7 @@ pub struct Quote {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ReferralFeeInfo {
     pub router:           Pubkey,
-    pub referral_fee_bps: u16,
+    pub referral_fee_ppm: u64,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -92,7 +92,7 @@ impl From<api::ReferralFeeInfo> for ReferralFeeInfo {
     fn from(referral_fee_info: api::ReferralFeeInfo) -> Self {
         Self {
             router:           referral_fee_info.router,
-            referral_fee_bps: referral_fee_info.referral_fee_bps,
+            referral_fee_ppm: referral_fee_info.referral_fee_ppm,
         }
     }
 }

@@ -22,7 +22,7 @@ impl Service {
                 let config = self.get_config(chain_id)?;
                 Ok(ReferralFeeInfo {
                     router:           Service::calculate_metadata_address(config),
-                    referral_fee_bps: 0,
+                    referral_fee_ppm: 0,
                 })
             }
         }

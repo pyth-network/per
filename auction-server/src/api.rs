@@ -319,8 +319,12 @@ pub enum SwapInstructionError {
         found:    express_relay::FeeToken,
     },
     ReferralFee {
-        expected: u16,
-        found:    u16,
+        expected: u64,
+        found:    u64,
+    },
+    PlatformFee {
+        expected: u64,
+        found:    u64,
     },
     AssociatedRouterTokenAccount {
         expected: Pubkey,
@@ -380,6 +384,11 @@ impl std::fmt::Display for SwapInstructionError {
                 f,
                 "Associated token account for router does not match. Expected: {:?} found: {:?}",
                 expected, found
+            ),
+            SwapInstructionError::PlatformFee { expected, found } => write!(
+                f,
+                "Invalid platform fee bps {} in swap instruction data. Value does not match the platform fee bps in swap opportunity {}",
+                found, expected
             ),
         }
     }

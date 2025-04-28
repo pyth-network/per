@@ -14,7 +14,7 @@ use {
     },
 };
 
-pub struct GetExpressRelayMetadata {
+pub struct GetExpressRelayMetadataInput {
     pub chain_id: ChainId,
 }
 
@@ -24,7 +24,7 @@ impl Service {
     /// Uses one hour cache to avoid repeated RPC calls
     pub async fn get_express_relay_metadata(
         &self,
-        input: GetExpressRelayMetadata,
+        input: GetExpressRelayMetadataInput,
     ) -> Result<ExpressRelayMetadata, RestError> {
         let token_program_query = self.repo.query_express_relay_metadata().await;
         let metadata = match token_program_query {
@@ -115,7 +115,7 @@ mod tests {
             .await;
 
         let params_received = service
-            .get_express_relay_metadata(GetExpressRelayMetadata {
+            .get_express_relay_metadata(GetExpressRelayMetadataInput {
                 chain_id: "doesntactuallymatter".to_string(),
             })
             .await
@@ -167,7 +167,7 @@ mod tests {
             .inject_mock_service(auction_service);
 
         let params_received = service
-            .get_express_relay_metadata(GetExpressRelayMetadata {
+            .get_express_relay_metadata(GetExpressRelayMetadataInput {
                 chain_id: DEFAULT_CHAIN_ID.to_string(),
             })
             .await

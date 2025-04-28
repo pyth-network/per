@@ -5,7 +5,7 @@ use {
         ExpressRelayMetadata,
         FeeToken,
         SubmitBidArgs,
-        SwapArgs,
+        SwapV2Args,
         SEED_CONFIG_ROUTER,
         SEED_METADATA,
     },
@@ -108,7 +108,7 @@ pub fn create_swap_instruction(
     mint_user: Pubkey,
     token_program_searcher: Pubkey,
     token_program_user: Pubkey,
-    swap_args: SwapArgs,
+    swap_args: SwapV2Args,
     relayer_signer: Pubkey,
 ) -> Instruction {
     let express_relay_metadata =
@@ -167,7 +167,7 @@ pub fn create_swap_instruction(
         relayer_signer,
     }
     .to_account_metas(None);
-    let data_submit_bid = instruction::Swap { data: swap_args }.data();
+    let data_submit_bid = instruction::SwapV2 { data: swap_args }.data();
 
     Instruction {
         program_id: express_relay_pid,

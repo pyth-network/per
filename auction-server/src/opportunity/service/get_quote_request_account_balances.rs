@@ -1,6 +1,6 @@
 use {
     super::{
-        get_express_relay_metadata::GetExpressRelayMetadata,
+        get_express_relay_metadata::GetExpressRelayMetadataInput,
         Service,
     },
     crate::{
@@ -144,7 +144,7 @@ impl Service {
         };
 
         let metadata = self
-            .get_express_relay_metadata(GetExpressRelayMetadata {
+            .get_express_relay_metadata(GetExpressRelayMetadataInput {
                 chain_id: input.chain_id.clone(),
             })
             .await?;

@@ -73,6 +73,8 @@ pub struct OpportunityMetadataSvmProgramSwap {
     #[serde_as(as = "DisplayFromStr")]
     pub user_wallet_address:                  Pubkey,
     pub fee_token:                            FeeToken,
+    #[serde(default = "default_referral_fee_ppm")]
+    pub referral_fee_ppm:                     u64,
     pub referral_fee_bps:                     u16,
     pub platform_fee_bps:                     u64,
     #[serde_as(as = "DisplayFromStr")]
@@ -100,6 +102,11 @@ fn default_cancellable() -> bool {
 fn default_token_program() -> Pubkey {
     spl_token::ID
 }
+
+fn default_referral_fee_ppm() -> u64 {
+    0
+}
+
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "program", rename_all = "lowercase")]

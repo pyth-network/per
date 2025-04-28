@@ -224,9 +224,10 @@ mod mock_service {
                 auction: entities::Auction,
             ) -> Result<VersionedTransaction, RestError>;
 
-            pub fn extract_swap_data(
+            pub async fn extract_swap_data(
+                &self,
                 instruction: &CompiledInstruction,
-            ) -> Result<express_relay::SwapArgs, RestError>;
+            ) -> Result<express_relay::SwapV2Args, RestError>;
 
             pub fn get_new_status(
                 bid: &entities::Bid,

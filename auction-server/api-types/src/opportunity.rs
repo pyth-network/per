@@ -228,6 +228,10 @@ pub enum OpportunityParamsV1ProgramSvm {
         #[schema(example = 10)]
         referral_fee_bps: u16,
 
+        /// The referral fee in parts per million.
+        #[schema(example = 1000)]
+        referral_fee_ppm: u64,
+
         /// The platform fee in basis points.
         #[schema(example = 10)]
         platform_fee_bps: u64,
@@ -471,9 +475,9 @@ pub struct ReferralFeeInfo {
     #[schema(example = "DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5", value_type = String)]
     #[serde_as(as = "DisplayFromStr")]
     pub router:           Pubkey,
-    /// The referral fee in basis points.
+    /// The referral fee in parts per million.
     #[schema(example = 10, value_type = u16)]
-    pub referral_fee_bps: u16,
+    pub referral_fee_ppm: u64,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]

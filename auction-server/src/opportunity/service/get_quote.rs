@@ -36,15 +36,16 @@ use {
             },
             service::{
                 add_opportunity::AddOpportunityInput,
-                get_express_relay_metadata::GetExpressRelayMetadata,
+                get_express_relay_metadata::GetExpressRelayMetadataInput,
             },
         },
     },
-    ::express_relay::{
-        state::FEE_SPLIT_PRECISION,
-        FeeToken,
-    },
+    ::express_relay::FeeToken,
     axum_prometheus::metrics,
+    express_relay::state::{
+        FEE_BPS_TO_PPM,
+        FEE_SPLIT_PRECISION_PPM,
+    },
     express_relay_api_types::opportunity::ProgramSvm,
     rand::Rng,
     solana_sdk::pubkey::Pubkey,
@@ -110,11 +111,16 @@ pub fn get_quote_virtual_permission_account(
     tokens: &entities::QuoteTokens,
     user_wallet_address: &Pubkey,
     router_token_account: &Pubkey,
-    referral_fee_bps: u16,
+    referral_fee_ppm: u64,
 ) -> Pubkey {
+    println!("tokens: {:?}", tokens);
+    println!("user_wallet_address: {:?}", user_wallet_address);
+    println!("router_token_account: {:?}", router_token_account);
+    println!("referral_fee_ppm: {:?}", referral_fee_ppm);
+
     let user_token_amount: [u8; 8];
     let searcher_token_amount: [u8; 8];
-    let referral_fee_bps = referral_fee_bps.to_le_bytes();
+    let referral_fee_ppm = referral_fee_ppm.to_le_bytes();
     let seeds = match tokens {
         entities::QuoteTokens::UserTokenSpecified {
             user_token,
@@ -129,7 +135,7 @@ pub fn get_quote_virtual_permission_account(
                 searcher_token_mint,
                 user_token_mint,
                 user_token_amount.as_ref(),
-                referral_fee_bps.as_ref(),
+                referral_fee_ppm.as_ref(),
             ]
         }
         entities::QuoteTokens::SearcherTokenSpecified {
@@ -145,7 +151,7 @@ pub fn get_quote_virtual_permission_account(
                 searcher_token_mint,
                 searcher_token_amount.as_ref(),
                 user_token_mint,
-                referral_fee_bps.as_ref(),
+                referral_fee_ppm.as_ref(),
             ]
         }
     };
@@ -215,7 +221,7 @@ impl Service {
         // TODO*: we should fix the Opportunity struct (or create a new format) to more clearly distinguish Swap opps from traditional opps
         // currently, we are using the same struct and just setting the unspecified token amount to 0
         let metadata = self
-            .get_express_relay_metadata(GetExpressRelayMetadata {
+            .get_express_relay_metadata(GetExpressRelayMetadataInput {
                 chain_id: quote_create.chain_id.clone(),
             })
             .await?;
@@ -229,10 +235,10 @@ impl Service {
             ) => {
                 // This is not exactly accurate and may overestimate the amount needed
                 // because of floor / ceil rounding errors.
-                let denominator: u64 = FEE_SPLIT_PRECISION
-                    - <u16 as Into<u64>>::into(referral_fee_info.referral_fee_bps)
-                    - metadata.swap_platform_fee_bps;
-                let numerator = searcher_token.amount * FEE_SPLIT_PRECISION;
+                let denominator: u64 = FEE_SPLIT_PRECISION_PPM
+                    - referral_fee_info.referral_fee_ppm
+                    - (metadata.swap_platform_fee_bps * FEE_BPS_TO_PPM);
+                let numerator = searcher_token.amount * FEE_SPLIT_PRECISION_PPM;
                 let amount_including_fees = numerator.div_ceil(denominator);
                 (amount_including_fees, 0u64)
             }
@@ -337,14 +343,19 @@ impl Service {
             &tokens_for_permission,
             &user_wallet_address,
             &router_token_account,
-            referral_fee_info.referral_fee_bps,
+            referral_fee_info.referral_fee_ppm,
         );
+
+        let referral_fee_bps =
+            u16::try_from(referral_fee_info.referral_fee_ppm / FEE_BPS_TO_PPM)
+                .map_err(|_| RestError::BadParameters("Referral fee too high".to_string()))?;
 
         let program_opportunity =
             entities::OpportunitySvmProgram::Swap(entities::OpportunitySvmProgramSwap {
                 user_wallet_address,
                 fee_token,
-                referral_fee_bps: referral_fee_info.referral_fee_bps,
+                referral_fee_ppm: referral_fee_info.referral_fee_ppm,
+                referral_fee_bps,
                 platform_fee_bps: metadata.swap_platform_fee_bps,
                 token_program_user,
                 user_mint_user_balance,
@@ -419,10 +430,10 @@ impl Service {
         )?;
 
         // TODO use compute_swap_fees to make sure instead when the metadata is fetched from on-chain
-        if FEE_SPLIT_PRECISION < referral_fee_info.referral_fee_bps.into() {
+        if FEE_SPLIT_PRECISION_PPM < referral_fee_info.referral_fee_ppm {
             return Err(RestError::BadParameters(format!(
-                "Referral fee bps higher than {}",
-                FEE_SPLIT_PRECISION
+                "Referral fee ppm higher than {}",
+                FEE_SPLIT_PRECISION_PPM
             )));
         }
 
@@ -516,8 +527,10 @@ impl Service {
                 tracing::error!("Failed to verify swap instruction: {:?}", e);
                 RestError::TemporarilyUnavailable
             })?;
-        let swap_data =
-            auction::service::Service::extract_swap_data(&swap_instruction).map_err(|e| {
+        let swap_data = auction_service
+            .extract_swap_data(&swap_instruction)
+            .await
+            .map_err(|e| {
                 tracing::error!("Failed to extract swap data: {:?}", e);
                 RestError::TemporarilyUnavailable
             })?;
@@ -598,7 +611,7 @@ impl Service {
         }
 
         let metadata = self
-            .get_express_relay_metadata(GetExpressRelayMetadata {
+            .get_express_relay_metadata(GetExpressRelayMetadataInput {
                 chain_id: input.quote_create.chain_id.clone(),
             })
             .await?;
@@ -610,7 +623,7 @@ impl Service {
         let compute_fees = |amount: u64| {
             metadata
                 .compute_swap_fees_with_default_platform_fee(
-                    referral_fee_info.referral_fee_bps,
+                    referral_fee_info.referral_fee_ppm,
                     amount,
                 )
                 .map_err(|e| {
@@ -694,8 +707,8 @@ mod tests {
     use {
         super::*,
         crate::{
-            auction,
             auction::{
+                self,
                 entities::{
                     BidChainDataSvm,
                     BidStatusSvm,
@@ -729,7 +742,7 @@ mod tests {
         },
         express_relay::{
             state::ExpressRelayMetadata,
-            SwapArgs,
+            SwapV2Args,
         },
         solana_sdk::{
             instruction::CompiledInstruction,
@@ -782,7 +795,7 @@ mod tests {
     #[derive(Clone, Default)]
     struct AuctionServiceSequenceParams {
         bids:            Option<Vec<BidParams>>,
-        swap_args:       Option<SwapArgs>,
+        swap_args:       Option<SwapV2Args>,
         skip_bid_update: bool,
     }
 
@@ -814,19 +827,19 @@ mod tests {
                     .collect()
             });
 
+        let swap_args = swap_args.unwrap_or(SwapV2Args {
+            deadline:              1,
+            amount_searcher:       100,
+            amount_user:           1,
+            referral_fee_ppm:      0,
+            fee_token:             FeeToken::User,
+            swap_platform_fee_ppm: 0,
+        });
         auction_service
             .expect_extract_express_relay_instruction()
             .return_once(move |_, _| {
-                let swap_args = swap_args.unwrap_or(SwapArgs {
-                    deadline:         1,
-                    amount_searcher:  100,
-                    amount_user:      1,
-                    referral_fee_bps: 0,
-                    fee_token:        FeeToken::User,
-                });
-                let mut data = express_relay::instruction::Swap::DISCRIMINATOR.to_vec();
+                let mut data = express_relay::instruction::SwapV2::DISCRIMINATOR.to_vec();
                 data.append(&mut swap_args.try_to_vec().unwrap());
-
                 Ok((
                     1,
                     CompiledInstruction {
@@ -836,6 +849,10 @@ mod tests {
                     },
                 ))
             });
+
+        auction_service
+            .expect_extract_swap_data()
+            .return_once(move |_| Ok(swap_args));
 
         auction_service.expect_add_auction().returning(move |_| {
             Ok(Auction {
@@ -980,12 +997,13 @@ mod tests {
                     signature: Some(vec![win_sig]),
                     ..Default::default()
                 }]),
-                swap_args: Some(SwapArgs {
-                    deadline:         10,
-                    amount_searcher:  101,
-                    amount_user:      1,
-                    referral_fee_bps: 0,
-                    fee_token:        FeeToken::User,
+                swap_args: Some(SwapV2Args {
+                    deadline:              10,
+                    amount_searcher:       101,
+                    amount_user:           1,
+                    referral_fee_ppm:      0,
+                    fee_token:             FeeToken::User,
+                    swap_platform_fee_ppm: 0,
                 }),
                 skip_bid_update: true,
                 ..Default::default()
@@ -1101,7 +1119,7 @@ mod tests {
                     },
                     referral_fee_info:   Some(ReferralFeeInfo {
                         router:           Pubkey::new_unique(),
-                        referral_fee_bps: 20_000,
+                        referral_fee_ppm: 1_000_001,
                     }),
                     chain_id:            DEFAULT_CHAIN_ID.to_string(),
                     memo:                None,
@@ -1114,7 +1132,7 @@ mod tests {
         assert_eq!(
             result,
             Err(RestError::BadParameters(
-                "Referral fee bps higher than 10000".to_string()
+                "Referral fee ppm higher than 1000000".to_string()
             ))
         );
     }
@@ -1285,12 +1303,13 @@ mod tests {
             ..
         } = setup_basic_sequence(QuoteSequenceParams {
             auction_service_sequence: AuctionServiceSequenceParams {
-                swap_args: Some(SwapArgs {
-                    deadline:         10,
-                    amount_searcher:  20000,
-                    amount_user:      2000,
-                    referral_fee_bps: 15,
-                    fee_token:        FeeToken::User,
+                swap_args: Some(SwapV2Args {
+                    deadline:              10,
+                    amount_searcher:       20000,
+                    amount_user:           2000,
+                    referral_fee_ppm:      1500,
+                    fee_token:             FeeToken::User,
+                    swap_platform_fee_ppm: 0,
                 }),
                 ..Default::default()
             },
@@ -1353,12 +1372,13 @@ mod tests {
             ..
         } = setup_basic_sequence(QuoteSequenceParams {
             auction_service_sequence: AuctionServiceSequenceParams {
-                swap_args: Some(SwapArgs {
-                    deadline:         10,
-                    amount_searcher:  2000,
-                    amount_user:      2000,
-                    referral_fee_bps: 15,
-                    fee_token:        FeeToken::Searcher,
+                swap_args: Some(SwapV2Args {
+                    deadline:              10,
+                    amount_searcher:       2000,
+                    amount_user:           2000,
+                    referral_fee_ppm:      1500,
+                    fee_token:             FeeToken::Searcher,
+                    swap_platform_fee_ppm: 0,
                 }),
                 bids: Some(vec![BidParams {
                     signature: Some(vec![winner_sig]),
@@ -1441,12 +1461,13 @@ mod tests {
             ..
         } = setup_basic_sequence(QuoteSequenceParams {
             auction_service_sequence: AuctionServiceSequenceParams {
-                swap_args: Some(SwapArgs {
-                    deadline:         10,
-                    amount_searcher:  2000,
-                    amount_user:      2000,
-                    referral_fee_bps: 15,
-                    fee_token:        FeeToken::Searcher,
+                swap_args: Some(SwapV2Args {
+                    deadline:              10,
+                    amount_searcher:       2000,
+                    amount_user:           2000,
+                    referral_fee_ppm:      1500,
+                    fee_token:             FeeToken::Searcher,
+                    swap_platform_fee_ppm: 0,
                 }),
                 ..Default::default()
             },
@@ -1541,7 +1562,7 @@ mod tests {
                     },
                     referral_fee_info:   Some(ReferralFeeInfo {
                         router:           Pubkey::new_unique(),
-                        referral_fee_bps: 200,
+                        referral_fee_ppm: 200_000,
                     }),
                     chain_id:            DEFAULT_CHAIN_ID.to_string(),
                     memo:                None,
@@ -1572,7 +1593,7 @@ mod tests {
                     },
                     referral_fee_info:   Some(ReferralFeeInfo {
                         router:           Pubkey::new_unique(),
-                        referral_fee_bps: 200,
+                        referral_fee_ppm: 200_000,
                     }),
                     chain_id:            DEFAULT_CHAIN_ID.to_string(),
                     memo:                None,

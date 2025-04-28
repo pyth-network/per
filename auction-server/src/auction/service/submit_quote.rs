@@ -84,7 +84,7 @@ impl Service {
         &self,
         signed_bid: entities::Bid,
         auction: entities::Auction,
-        swap_args: express_relay::SwapArgs,
+        swap_args: express_relay::SwapV2Args,
         lock: entities::BidLock,
     ) -> Result<(), RestError> {
         let _lock = lock.lock().await;
@@ -162,7 +162,7 @@ impl Service {
     fn is_within_deadline_buffer(
         &self,
         chain_id: ChainId,
-        swap_args: express_relay::SwapArgs,
+        swap_args: express_relay::SwapV2Args,
     ) -> bool {
         let deadline_buffer_secs = swap_args.deadline - OffsetDateTime::now_utc().unix_timestamp();
 
@@ -235,7 +235,9 @@ impl Service {
             return Err(RestError::BadParameters("Invalid quote.".to_string()));
         }
 
-        let swap_args = Self::extract_swap_data(&swap_instruction)
+        let swap_args = self
+            .extract_swap_data(&swap_instruction)
+            .await
             .map_err(|_| RestError::BadParameters("Invalid quote.".to_string()))?;
 
         let bid_lock = self
