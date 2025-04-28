@@ -232,6 +232,7 @@ pub enum OpportunityParamsV1ProgramSvm {
         #[schema(example = 1000)]
         referral_fee_ppm: u64,
 
+        // TODO this should be deleted
         /// The platform fee in basis points.
         #[schema(example = 10)]
         platform_fee_bps: u64,

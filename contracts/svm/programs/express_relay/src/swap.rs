@@ -205,9 +205,9 @@ impl ExpressRelayMetadata {
         referral_fee_ppm: u64,
         amount: u64,
     ) -> Result<SwapFeesWithRemainingAmount> {
-        let swap_platform_fees_ppms = self.swap_platform_fee_bps * FEE_BPS_TO_PPM;
+        let swap_platform_fees_ppm = self.swap_platform_fee_bps * FEE_BPS_TO_PPM;
 
-        self.compute_swap_fees(referral_fee_ppm, swap_platform_fees_ppms, amount)
+        self.compute_swap_fees(referral_fee_ppm, swap_platform_fees_ppm, amount)
     }
 
     pub fn compute_swap_fees(
