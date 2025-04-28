@@ -113,11 +113,6 @@ pub fn get_quote_virtual_permission_account(
     router_token_account: &Pubkey,
     referral_fee_ppm: u64,
 ) -> Pubkey {
-    println!("tokens: {:?}", tokens);
-    println!("user_wallet_address: {:?}", user_wallet_address);
-    println!("router_token_account: {:?}", router_token_account);
-    println!("referral_fee_ppm: {:?}", referral_fee_ppm);
-
     let user_token_amount: [u8; 8];
     let searcher_token_amount: [u8; 8];
     let referral_fee_ppm = referral_fee_ppm.to_le_bytes();
