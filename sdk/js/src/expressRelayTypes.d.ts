@@ -8,7 +8,7 @@ export type ExpressRelay = {
   address: "PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou";
   metadata: {
     name: "expressRelay";
-    version: "0.6.0";
+    version: "0.7.0";
     spec: "0.1.0";
     description: "Pyth Express Relay program for handling permissioning and bid distribution";
     repository: "https://github.com/pyth-network/per";
@@ -251,6 +251,33 @@ export type ExpressRelay = {
       ];
     },
     {
+      name: "setSecondaryRelayer";
+      discriminator: [148, 85, 235, 83, 202, 78, 227, 232];
+      accounts: [
+        {
+          name: "admin";
+          signer: true;
+          relations: ["expressRelayMetadata"];
+        },
+        {
+          name: "expressRelayMetadata";
+          writable: true;
+          pda: {
+            seeds: [
+              {
+                kind: "const";
+                value: [109, 101, 116, 97, 100, 97, 116, 97];
+              },
+            ];
+          };
+        },
+        {
+          name: "secondaryRelayerSigner";
+        },
+      ];
+      args: [];
+    },
+    {
       name: "setSplits";
       discriminator: [175, 2, 86, 49, 225, 202, 232, 189];
       accounts: [
@@ -331,7 +358,6 @@ export type ExpressRelay = {
         {
           name: "relayerSigner";
           signer: true;
-          relations: ["expressRelayMetadata"];
         },
         {
           name: "permission";
@@ -552,117 +578,10 @@ export type ExpressRelay = {
         {
           name: "relayerFeeReceiverAta";
           writable: true;
-          pda: {
-            seeds: [
-              {
-                kind: "account";
-                path: "express_relay_metadata.fee_receiver_relayer";
-                account: "expressRelayMetadata";
-              },
-              {
-                kind: "account";
-                path: "tokenProgramFee";
-              },
-              {
-                kind: "account";
-                path: "mintFee";
-              },
-            ];
-            program: {
-              kind: "const";
-              value: [
-                140,
-                151,
-                37,
-                143,
-                78,
-                36,
-                137,
-                241,
-                187,
-                61,
-                16,
-                41,
-                20,
-                142,
-                13,
-                131,
-                11,
-                90,
-                19,
-                153,
-                218,
-                255,
-                16,
-                132,
-                4,
-                142,
-                123,
-                216,
-                219,
-                233,
-                248,
-                89,
-              ];
-            };
-          };
         },
         {
           name: "expressRelayFeeReceiverAta";
           writable: true;
-          pda: {
-            seeds: [
-              {
-                kind: "account";
-                path: "expressRelayMetadata";
-              },
-              {
-                kind: "account";
-                path: "tokenProgramFee";
-              },
-              {
-                kind: "account";
-                path: "mintFee";
-              },
-            ];
-            program: {
-              kind: "const";
-              value: [
-                140,
-                151,
-                37,
-                143,
-                78,
-                36,
-                137,
-                241,
-                187,
-                61,
-                16,
-                41,
-                20,
-                142,
-                13,
-                131,
-                11,
-                90,
-                19,
-                153,
-                218,
-                255,
-                16,
-                132,
-                4,
-                142,
-                123,
-                216,
-                219,
-                233,
-                248,
-                89,
-              ];
-            };
-          };
         },
         {
           name: "mintSearcher";
@@ -697,7 +616,6 @@ export type ExpressRelay = {
         {
           name: "relayerSigner";
           signer: true;
-          relations: ["expressRelayMetadata"];
         },
       ];
       args: [
@@ -706,6 +624,400 @@ export type ExpressRelay = {
           type: {
             defined: {
               name: "swapArgs";
+            };
+          };
+        },
+      ];
+    },
+    {
+      name: "swapInternal";
+      discriminator: [91, 176, 182, 173, 248, 21, 214, 60];
+      accounts: [
+        {
+          name: "searcher";
+          docs: ["Searcher is the party that fulfills the quote request"];
+          signer: true;
+        },
+        {
+          name: "user";
+          docs: ["User is the party that requests the quote"];
+          signer: true;
+        },
+        {
+          name: "searcherTaMintSearcher";
+          writable: true;
+        },
+        {
+          name: "searcherTaMintUser";
+          writable: true;
+        },
+        {
+          name: "userAtaMintSearcher";
+          writable: true;
+          pda: {
+            seeds: [
+              {
+                kind: "account";
+                path: "user";
+              },
+              {
+                kind: "account";
+                path: "tokenProgramSearcher";
+              },
+              {
+                kind: "account";
+                path: "mintSearcher";
+              },
+            ];
+            program: {
+              kind: "const";
+              value: [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89,
+              ];
+            };
+          };
+        },
+        {
+          name: "userAtaMintUser";
+          writable: true;
+          pda: {
+            seeds: [
+              {
+                kind: "account";
+                path: "user";
+              },
+              {
+                kind: "account";
+                path: "tokenProgramUser";
+              },
+              {
+                kind: "account";
+                path: "mintUser";
+              },
+            ];
+            program: {
+              kind: "const";
+              value: [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89,
+              ];
+            };
+          };
+        },
+        {
+          name: "routerFeeReceiverTa";
+          docs: [
+            "Router fee receiver token account: the referrer can provide an arbitrary receiver for the router fee",
+          ];
+          writable: true;
+        },
+        {
+          name: "relayerFeeReceiverAta";
+          writable: true;
+        },
+        {
+          name: "expressRelayFeeReceiverAta";
+          writable: true;
+        },
+        {
+          name: "mintSearcher";
+        },
+        {
+          name: "mintUser";
+        },
+        {
+          name: "mintFee";
+        },
+        {
+          name: "tokenProgramSearcher";
+        },
+        {
+          name: "tokenProgramUser";
+        },
+        {
+          name: "tokenProgramFee";
+        },
+        {
+          name: "expressRelayMetadata";
+          docs: ["Express relay configuration"];
+          pda: {
+            seeds: [
+              {
+                kind: "const";
+                value: [109, 101, 116, 97, 100, 97, 116, 97];
+              },
+            ];
+          };
+        },
+        {
+          name: "relayerSigner";
+          signer: true;
+        },
+      ];
+      args: [
+        {
+          name: "data";
+          type: {
+            defined: {
+              name: "swapV2Args";
+            };
+          };
+        },
+      ];
+    },
+    {
+      name: "swapV2";
+      discriminator: [43, 4, 237, 11, 26, 201, 30, 98];
+      accounts: [
+        {
+          name: "searcher";
+          docs: ["Searcher is the party that fulfills the quote request"];
+          signer: true;
+        },
+        {
+          name: "user";
+          docs: ["User is the party that requests the quote"];
+          signer: true;
+        },
+        {
+          name: "searcherTaMintSearcher";
+          writable: true;
+        },
+        {
+          name: "searcherTaMintUser";
+          writable: true;
+        },
+        {
+          name: "userAtaMintSearcher";
+          writable: true;
+          pda: {
+            seeds: [
+              {
+                kind: "account";
+                path: "user";
+              },
+              {
+                kind: "account";
+                path: "tokenProgramSearcher";
+              },
+              {
+                kind: "account";
+                path: "mintSearcher";
+              },
+            ];
+            program: {
+              kind: "const";
+              value: [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89,
+              ];
+            };
+          };
+        },
+        {
+          name: "userAtaMintUser";
+          writable: true;
+          pda: {
+            seeds: [
+              {
+                kind: "account";
+                path: "user";
+              },
+              {
+                kind: "account";
+                path: "tokenProgramUser";
+              },
+              {
+                kind: "account";
+                path: "mintUser";
+              },
+            ];
+            program: {
+              kind: "const";
+              value: [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89,
+              ];
+            };
+          };
+        },
+        {
+          name: "routerFeeReceiverTa";
+          docs: [
+            "Router fee receiver token account: the referrer can provide an arbitrary receiver for the router fee",
+          ];
+          writable: true;
+        },
+        {
+          name: "relayerFeeReceiverAta";
+          writable: true;
+        },
+        {
+          name: "expressRelayFeeReceiverAta";
+          writable: true;
+        },
+        {
+          name: "mintSearcher";
+        },
+        {
+          name: "mintUser";
+        },
+        {
+          name: "mintFee";
+        },
+        {
+          name: "tokenProgramSearcher";
+        },
+        {
+          name: "tokenProgramUser";
+        },
+        {
+          name: "tokenProgramFee";
+        },
+        {
+          name: "expressRelayMetadata";
+          docs: ["Express relay configuration"];
+          pda: {
+            seeds: [
+              {
+                kind: "const";
+                value: [109, 101, 116, 97, 100, 97, 116, 97];
+              },
+            ];
+          };
+        },
+        {
+          name: "relayerSigner";
+          signer: true;
+        },
+      ];
+      args: [
+        {
+          name: "data";
+          type: {
+            defined: {
+              name: "swapV2Args";
             };
           };
         },
@@ -796,6 +1108,11 @@ export type ExpressRelay = {
       name: "invalidReferralFee";
       msg: "Invalid referral fee";
     },
+    {
+      code: 6009;
+      name: "insufficientUserFunds";
+      msg: "Insufficient user funds";
+    },
   ];
   types: [
     {
@@ -842,6 +1159,10 @@ export type ExpressRelay = {
           {
             name: "swapPlatformFeeBps";
             type: "u64";
+          },
+          {
+            name: "secondaryRelayerSigner";
+            type: "pubkey";
           },
         ];
       };
@@ -968,6 +1289,46 @@ export type ExpressRelay = {
                 name: "feeToken";
               };
             };
+          },
+        ];
+      };
+    },
+    {
+      name: "swapV2Args";
+      type: {
+        kind: "struct";
+        fields: [
+          {
+            name: "deadline";
+            docs: ["deadline as a unix timestamp in seconds"];
+            type: "i64";
+          },
+          {
+            name: "amountSearcher";
+            type: "u64";
+          },
+          {
+            name: "amountUser";
+            type: "u64";
+          },
+          {
+            name: "referralFeePpm";
+            docs: ["The referral fee is specified in parts per million"];
+            type: "u64";
+          },
+          {
+            name: "feeToken";
+            docs: ["Token in which the fees will be paid"];
+            type: {
+              defined: {
+                name: "feeToken";
+              };
+            };
+          },
+          {
+            name: "swapPlatformFeePpm";
+            docs: ["The platform fee is specified in parts per million"];
+            type: "u64";
           },
         ];
       };

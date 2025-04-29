@@ -9,20 +9,18 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.11"
 web3 = "^7.8.0"
-eth_abi = "^5.2.0"
-eth_account = "^0.13.5"
 httpx = "^0.28.1"
 websockets = "^10.0"
 argparse = "^1.4.0"
 pydantic = "^2.10.6"
-anchorpy = "^0.20.1"
-solana = "^0.34.3"
+anchorpy = "^0.21.0"
+solana = "^0.36.6"
 
 [tool.poetry.group.dev.dependencies]
 black = "^22.3.0"
 pyflakes = "^3.2.0"
 mypy = "^1.9.0"
-anchorpy = {extras = ["cli"], version = "^0.20.1"}
+anchorpy = {extras = ["cli"], version = "^0.21.0"}
 isort = "^5.13.2"
 flake8 = "^7.1.1"
 

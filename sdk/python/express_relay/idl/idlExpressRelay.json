@@ -1,5 +1,5 @@
 {
-  "version": "0.6.0",
+  "version": "0.7.0",
   "name": "express_relay",
   "instructions": [
     {
@@ -86,6 +86,27 @@
         },
         {
           "name": "feeReceiverRelayer",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "setSecondaryRelayer",
+      "accounts": [
+        {
+          "name": "admin",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "expressRelayMetadata",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "secondaryRelayerSigner",
           "isMut": false,
           "isSigner": false
         }
@@ -296,6 +317,110 @@
       "args": []
     },
     {
+      "name": "swapInternal",
+      "accounts": [
+        {
+          "name": "searcher",
+          "isMut": false,
+          "isSigner": true,
+          "docs": ["Searcher is the party that fulfills the quote request"]
+        },
+        {
+          "name": "user",
+          "isMut": false,
+          "isSigner": true,
+          "docs": ["User is the party that requests the quote"]
+        },
+        {
+          "name": "searcherTaMintSearcher",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "searcherTaMintUser",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userAtaMintSearcher",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userAtaMintUser",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "routerFeeReceiverTa",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Router fee receiver token account: the referrer can provide an arbitrary receiver for the router fee"
+          ]
+        },
+        {
+          "name": "relayerFeeReceiverAta",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "expressRelayFeeReceiverAta",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "mintSearcher",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "mintUser",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "mintFee",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgramSearcher",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgramUser",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgramFee",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "expressRelayMetadata",
+          "isMut": false,
+          "isSigner": false,
+          "docs": ["Express relay configuration"]
+        },
+        {
+          "name": "relayerSigner",
+          "isMut": false,
+          "isSigner": true
+        }
+      ],
+      "args": [
+        {
+          "name": "data",
+          "type": {
+            "defined": "SwapV2Args"
+          }
+        }
+      ]
+    },
+    {
       "name": "swap",
       "accounts": [
         {
@@ -398,9 +523,129 @@
           }
         }
       ]
+    },
+    {
+      "name": "swapV2",
+      "accounts": [
+        {
+          "name": "searcher",
+          "isMut": false,
+          "isSigner": true,
+          "docs": ["Searcher is the party that fulfills the quote request"]
+        },
+        {
+          "name": "user",
+          "isMut": false,
+          "isSigner": true,
+          "docs": ["User is the party that requests the quote"]
+        },
+        {
+          "name": "searcherTaMintSearcher",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "searcherTaMintUser",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userAtaMintSearcher",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "userAtaMintUser",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "routerFeeReceiverTa",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Router fee receiver token account: the referrer can provide an arbitrary receiver for the router fee"
+          ]
+        },
+        {
+          "name": "relayerFeeReceiverAta",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "expressRelayFeeReceiverAta",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "mintSearcher",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "mintUser",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "mintFee",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgramSearcher",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgramUser",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgramFee",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "expressRelayMetadata",
+          "isMut": false,
+          "isSigner": false,
+          "docs": ["Express relay configuration"]
+        },
+        {
+          "name": "relayerSigner",
+          "isMut": false,
+          "isSigner": true
+        }
+      ],
+      "args": [
+        {
+          "name": "data",
+          "type": {
+            "defined": "SwapV2Args"
+          }
+        }
+      ]
     }
   ],
   "accounts": [
+    {
+      "name": "ConfigRouter",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "router",
+            "type": "publicKey"
+          },
+          {
+            "name": "split",
+            "type": "u64"
+          }
+        ]
+      }
+    },
     {
       "name": "ExpressRelayMetadata",
       "type": {
@@ -429,28 +674,30 @@
           {
             "name": "swapPlatformFeeBps",
             "type": "u64"
-          }
-        ]
-      }
-    },
-    {
-      "name": "ConfigRouter",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "router",
-            "type": "publicKey"
           },
           {
-            "name": "split",
-            "type": "u64"
+            "name": "secondaryRelayerSigner",
+            "type": "publicKey"
           }
         ]
       }
     }
   ],
   "types": [
+    {
+      "name": "FeeToken",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Searcher"
+          },
+          {
+            "name": "User"
+          }
+        ]
+      }
+    },
     {
       "name": "InitializeArgs",
       "type": {
@@ -462,6 +709,18 @@
           },
           {
             "name": "splitRelayer",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SetRouterSplitArgs",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "splitRouter",
             "type": "u64"
           }
         ]
@@ -490,18 +749,6 @@
         "fields": [
           {
             "name": "swapPlatformFeeBps",
-            "type": "u64"
-          }
-        ]
-      }
-    },
-    {
-      "name": "SetRouterSplitArgs",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "splitRouter",
             "type": "u64"
           }
         ]
@@ -562,15 +809,39 @@
       }
     },
     {
-      "name": "FeeToken",
+      "name": "SwapV2Args",
       "type": {
-        "kind": "enum",
-        "variants": [
+        "kind": "struct",
+        "fields": [
           {
-            "name": "Searcher"
+            "name": "deadline",
+            "docs": ["deadline as a unix timestamp in seconds"],
+            "type": "i64"
           },
           {
-            "name": "User"
+            "name": "amountSearcher",
+            "type": "u64"
+          },
+          {
+            "name": "amountUser",
+            "type": "u64"
+          },
+          {
+            "name": "referralFeePpm",
+            "docs": ["The referral fee is specified in parts per million"],
+            "type": "u64"
+          },
+          {
+            "name": "feeToken",
+            "docs": ["Token in which the fees will be paid"],
+            "type": {
+              "defined": "FeeToken"
+            }
+          },
+          {
+            "name": "swapPlatformFeePpm",
+            "docs": ["The platform fee is specified in parts per million"],
+            "type": "u64"
           }
         ]
       }

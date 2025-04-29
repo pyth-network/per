@@ -581,6 +581,12 @@ export interface components {
            * @example 10
            */
           platform_fee_bps: number;
+          /**
+           * Format: int64
+           * @description The platform fee in parts per million.
+           * @example 1000
+           */
+          platform_fee_ppm: number;
           /** @enum {string} */
           program: "swap";
           /**
@@ -589,6 +595,12 @@ export interface components {
            * @example 10
            */
           referral_fee_bps: number;
+          /**
+           * Format: int64
+           * @description The referral fee in parts per million.
+           * @example 1000
+           */
+          referral_fee_ppm: number;
           /**
            * @description The router account to be used for the opportunity execution of the protocol.
            * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
@@ -687,10 +699,10 @@ export interface components {
       referral_fee_info?: null | {
         /**
          * Format: int32
-         * @description The referral fee in basis points.
+         * @description The referral fee in parts per million.
          * @example 10
          */
-        referral_fee_bps: number;
+        referral_fee_ppm: number;
         /**
          * @description The router account to send referral fees to.
          * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
@@ -805,10 +817,10 @@ export interface components {
     ReferralFeeInfo: {
       /**
        * Format: int32
-       * @description The referral fee in basis points.
+       * @description The referral fee in parts per million.
        * @example 10
        */
-      referral_fee_bps: number;
+      referral_fee_ppm: number;
       /**
        * @description The router account to send referral fees to.
        * @example DUcTi3rDyS5QEmZ4BNRBejtArmDCWaPYGfN44vBJXKL5
@@ -1094,11 +1106,6 @@ export interface operations {
         chain_id?: string | null;
         /** @description Get opportunities in live or historical mode. */
         mode?: components["schemas"]["OpportunityMode"];
-        /**
-         * @description The permission key to filter the opportunities by. Used only in historical mode.
-         * @example 0xdeadbeef
-         */
-        permission_key?: string | null;
         /**
          * @description The time to get the opportunities from.
          * @example 2024-05-23T21:26:57.329954Z

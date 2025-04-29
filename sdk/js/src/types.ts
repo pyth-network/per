@@ -86,7 +86,9 @@ export type OpportunitySvmSwap = {
   userMintUserBalance: anchor.BN;
   feeToken: "searcher_token" | "user_token";
   referralFeeBps: number;
+  referralFeePpm: number;
   platformFeeBps: number;
+  platformFeePpm: number;
   tokens: SvmSwapTokens;
   program: "swap";
   tokenInitializationConfigs: TokenAccountInitializationConfigs;
@@ -226,10 +228,10 @@ export type ReferralFeeInfo = {
    */
   router: PublicKey;
   /**
-   * @description The referral fee for the swap in bps
+   * @description The referral fee in parts per million.
    * @example 10
    */
-  referralFeeBps: number;
+  referralFeePpm: number;
 };
 
 export type QuoteRequest = {

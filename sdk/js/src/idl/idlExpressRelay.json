@@ -2,7 +2,7 @@
   "address": "PytERJFhAKuNNuaiXkApLfWzwNwSNDACpigT3LwQfou",
   "metadata": {
     "name": "express_relay",
-    "version": "0.6.0",
+    "version": "0.7.0",
     "spec": "0.1.0",
     "description": "Pyth Express Relay program for handling permissioning and bid distribution",
     "repository": "https://github.com/pyth-network/per"
@@ -221,6 +221,33 @@
       ]
     },
     {
+      "name": "set_secondary_relayer",
+      "discriminator": [148, 85, 235, 83, 202, 78, 227, 232],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": ["express_relay_metadata"]
+        },
+        {
+          "name": "express_relay_metadata",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [109, 101, 116, 97, 100, 97, 116, 97]
+              }
+            ]
+          }
+        },
+        {
+          "name": "secondary_relayer_signer"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "set_splits",
       "discriminator": [175, 2, 86, 49, 225, 202, 232, 189],
       "accounts": [
@@ -300,8 +327,7 @@
         },
         {
           "name": "relayer_signer",
-          "signer": true,
-          "relations": ["express_relay_metadata"]
+          "signer": true
         },
         {
           "name": "permission"
@@ -451,60 +477,11 @@
         },
         {
           "name": "relayer_fee_receiver_ata",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "account",
-                "path": "express_relay_metadata.fee_receiver_relayer",
-                "account": "ExpressRelayMetadata"
-              },
-              {
-                "kind": "account",
-                "path": "token_program_fee"
-              },
-              {
-                "kind": "account",
-                "path": "mint_fee"
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142,
-                13, 131, 11, 90, 19, 153, 218, 255, 16, 132, 4, 142, 123, 216,
-                219, 233, 248, 89
-              ]
-            }
-          }
+          "writable": true
         },
         {
           "name": "express_relay_fee_receiver_ata",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "account",
-                "path": "express_relay_metadata"
-              },
-              {
-                "kind": "account",
-                "path": "token_program_fee"
-              },
-              {
-                "kind": "account",
-                "path": "mint_fee"
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142,
-                13, 131, 11, 90, 19, 153, 218, 255, 16, 132, 4, 142, 123, 216,
-                219, 233, 248, 89
-              ]
-            }
-          }
+          "writable": true
         },
         {
           "name": "mint_searcher"
@@ -538,8 +515,7 @@
         },
         {
           "name": "relayer_signer",
-          "signer": true,
-          "relations": ["express_relay_metadata"]
+          "signer": true
         }
       ],
       "args": [
@@ -548,6 +524,284 @@
           "type": {
             "defined": {
               "name": "SwapArgs"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "swap_internal",
+      "discriminator": [91, 176, 182, 173, 248, 21, 214, 60],
+      "accounts": [
+        {
+          "name": "searcher",
+          "docs": ["Searcher is the party that fulfills the quote request"],
+          "signer": true
+        },
+        {
+          "name": "user",
+          "docs": ["User is the party that requests the quote"],
+          "signer": true
+        },
+        {
+          "name": "searcher_ta_mint_searcher",
+          "writable": true
+        },
+        {
+          "name": "searcher_ta_mint_user",
+          "writable": true
+        },
+        {
+          "name": "user_ata_mint_searcher",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "user"
+              },
+              {
+                "kind": "account",
+                "path": "token_program_searcher"
+              },
+              {
+                "kind": "account",
+                "path": "mint_searcher"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142,
+                13, 131, 11, 90, 19, 153, 218, 255, 16, 132, 4, 142, 123, 216,
+                219, 233, 248, 89
+              ]
+            }
+          }
+        },
+        {
+          "name": "user_ata_mint_user",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "user"
+              },
+              {
+                "kind": "account",
+                "path": "token_program_user"
+              },
+              {
+                "kind": "account",
+                "path": "mint_user"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142,
+                13, 131, 11, 90, 19, 153, 218, 255, 16, 132, 4, 142, 123, 216,
+                219, 233, 248, 89
+              ]
+            }
+          }
+        },
+        {
+          "name": "router_fee_receiver_ta",
+          "docs": [
+            "Router fee receiver token account: the referrer can provide an arbitrary receiver for the router fee"
+          ],
+          "writable": true
+        },
+        {
+          "name": "relayer_fee_receiver_ata",
+          "writable": true
+        },
+        {
+          "name": "express_relay_fee_receiver_ata",
+          "writable": true
+        },
+        {
+          "name": "mint_searcher"
+        },
+        {
+          "name": "mint_user"
+        },
+        {
+          "name": "mint_fee"
+        },
+        {
+          "name": "token_program_searcher"
+        },
+        {
+          "name": "token_program_user"
+        },
+        {
+          "name": "token_program_fee"
+        },
+        {
+          "name": "express_relay_metadata",
+          "docs": ["Express relay configuration"],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [109, 101, 116, 97, 100, 97, 116, 97]
+              }
+            ]
+          }
+        },
+        {
+          "name": "relayer_signer",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "data",
+          "type": {
+            "defined": {
+              "name": "SwapV2Args"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "swap_v2",
+      "discriminator": [43, 4, 237, 11, 26, 201, 30, 98],
+      "accounts": [
+        {
+          "name": "searcher",
+          "docs": ["Searcher is the party that fulfills the quote request"],
+          "signer": true
+        },
+        {
+          "name": "user",
+          "docs": ["User is the party that requests the quote"],
+          "signer": true
+        },
+        {
+          "name": "searcher_ta_mint_searcher",
+          "writable": true
+        },
+        {
+          "name": "searcher_ta_mint_user",
+          "writable": true
+        },
+        {
+          "name": "user_ata_mint_searcher",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "user"
+              },
+              {
+                "kind": "account",
+                "path": "token_program_searcher"
+              },
+              {
+                "kind": "account",
+                "path": "mint_searcher"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142,
+                13, 131, 11, 90, 19, 153, 218, 255, 16, 132, 4, 142, 123, 216,
+                219, 233, 248, 89
+              ]
+            }
+          }
+        },
+        {
+          "name": "user_ata_mint_user",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "user"
+              },
+              {
+                "kind": "account",
+                "path": "token_program_user"
+              },
+              {
+                "kind": "account",
+                "path": "mint_user"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142,
+                13, 131, 11, 90, 19, 153, 218, 255, 16, 132, 4, 142, 123, 216,
+                219, 233, 248, 89
+              ]
+            }
+          }
+        },
+        {
+          "name": "router_fee_receiver_ta",
+          "docs": [
+            "Router fee receiver token account: the referrer can provide an arbitrary receiver for the router fee"
+          ],
+          "writable": true
+        },
+        {
+          "name": "relayer_fee_receiver_ata",
+          "writable": true
+        },
+        {
+          "name": "express_relay_fee_receiver_ata",
+          "writable": true
+        },
+        {
+          "name": "mint_searcher"
+        },
+        {
+          "name": "mint_user"
+        },
+        {
+          "name": "mint_fee"
+        },
+        {
+          "name": "token_program_searcher"
+        },
+        {
+          "name": "token_program_user"
+        },
+        {
+          "name": "token_program_fee"
+        },
+        {
+          "name": "express_relay_metadata",
+          "docs": ["Express relay configuration"],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [109, 101, 116, 97, 100, 97, 116, 97]
+              }
+            ]
+          }
+        },
+        {
+          "name": "relayer_signer",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "data",
+          "type": {
+            "defined": {
+              "name": "SwapV2Args"
             }
           }
         }
@@ -689,6 +943,10 @@
           {
             "name": "swap_platform_fee_bps",
             "type": "u64"
+          },
+          {
+            "name": "secondary_relayer_signer",
+            "type": "pubkey"
           }
         ]
       }
@@ -815,6 +1073,46 @@
                 "name": "FeeToken"
               }
             }
+          }
+        ]
+      }
+    },
+    {
+      "name": "SwapV2Args",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "deadline",
+            "docs": ["deadline as a unix timestamp in seconds"],
+            "type": "i64"
+          },
+          {
+            "name": "amount_searcher",
+            "type": "u64"
+          },
+          {
+            "name": "amount_user",
+            "type": "u64"
+          },
+          {
+            "name": "referral_fee_ppm",
+            "docs": ["The referral fee is specified in parts per million"],
+            "type": "u64"
+          },
+          {
+            "name": "fee_token",
+            "docs": ["Token in which the fees will be paid"],
+            "type": {
+              "defined": {
+                "name": "FeeToken"
+              }
+            }
+          },
+          {
+            "name": "swap_platform_fee_ppm",
+            "docs": ["The platform fee is specified in parts per million"],
+            "type": "u64"
           }
         ]
       }
