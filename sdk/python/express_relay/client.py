@@ -71,8 +71,7 @@ class SwapAccounts(TypedDict):
     router: Pubkey
 
 
-FEE_SPLIT_PRECISION = 10000
-FEE_SPLIT_PRECISION_PPM = FEE_SPLIT_PRECISION * 100
+FEE_SPLIT_PRECISION_PPM = 1000 * 1000
 
 
 class TokenAccountToCreate(TypedDict):
@@ -661,7 +660,7 @@ class ExpressRelayClient:
             swap_opportunity.tokens.side_specified == "searcher"
             and swap_opportunity.fee_token == "user_token"
         ):
-            # scale bid amount by FEE_SPLIT_PRECISION/(FEE_SPLIT_PRECISION-fees) to account for fees
+            # scale bid amount by FEE_SPLIT_PRECISION_PPM/(FEE_SPLIT_PRECISION_PPM-fees) to account for fees
             denominator = FEE_SPLIT_PRECISION_PPM - (
                 swap_opportunity.platform_fee_ppm + swap_opportunity.referral_fee_ppm
             )
