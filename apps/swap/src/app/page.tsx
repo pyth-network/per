@@ -35,7 +35,7 @@ export default function Home() {
         outputTokenMint: USDC,
         referralFeeInfo: {
           router: publicKey,
-          referralFeeBps: 0,
+          referralFeePpm: 0,
         },
         userWallet: publicKey,
         specifiedTokenAmount: {
