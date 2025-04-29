@@ -359,7 +359,9 @@ class SwapOpportunitySvm(BaseOpportunitySvm):
 
     fee_token: Literal["searcher_token", "user_token"]
     referral_fee_bps: int
+    referral_fee_ppm: int
     platform_fee_bps: int
+    platform_fee_ppm: int
     router_account: SvmAddress
     user_wallet_address: SvmAddress
     user_mint_user_balance: int

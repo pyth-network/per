@@ -465,7 +465,7 @@ export class Client {
       referral_fee_info: quoteRequest.referralFeeInfo
         ? {
             router: quoteRequest.referralFeeInfo.router.toBase58(),
-            referral_fee_bps: quoteRequest.referralFeeInfo.referralFeeBps,
+            referral_fee_ppm: quoteRequest.referralFeeInfo.referralFeePpm,
           }
         : undefined,
       specified_token_amount: quoteRequest.specifiedTokenAmount,
@@ -648,7 +648,9 @@ export class Client {
         opportunityId: opportunity.opportunity_id,
         program: "swap",
         referralFeeBps: opportunity.referral_fee_bps,
+        referralFeePpm: opportunity.referral_fee_ppm,
         platformFeeBps: opportunity.platform_fee_bps,
+        platformFeePpm: opportunity.platform_fee_ppm,
         feeToken: opportunity.fee_token,
         permissionAccount: new PublicKey(opportunity.permission_account),
         routerAccount: new PublicKey(opportunity.router_account),

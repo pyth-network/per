@@ -39,6 +39,7 @@ function getExpressRelayProgram(chain: string): PublicKey {
 }
 
 export const FEE_SPLIT_PRECISION = new anchor.BN(10000);
+export const FEE_SPLIT_PRECISION_PPM = new anchor.BN(1000000);
 const RENT_TOKEN_ACCOUNT_LAMPORTS = 2039280;
 
 export function getConfigRouterPda(
@@ -168,7 +169,7 @@ export async function constructSwapInstruction(
     bidAmount,
   );
 
-  const swapArgs = {
+  const swapV2Args = {
     amountSearcher:
       swapOpportunity.tokens.type === "searcher_specified"
         ? new anchor.BN(swapOpportunity.tokens.searcherAmount.toString())
@@ -179,7 +180,8 @@ export async function constructSwapInstruction(
             swapOpportunity.tokens.userTokenAmountIncludingFees.toString(),
           )
         : bidAmountIncludingFees,
-    referralFeeBps: swapOpportunity.referralFeeBps,
+    referralFeePpm: new anchor.BN(swapOpportunity.referralFeePpm),
+    swapPlatformFeePpm: new anchor.BN(swapOpportunity.platformFeePpm),
     deadline,
     feeToken:
       swapOpportunity.feeToken === "searcher_token"
@@ -187,7 +189,7 @@ export async function constructSwapInstruction(
         : { user: {} },
   };
   const ixSwap = await expressRelay.methods
-    .swap(swapArgs)
+    .swapV2(swapV2Args)
     .accountsStrict({
       expressRelayMetadata,
       searcher,
@@ -420,12 +422,12 @@ function getBidAmountIncludingFees(
     swapOpportunity.feeToken === "user_token"
   ) {
     // scale bid amount by FEE_SPLIT_PRECISION/(FEE_SPLIT_PRECISION-fees) to account for fees
-    const denominator = FEE_SPLIT_PRECISION.sub(
+    const denominator = FEE_SPLIT_PRECISION_PPM.sub(
       new anchor.BN(
-        swapOpportunity.platformFeeBps + swapOpportunity.referralFeeBps,
+        swapOpportunity.platformFeePpm + swapOpportunity.referralFeePpm,
       ),
     );
-    const numerator = bidAmount.mul(FEE_SPLIT_PRECISION);
+    const numerator = bidAmount.mul(FEE_SPLIT_PRECISION_PPM);
     // add denominator - 1 to round up
     return numerator.add(denominator.sub(new anchor.BN(1))).div(denominator);
   }

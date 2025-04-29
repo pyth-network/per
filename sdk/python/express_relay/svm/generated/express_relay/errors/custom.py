@@ -83,6 +83,15 @@ class InvalidReferralFee(ProgramError):
     msg = "Invalid referral fee"
 
 
+class InsufficientUserFunds(ProgramError):
+    def __init__(self) -> None:
+        super().__init__(6009, "Insufficient user funds")
+
+    code = 6009
+    name = "InsufficientUserFunds"
+    msg = "Insufficient user funds"
+
+
 CustomError = typing.Union[
     FeeSplitLargerThanPrecision,
     FeesHigherThanBid,
@@ -93,6 +102,7 @@ CustomError = typing.Union[
     InsufficientSearcherFunds,
     InsufficientRent,
     InvalidReferralFee,
+    InsufficientUserFunds,
 ]
 CUSTOM_ERROR_MAP: dict[int, CustomError] = {
     6000: FeeSplitLargerThanPrecision(),
@@ -104,6 +114,7 @@ CUSTOM_ERROR_MAP: dict[int, CustomError] = {
     6006: InsufficientSearcherFunds(),
     6007: InsufficientRent(),
     6008: InvalidReferralFee(),
+    6009: InsufficientUserFunds(),
 }
 
 

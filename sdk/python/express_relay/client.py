@@ -31,15 +31,15 @@ from express_relay.models.svm import (
     TokenAccountInitializationConfig,
     TokenAccountInitializationConfigs,
 )
+from express_relay.svm.generated.express_relay.instructions import swap_v2
 from express_relay.svm.generated.express_relay.instructions.submit_bid import submit_bid
-from express_relay.svm.generated.express_relay.instructions.swap import swap
 from express_relay.svm.generated.express_relay.program_id import (
     PROGRAM_ID as SVM_EXPRESS_RELAY_PROGRAM_ID,
 )
 from express_relay.svm.generated.express_relay.types.submit_bid_args import (
     SubmitBidArgs,
 )
-from express_relay.svm.generated.express_relay.types.swap_args import SwapArgs
+from express_relay.svm.generated.express_relay.types.swap_v2_args import SwapV2Args
 from express_relay.svm.limo_client import LimoClient
 from express_relay.svm.token_utils import (
     RENT_TOKEN_ACCOUNT_LAMPORTS,
@@ -71,7 +71,7 @@ class SwapAccounts(TypedDict):
     router: Pubkey
 
 
-FEE_SPLIT_PRECISION = 10000
+FEE_SPLIT_PRECISION_PPM = 1000 * 1000
 
 
 class TokenAccountToCreate(TypedDict):
@@ -660,11 +660,11 @@ class ExpressRelayClient:
             swap_opportunity.tokens.side_specified == "searcher"
             and swap_opportunity.fee_token == "user_token"
         ):
-            # scale bid amount by FEE_SPLIT_PRECISION/(FEE_SPLIT_PRECISION-fees) to account for fees
-            denominator = FEE_SPLIT_PRECISION - (
-                swap_opportunity.platform_fee_bps + swap_opportunity.referral_fee_bps
+            # scale bid amount by FEE_SPLIT_PRECISION_PPM/(FEE_SPLIT_PRECISION_PPM-fees) to account for fees
+            denominator = FEE_SPLIT_PRECISION_PPM - (
+                swap_opportunity.platform_fee_ppm + swap_opportunity.referral_fee_ppm
             )
-            numerator = bid_amount * FEE_SPLIT_PRECISION
+            numerator = bid_amount * FEE_SPLIT_PRECISION_PPM
             # add denominator - 1 to round up
             bid_amount = (numerator + (denominator - 1)) // denominator
         express_relay_metadata = LimoClient.get_express_relay_metadata_pda(program_id)
@@ -723,14 +723,15 @@ class ExpressRelayClient:
             instructions.extend(
                 wrap_sol(searcher, accs["user"], amount_to_wrap_user, create_ata=False)
             )
-        swap_ix = swap(
+        swap_ix = swap_v2(
             {
-                "data": SwapArgs(
+                "data": SwapV2Args(
                     deadline=deadline,
                     amount_searcher=amount_searcher,
                     amount_user=amount_user,
+                    referral_fee_ppm=swap_opportunity.referral_fee_ppm,
                     fee_token=fee_token,
-                    referral_fee_bps=swap_opportunity.referral_fee_bps,
+                    swap_platform_fee_ppm=swap_opportunity.platform_fee_ppm,
                 )
             },
             {
