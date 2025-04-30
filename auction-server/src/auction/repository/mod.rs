@@ -17,7 +17,7 @@ use {
 mod add_auction;
 mod add_bid;
 mod add_lookup_table;
-mod add_recent_priotization_fee;
+mod add_recent_prioritization_fee;
 mod conclude_auction;
 mod get_bid;
 mod get_bids;
