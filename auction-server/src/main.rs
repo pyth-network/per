@@ -76,7 +76,8 @@ async fn main() -> Result<()> {
         .with_trace_config(
             trace::config().with_resource(Resource::new(vec![KeyValue::new(
                 "service.name",
-                "auction-server",
+                "auction-server-".to_owned()
+                    + &std::env::var("APP_ENV").unwrap_or("mainnet".to_string()),
             )])),
         )
         .install_batch(opentelemetry_sdk::runtime::Tokio)
