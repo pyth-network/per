@@ -1649,7 +1649,7 @@ dependencies = [
 
 [[package]]
 name = "express-relay"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
