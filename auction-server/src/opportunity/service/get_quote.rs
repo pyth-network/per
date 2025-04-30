@@ -98,9 +98,6 @@ pub fn is_indicative_price_taker(wallet_address: &Pubkey) -> bool {
     wallet_bytes[0..24] == INDICATIVE_PRICE_TAKER_BASE.as_array()[0..24]
 }
 
-/// Time to wait for searchers to submit bids.
-const BID_COLLECTION_TIME: Duration = Duration::from_millis(500);
-
 pub struct GetQuoteInput {
     pub quote_create: entities::QuoteCreate,
 }
@@ -472,7 +469,7 @@ impl Service {
         }
 
         // Wait to make sure searchers had enough time to submit bids
-        sleep(BID_COLLECTION_TIME).await;
+        sleep(config.auction_time).await;
 
         // NOTE: This part will be removed after refactoring the permission key type
         let slice: [u8; 65] = opportunity
@@ -763,6 +760,7 @@ mod tests {
             Account as TokenAccount,
             AccountState,
         },
+        std::time::Instant,
         uuid::Uuid,
     };
 
@@ -1620,5 +1618,65 @@ mod tests {
                 invalid_mint.to_string()
             ))
         );
+    }
+
+    #[tokio::test]
+    async fn test_get_quote_indicative_auction_time() {
+        let QuoteSequence {
+            mut service,
+            auction_service,
+            token_program_user,
+            token_program_searcher,
+            ..
+        } = setup_basic_sequence(QuoteSequenceParams {
+            auction_service_sequence: AuctionServiceSequenceParams {
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .await;
+
+        inject_auction_service(&service, auction_service);
+
+        let user_token = Pubkey::new_unique();
+        let searcher_token = Pubkey::new_unique();
+        service
+            .repo
+            .cache_token_program(searcher_token, token_program_user)
+            .await;
+        service
+            .repo
+            .cache_token_program(user_token, token_program_searcher)
+            .await;
+
+        service
+            .config
+            .get_mut(DEFAULT_CHAIN_ID)
+            .expect("chain")
+            .auction_time = Duration::from_millis(460);
+
+        let start = Instant::now();
+        let _ = service
+            .get_quote(GetQuoteInput {
+                quote_create: QuoteCreate {
+                    user_wallet_address: None,
+                    tokens:              QuoteTokens::UserTokenSpecified {
+                        user_token: TokenAmountSvm {
+                            token:  user_token,
+                            amount: 2,
+                        },
+                        searcher_token,
+                    },
+                    referral_fee_info:   None,
+                    chain_id:            DEFAULT_CHAIN_ID.to_string(),
+                    memo:                None,
+                    cancellable:         true,
+                    minimum_lifetime:    None,
+                },
+            })
+            .await
+            .expect("Failed to submit quote");
+        let elapsed = start.elapsed();
+        assert!(elapsed > Duration::from_millis(460));
     }
 }

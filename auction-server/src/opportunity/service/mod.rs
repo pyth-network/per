@@ -32,6 +32,7 @@ use {
     std::{
         collections::HashMap,
         sync::Arc,
+        time::Duration,
     },
     tokio_util::task::TaskTracker,
 };
@@ -102,6 +103,7 @@ pub struct ConfigSvm {
     pub ordered_fee_tokens:        Vec<Pubkey>,
     pub auction_service_container: AuctionServiceContainer,
     pub token_whitelist:           TokenWhitelist,
+    pub auction_time:              Duration,
 }
 
 impl ConfigSvm {
@@ -131,6 +133,7 @@ impl ConfigSvm {
                             .token_whitelist
                             .clone()
                             .into(),
+                        auction_time:              chain_store.config.auction_time,
                     },
                 )
             })
@@ -201,6 +204,7 @@ pub mod tests {
                 self,
                 UpdateEvent,
             },
+            config,
             kernel::rpc_client_svm_tester::RpcClientSvmTester,
             opportunity::repository::MockDatabase,
         },
@@ -222,6 +226,7 @@ pub mod tests {
                 ordered_fee_tokens:        vec![],
                 auction_service_container: AuctionServiceContainer::new(),
                 token_whitelist:           Default::default(),
+                auction_time:              config::ConfigSvm::default_auction_time(),
             };
 
             let mut chains_svm = HashMap::new();

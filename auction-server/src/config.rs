@@ -16,6 +16,7 @@ use {
     std::{
         collections::HashMap,
         fs,
+        time::Duration,
     },
 };
 
@@ -107,10 +108,6 @@ pub enum Config {
     Svm(ConfigSvm),
 }
 
-fn default_rpc_timeout_svm() -> u64 {
-    2
-}
-
 #[serde_as]
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct ConfigSvm {
@@ -124,7 +121,7 @@ pub struct ConfigSvm {
     /// WS endpoint to use for interacting with the blockchain.
     pub ws_addr:                       String,
     /// Timeout for RPC requests in seconds.
-    #[serde(default = "default_rpc_timeout_svm")]
+    #[serde(default = "ConfigSvm::default_rpc_timeout_svm")]
     pub rpc_timeout:                   u64,
     #[serde(default)]
     /// Percentile of prioritization fees to query from the `rpc_read_url`.
@@ -140,6 +137,19 @@ pub struct ConfigSvm {
     /// Whitelisted token mints
     #[serde(default)]
     pub token_whitelist:               TokenWhitelistConfig,
+    /// Auction time for the chain (how long to wait before choosing winning bids)
+    #[serde(default = "ConfigSvm::default_auction_time", with = "humantime_serde")]
+    pub auction_time:                  Duration,
+}
+
+impl ConfigSvm {
+    pub fn default_rpc_timeout_svm() -> u64 {
+        2
+    }
+
+    pub fn default_auction_time() -> Duration {
+        Duration::from_millis(250)
+    }
 }
 
 /// Optional whitelist of token mints to allow for getting quotes for
