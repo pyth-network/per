@@ -184,8 +184,13 @@ pub fn setup_metrics_recorder() -> Result<PrometheusHandle> {
 const NOTIFICATIONS_CHAN_LEN: usize = 1000;
 
 // TODO move to kernel repo
-async fn create_pg_pool(database_url: &str, max_connections: u32) -> Result<PgPool> {
+async fn create_pg_pool(
+    database_url: &str,
+    min_connections: u32,
+    max_connections: u32,
+) -> Result<PgPool> {
     PgPoolOptions::new()
+        .min_connections(min_connections)
         .max_connections(max_connections)
         .connect(database_url)
         .await
@@ -193,7 +198,7 @@ async fn create_pg_pool(database_url: &str, max_connections: u32) -> Result<PgPo
 }
 
 pub async fn run_migrations(migrate_options: MigrateOptions) -> Result<()> {
-    let pool = create_pg_pool(&migrate_options.database_url, 1).await?;
+    let pool = create_pg_pool(&migrate_options.database_url, 1, 1).await?;
     let migrator = migrate!("./migrations");
     if let Err(err) = migrator.run(&pool).await {
         match err {
@@ -270,6 +275,7 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
 
     let pool = create_pg_pool(
         &run_options.server.database_url,
+        run_options.server.database_min_connections,
         run_options.server.database_max_connections,
     )
     .await?;

@@ -5,7 +5,7 @@ use {
 
 const DEFAULT_LISTEN_ADDR: &str = "127.0.0.1:9000";
 const DEFAULT_METRICS_ADDR: &str = "127.0.0.1:9001";
-const DEFAULT_DATABASE_MAX_CONNECTIONS: &str = "10";
+const DEFAULT_DATABASE_CONNECTIONS: &str = "10";
 const DEFAULT_REQUESTER_IP_HEADER_NAME: &str = "X-Forwarded-For";
 
 #[derive(Args, Clone, Debug)]
@@ -23,9 +23,14 @@ pub struct Options {
     pub database_url:             String,
     /// database max connections.
     #[arg(long = "database-max-connections")]
-    #[arg(default_value = DEFAULT_DATABASE_MAX_CONNECTIONS)]
+    #[arg(default_value = DEFAULT_DATABASE_CONNECTIONS)]
     #[arg(env = "DATABASE_MAX_CONNECTIONS")]
     pub database_max_connections: u32,
+    /// database min connections.
+    #[arg(long = "database-min-connections")]
+    #[arg(default_value = DEFAULT_DATABASE_CONNECTIONS)]
+    #[arg(env = "DATABASE_MIN_CONNECTIONS")]
+    pub database_min_connections: u32,
     /// Address and port the metrics will bind to.
     #[arg(long = "metrics-addr")]
     #[arg(default_value = DEFAULT_METRICS_ADDR)]
