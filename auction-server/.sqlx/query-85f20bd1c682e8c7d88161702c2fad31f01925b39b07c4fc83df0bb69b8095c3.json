@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE bid SET status = $1, conclusion_time = $2 WHERE id = $3 AND status IN ($4, $5, $6, $7)",
+  "query": "UPDATE bid SET status = $1, auction_id = $2, conclusion_time = $3 WHERE id = $4 AND status IN ($5, $6, $7, $8)",
   "describe": {
     "columns": [],
     "parameters": {
@@ -16,8 +16,8 @@
                 "won",
                 "expired",
                 "failed",
-                "cancelled",
                 "awaiting_signature",
+                "cancelled",
                 "sent_to_user_for_submission",
                 "submission_failed_cancelled",
                 "submission_failed_deadline_passed"
@@ -25,6 +25,7 @@
             }
           }
         },
+        "Uuid",
         "Timestamp",
         "Uuid",
         {
@@ -38,8 +39,8 @@
                 "won",
                 "expired",
                 "failed",
-                "cancelled",
                 "awaiting_signature",
+                "cancelled",
                 "sent_to_user_for_submission",
                 "submission_failed_cancelled",
                 "submission_failed_deadline_passed"
@@ -58,8 +59,8 @@
                 "won",
                 "expired",
                 "failed",
-                "cancelled",
                 "awaiting_signature",
+                "cancelled",
                 "sent_to_user_for_submission",
                 "submission_failed_cancelled",
                 "submission_failed_deadline_passed"
@@ -78,8 +79,8 @@
                 "won",
                 "expired",
                 "failed",
-                "cancelled",
                 "awaiting_signature",
+                "cancelled",
                 "sent_to_user_for_submission",
                 "submission_failed_cancelled",
                 "submission_failed_deadline_passed"
@@ -98,8 +99,8 @@
                 "won",
                 "expired",
                 "failed",
-                "cancelled",
                 "awaiting_signature",
+                "cancelled",
                 "sent_to_user_for_submission",
                 "submission_failed_cancelled",
                 "submission_failed_deadline_passed"
@@ -111,5 +112,5 @@
     },
     "nullable": []
   },
-  "hash": "b9ce3a739e775f73af93da31d45044493fd2b8c67e85dea6331bef2621a558be"
+  "hash": "85f20bd1c682e8c7d88161702c2fad31f01925b39b07c4fc83df0bb69b8095c3"
 }
