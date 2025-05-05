@@ -1,6 +1,10 @@
 use {
     super::{
-        entities::QuoteCreate as QuoteCreateEntity,
+        entities::{
+            QuoteCreate as QuoteCreateEntity,
+            QuoteTokens,
+            TokenAmountSvm,
+        },
         repository::OPPORTUNITY_PAGE_SIZE_CAP,
         service::{
             add_opportunity::AddOpportunityInput,
@@ -40,7 +44,9 @@ use {
             ProgramSvm,
             Quote,
             QuoteCreate,
+            QuoteCreateSvm,
             Route,
+            SpecifiedTokenAmount,
         },
         ErrorBodyResponse,
     },
@@ -145,6 +151,7 @@ const MEMO_MAX_LENGTH: usize = 100;
     (status = 404, description = "No quote available right now", body = ErrorBodyResponse),
 ),)]
 pub async fn post_quote(
+    auth: Auth,
     State(store): State<Arc<StoreNew>>,
     Json(params): Json<QuoteCreate>,
 ) -> Result<Json<Quote>, RestError> {
@@ -165,7 +172,11 @@ pub async fn post_quote(
         }
     }
 
-    let quote_create: QuoteCreateEntity = params.into();
+    let profile = match auth {
+        Auth::Authorized(_, profile) => Some(profile),
+        _ => None,
+    };
+    let quote_create = get_quote_create_entity(params, profile);
 
     let quote = store
         .opportunity_service_svm
@@ -218,4 +229,49 @@ pub fn get_routes(store: Arc<StoreNew>) -> Router<Arc<StoreNew>> {
         .route(Route::GetOpportunities, get_opportunities)
         .route(Route::DeleteOpportunities, delete_opportunities)
         .router
+}
+
+pub fn get_quote_create_entity(
+    quote_create: QuoteCreate,
+    profile: Option<models::Profile>,
+) -> QuoteCreateEntity {
+    match quote_create {
+        QuoteCreate::Svm(params) => {
+            let QuoteCreateSvm::V1(params) = params;
+
+            let tokens = match params.specified_token_amount {
+                SpecifiedTokenAmount::UserInputToken { amount } => {
+                    QuoteTokens::UserTokenSpecified {
+                        user_token:     TokenAmountSvm {
+                            token: params.input_token_mint,
+                            amount,
+                        },
+                        searcher_token: params.output_token_mint,
+                    }
+                }
+                SpecifiedTokenAmount::UserOutputToken { amount } => {
+                    QuoteTokens::SearcherTokenSpecified {
+                        user_token:     params.input_token_mint,
+                        searcher_token: TokenAmountSvm {
+                            token: params.output_token_mint,
+                            amount,
+                        },
+                    }
+                }
+            };
+
+            let referral_fee_info = params.referral_fee_info.map(Into::into);
+
+            QuoteCreateEntity {
+                user_wallet_address: params.user_wallet_address,
+                tokens,
+                referral_fee_info,
+                chain_id: params.chain_id,
+                memo: params.memo,
+                cancellable: params.cancellable,
+                minimum_lifetime: params.minimum_lifetime,
+                profile_id: profile.map(|p| p.id),
+            }
+        }
+    }
 }

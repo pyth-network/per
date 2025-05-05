@@ -125,6 +125,7 @@ mod test {
                     Pubkey::new_unique(),
                 ),
             ),
+            profile_id: None,
         }
     }
 

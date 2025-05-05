@@ -159,6 +159,7 @@ mod tests {
                 order_address,
                 slot,
             }),
+            profile_id: None,
         };
 
         let opportunity = service
