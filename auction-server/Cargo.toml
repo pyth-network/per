@@ -9,7 +9,7 @@ anchor-lang-idl = { version = "0.1.1", features = ["convert"] }
 
 [dependencies]
 arc-swap = "1.7.1"
-tokio = { workspace = true, features = ["macros", "sync", "rt-multi-thread", "signal"] }
+tokio = { workspace = true, features = ["macros", "sync", "rt-multi-thread", "signal", "rt"] }
 tokio-stream = { workspace = true }
 tower-http = { workspace = true, features = ["cors"] }
 serde = { workspace = true, features = ["derive"] }
@@ -59,6 +59,7 @@ mockall_double = "0.3.1"
 spl-memo-client = { workspace = true }
 spl-token-2022 = { workspace = true }
 humantime-serde = "1.1.1"
+tokio-metrics = { version = "0.4.2", features = ["rt"] }
 
 [dev-dependencies]
 mockall = "0.13.1"
