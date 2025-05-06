@@ -370,6 +370,7 @@ class SwapOpportunitySvm(BaseOpportunitySvm):
     memo: str | None = Field(default=None)
     cancellable: bool
     minimum_deadline: int
+    profile_id: str | None = Field(default=None)
 
 
 OpportunitySvm = SwapOpportunitySvm | LimoOpportunitySvm

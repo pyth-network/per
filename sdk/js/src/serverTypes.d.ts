@@ -587,6 +587,11 @@ export interface components {
            * @example 1000
            */
           platform_fee_ppm: number;
+          /**
+           * @description The profile id of the frontend requesting the quote.
+           * @example 1c7052fc-e37b-436e-a229-2e34d903d98f
+           */
+          profile_id?: string | null;
           /** @enum {string} */
           program: "swap";
           /**

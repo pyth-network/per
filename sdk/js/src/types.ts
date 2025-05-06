@@ -95,6 +95,7 @@ export type OpportunitySvmSwap = {
   memo?: string;
   cancellable: boolean;
   minimumDeadline: number;
+  profileId?: string;
 } & OpportunitySvmMetadata;
 
 export type OpportunitySvm = OpportunitySvmLimo | OpportunitySvmSwap;
