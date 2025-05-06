@@ -458,6 +458,7 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                     memo: program.memo,
                     cancellable: program.cancellable,
                     minimum_deadline: program.minimum_deadline.unix_timestamp(),
+                    profile_id: val.profile_id,
                 }
             }
         };

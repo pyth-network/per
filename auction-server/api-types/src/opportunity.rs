@@ -1,6 +1,7 @@
 use {
     crate::{
         bid::BidId,
+        profile::ProfileId,
         AccessLevel,
         ChainId,
         Routable,
@@ -265,6 +266,10 @@ pub enum OpportunityParamsV1ProgramSvm {
         /// The transaction must have a deadline greater than this value.
         #[schema(example = 17_000_000_000i64, value_type = i64)]
         minimum_deadline: i64,
+
+        /// The profile id of the frontend requesting the quote.
+        #[schema(example = "1c7052fc-e37b-436e-a229-2e34d903d98f", value_type = Option<String>)]
+        profile_id: Option<ProfileId>,
     },
 }
 
