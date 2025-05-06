@@ -678,6 +678,7 @@ export class Client {
         ),
         cancellable: opportunity.cancellable,
         minimumDeadline: opportunity.minimum_deadline,
+        profileId: opportunity.profile_id ?? undefined,
       };
     } else {
       console.warn("Unsupported opportunity", opportunity);
