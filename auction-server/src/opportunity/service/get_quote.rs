@@ -397,6 +397,7 @@ impl Service {
             router: referral_fee_info.router,
             permission_account,
             program: program_opportunity,
+            profile_id: quote_create.profile_id,
         })
     }
 
@@ -1068,6 +1069,7 @@ mod tests {
                     memo:                None,
                     cancellable:         true,
                     minimum_lifetime:    None,
+                    profile_id:          None,
                 },
             })
             .await
@@ -1133,6 +1135,7 @@ mod tests {
                     memo:                None,
                     cancellable:         true,
                     minimum_lifetime:    None,
+                    profile_id:          None,
                 },
             })
             .await;
@@ -1190,6 +1193,7 @@ mod tests {
                     memo:                None,
                     cancellable:         true,
                     minimum_lifetime:    None,
+                    profile_id:          None,
                 },
             })
             .await;
@@ -1291,6 +1295,7 @@ mod tests {
                     memo:                None,
                     cancellable:         true,
                     minimum_lifetime:    None,
+                    profile_id:          None,
                 },
             })
             .await
@@ -1358,6 +1363,7 @@ mod tests {
                     memo:                None,
                     cancellable:         true,
                     minimum_lifetime:    None,
+                    profile_id:          None,
                 },
             })
             .await
@@ -1448,6 +1454,7 @@ mod tests {
                     memo:                None,
                     cancellable:         true,
                     minimum_lifetime:    None,
+                    profile_id:          None,
                 },
             })
             .await
@@ -1532,6 +1539,7 @@ mod tests {
                     memo:                None,
                     cancellable:         true,
                     minimum_lifetime:    None,
+                    profile_id:          None,
                 },
             })
             .await
@@ -1576,6 +1584,7 @@ mod tests {
                     memo:                None,
                     cancellable:         true,
                     minimum_lifetime:    None,
+                    profile_id:          None,
                 },
             })
             .await;
@@ -1607,6 +1616,7 @@ mod tests {
                     memo:                None,
                     cancellable:         true,
                     minimum_lifetime:    None,
+                    profile_id:          None,
                 },
             })
             .await;
@@ -1672,6 +1682,7 @@ mod tests {
                     memo:                None,
                     cancellable:         true,
                     minimum_lifetime:    None,
+                    profile_id:          None,
                 },
             })
             .await

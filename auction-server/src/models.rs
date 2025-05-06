@@ -7,7 +7,7 @@ use {
     uuid::Uuid,
 };
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct EmailAddress(pub email_address::EmailAddress);
 
 impl TryFrom<String> for EmailAddress {
@@ -27,7 +27,7 @@ pub enum ProfileRole {
     Protocol,
 }
 
-#[derive(Clone, FromRow, Debug)]
+#[derive(Clone, FromRow, Debug, PartialEq)]
 pub struct Profile {
     pub id:    ProfileId,
     pub name:  String,

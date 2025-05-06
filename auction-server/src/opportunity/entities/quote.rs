@@ -1,6 +1,9 @@
 use {
     super::token_amount::TokenAmountSvm,
-    crate::kernel::entities::ChainId,
+    crate::{
+        kernel::entities::ChainId,
+        models,
+    },
     express_relay_api_types::{
         bid::BidId,
         opportunity as api,
@@ -43,6 +46,7 @@ pub struct QuoteCreate {
     pub memo:                Option<String>,
     pub cancellable:         bool,
     pub minimum_lifetime:    Option<u32>,
+    pub profile_id:          Option<models::ProfileId>,
 }
 
 
@@ -93,45 +97,6 @@ impl From<api::ReferralFeeInfo> for ReferralFeeInfo {
         Self {
             router:           referral_fee_info.router,
             referral_fee_ppm: referral_fee_info.referral_fee_ppm,
-        }
-    }
-}
-
-impl From<api::QuoteCreate> for QuoteCreate {
-    fn from(quote_create: api::QuoteCreate) -> Self {
-        let api::QuoteCreate::Svm(api::QuoteCreateSvm::V1(params)) = quote_create;
-
-        let tokens = match params.specified_token_amount {
-            api::SpecifiedTokenAmount::UserInputToken { amount } => {
-                QuoteTokens::UserTokenSpecified {
-                    user_token:     TokenAmountSvm {
-                        token: params.input_token_mint,
-                        amount,
-                    },
-                    searcher_token: params.output_token_mint,
-                }
-            }
-            api::SpecifiedTokenAmount::UserOutputToken { amount } => {
-                QuoteTokens::SearcherTokenSpecified {
-                    user_token:     params.input_token_mint,
-                    searcher_token: TokenAmountSvm {
-                        token: params.output_token_mint,
-                        amount,
-                    },
-                }
-            }
-        };
-
-        let referral_fee_info = params.referral_fee_info.map(Into::into);
-
-        Self {
-            user_wallet_address: params.user_wallet_address,
-            tokens,
-            referral_fee_info,
-            chain_id: params.chain_id,
-            memo: params.memo,
-            cancellable: params.cancellable,
-            minimum_lifetime: params.minimum_lifetime,
         }
     }
 }

@@ -11,7 +11,10 @@ use {
                 PermissionKeySvm,
             },
         },
-        models::ChainType,
+        models::{
+            ChainType,
+            ProfileId,
+        },
         opportunity::entities::{
             FeeToken,
             OpportunitySvm,
@@ -153,6 +156,7 @@ pub struct Opportunity<T: OpportunityMetadata> {
     pub buy_tokens:     JsonValue,
     pub removal_reason: Option<OpportunityRemovalReason>,
     pub metadata:       Json<T>,
+    pub profile_id:     Option<ProfileId>,
 }
 
 #[cfg_attr(test, automock)]
@@ -199,7 +203,8 @@ impl Database for DB {
                                                         chain_type,
                                                         metadata,
                                                         sell_tokens,
-                                                        buy_tokens) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+                                                        buy_tokens,
+                                                        profile_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
         opportunity.id,
         PrimitiveDateTime::new(opportunity.creation_time.date(), opportunity.creation_time.time()),
         opportunity.permission_key.to_vec(),
@@ -207,7 +212,8 @@ impl Database for DB {
         chain_type as _,
         serde_json::to_value(metadata).expect("Failed to serialize metadata"),
         serde_json::to_value(&opportunity.sell_tokens).expect("Failed to serialize sell_tokens"),
-        serde_json::to_value(&opportunity.buy_tokens).expect("Failed to serialize buy_tokens"))
+        serde_json::to_value(&opportunity.buy_tokens).expect("Failed to serialize buy_tokens"),
+        opportunity.profile_id)
             .execute(self)
             .await.map_err(|e| {
                 tracing::Span::current().record("result", "error");
@@ -368,6 +374,7 @@ mod tests {
                     Pubkey::new_unique(),
                 ),
             ),
+            profile_id:         None,
         };
 
         let metadata = op.get_models_metadata();

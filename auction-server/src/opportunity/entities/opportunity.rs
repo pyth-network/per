@@ -12,6 +12,7 @@ use {
             ChainId,
             PermissionKeySvm,
         },
+        models::ProfileId,
         opportunity::{
             entities::{
                 QuoteTokens,
@@ -172,6 +173,7 @@ pub struct OpportunitySvm {
     pub router:             Pubkey,
     pub permission_account: Pubkey,
     pub program:            OpportunitySvmProgram,
+    pub profile_id:         Option<ProfileId>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -183,6 +185,7 @@ pub struct OpportunityCreateSvm {
     pub router:             Pubkey,
     pub permission_account: Pubkey,
     pub program:            OpportunitySvmProgram,
+    pub profile_id:         Option<ProfileId>,
 }
 
 impl OpportunityCreateSvm {
@@ -211,6 +214,7 @@ impl OpportunitySvm {
             router:             val.router,
             permission_account: val.permission_account,
             program:            val.program,
+            profile_id:         val.profile_id,
         }
     }
 
@@ -454,6 +458,7 @@ impl From<OpportunitySvm> for api::OpportunitySvm {
                     memo: program.memo,
                     cancellable: program.cancellable,
                     minimum_deadline: program.minimum_deadline.unix_timestamp(),
+                    profile_id: val.profile_id,
                 }
             }
         };
@@ -544,6 +549,7 @@ impl TryFrom<repository::Opportunity<repository::OpportunityMetadataSvm>> for Op
             router: val.metadata.router,
             permission_account: val.metadata.permission_account,
             program,
+            profile_id: val.profile_id,
         })
     }
 }
@@ -579,6 +585,8 @@ impl From<api::OpportunityCreateSvm> for OpportunityCreateSvm {
             program,
             permission_account: params.permission_account,
             router: params.router,
+            // api::OpportunityCreateSvm is only defined for Limo at the moment, so we can assume profile_id is None
+            profile_id: None,
         }
     }
 }
@@ -593,6 +601,7 @@ impl From<OpportunitySvm> for OpportunityCreateSvm {
             router:             val.router,
             permission_account: val.permission_account,
             program:            val.program,
+            profile_id:         val.profile_id,
         }
     }
 }

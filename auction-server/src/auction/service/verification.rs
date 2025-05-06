@@ -1824,6 +1824,7 @@ mod tests {
                     user_wallet_address,
                 ),
             ),
+            profile_id: None,
         };
 
         let opp_searcher_token_specified = OpportunitySvm {
@@ -1851,6 +1852,7 @@ mod tests {
                     user_wallet_address,
                 ),
             ),
+            profile_id: None,
         };
 
         let opp_user_token_wsol = OpportunitySvm {
@@ -1882,6 +1884,7 @@ mod tests {
                     user_wallet_address,
                 )
             }),
+            profile_id: None,
         };
 
         let opp_searcher_token_wsol = OpportunitySvm {
@@ -1909,6 +1912,7 @@ mod tests {
                     user_wallet_address,
                 ),
             ),
+            profile_id: None,
         };
 
         let indicative_price_taker = generate_indicative_price_taker();
@@ -1944,6 +1948,7 @@ mod tests {
                     indicative_price_taker,
                 ),
             ),
+            profile_id: None,
         };
 
 
@@ -1977,6 +1982,7 @@ mod tests {
                     user_wallet_address,
                 )
             }),
+            profile_id: None,
         };
 
         let opp_with_memo = OpportunitySvm {
@@ -2005,6 +2011,7 @@ mod tests {
                     user_wallet_address,
                 )
             }),
+            profile_id: None,
         };
 
         let opp_with_minimum_lifetime = OpportunitySvm {
@@ -2036,6 +2043,7 @@ mod tests {
                     user_wallet_address,
                 )
             }),
+            profile_id: None,
         };
 
         let opps = vec![
