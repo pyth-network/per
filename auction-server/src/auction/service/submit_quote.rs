@@ -99,7 +99,7 @@ impl Service {
             if bid_latest_version.status.is_sent_to_user_for_submission() {
                 // TODO we are losing information here, need a better way for handling this situation
                 // NOTE: These bids maybe submitted by the user, so we don't need to update the status to submission failed
-                tracing::warn!(bid_id = ?bid_latest_version.id, auction_id = ?auction.id, "A non cancellable bid is submitted after the deadline buffer");
+                tracing::warn!(bid_id = ?bid_latest_version.id, auction_id = ?auction.id, "A non-cancellable bid is submitted after the deadline buffer");
             } else {
                 let tx_hash = bid_latest_version.chain_data.transaction.signatures[0];
                 self.update_bid_status(UpdateBidStatusInput {
