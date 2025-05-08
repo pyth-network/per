@@ -177,12 +177,16 @@ pub async fn post_quote(
         _ => None,
     };
     let quote_create = get_quote_create_entity(params, profile);
-
-    let quote = store
-        .opportunity_service_svm
-        .get_quote(GetQuoteInput { quote_create })
-        .await?;
-
+    // Ensure the get_quote process completes even if the client cancels the request
+    let handle = tokio::spawn(async move {
+        store
+            .opportunity_service_svm
+            .get_quote(GetQuoteInput { quote_create })
+            .await
+    });
+    let quote = handle
+        .await
+        .map_err(|_| RestError::TemporarilyUnavailable)??;
     Ok(Json(quote.into()))
 }
 

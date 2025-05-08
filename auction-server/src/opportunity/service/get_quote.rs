@@ -432,6 +432,7 @@ impl Service {
         )
     )]
     pub async fn get_quote(&self, input: GetQuoteInput) -> Result<entities::Quote, RestError> {
+        println!("hello dani0");
         let referral_fee_info = self.unwrap_referral_fee_info(
             input.quote_create.referral_fee_info.clone(),
             &input.quote_create.chain_id,
@@ -469,8 +470,10 @@ impl Service {
             ));
         }
 
+        println!("hello dani1");
         // Wait to make sure searchers had enough time to submit bids
         sleep(config.auction_time).await;
+        println!("hello dani2");
 
         // NOTE: This part will be removed after refactoring the permission key type
         let slice: [u8; 65] = opportunity
@@ -558,10 +561,11 @@ impl Service {
             .await?;
         tracing::Span::current().record("auction_id", auction.id.to_string());
 
+        println!("hello dani3");
         // Remove opportunity to prevent further bids
         // The handle auction loop will take care of the bids that were submitted late
         self.remove_quote_opportunity(opportunity.clone()).await;
-
+        println!("hello dani4");
         let signature = winner_bid.chain_data.transaction.signatures[0];
         // Update the status of all bids in the auction except the winner bid
         let auction_bids = auction.bids.clone();
@@ -588,6 +592,7 @@ impl Service {
                 });
             }
         });
+        println!("hello dani5");
 
         let new_status = if input.quote_create.cancellable {
             BidStatusSvm::AwaitingSignature {
@@ -617,6 +622,7 @@ impl Service {
             // TODO We should handle this case more gracefully
             return Err(RestError::DuplicateOpportunity);
         }
+        println!("hello dani6");
 
         let metadata = self
             .get_express_relay_metadata(GetExpressRelayMetadataInput {
