@@ -349,11 +349,12 @@ impl Svm {
                 BidStatus::Submitted as _,
                 BidStatus::SentToUserForSubmission as _,
             )),
-            &entities::BidStatusSvm::Expired { .. } => Ok(sqlx::query!(
-                "UPDATE bid SET status = $1, conclusion_time = $2 WHERE id = $3 AND status IN ($4, $5, $6, $7)",
+            entities::BidStatusSvm::Expired { auction } => Ok(sqlx::query!(
+                "UPDATE bid SET status = $1, conclusion_time = $2, auction_id = $3 WHERE id = $4 AND status IN ($5, $6, $7, $8)",
                 BidStatus::Expired as _,
                 PrimitiveDateTime::new(now.date(), now.time()),
                 bid.id,
+                auction.id,
                 BidStatus::Pending as _,
                 BidStatus::Submitted as _,
                 BidStatus::AwaitingSignature as _,
