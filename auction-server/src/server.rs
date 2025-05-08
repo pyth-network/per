@@ -478,6 +478,15 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
             let service = store_new.opportunity_service_svm.clone();
             async move { service.update_metrics().await }
         }),
+        metric_collector("tokio runtime metrics".to_string(), || {
+            let handle = tokio::runtime::Handle::current();
+            let runtime_monitor = tokio_metrics::RuntimeMonitor::new(&handle);
+
+            async move {
+                let rt = runtime_monitor;
+                per_metrics::update_tokio_runtime_metrics(&rt).await
+            }
+        }),
         fault_tolerant_handler("start api".to_string(), || api::start_api(
             run_options.clone(),
             store_new.clone(),

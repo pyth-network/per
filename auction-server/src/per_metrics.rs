@@ -24,7 +24,9 @@ use {
         },
         time::Instant,
     },
+    tokio_metrics::RuntimeMonitor,
     tracing::{
+        error,
         field::{
             Field,
             Visit,
@@ -163,6 +165,84 @@ where
             None => tracing::error!("span not found: {:?}", id),
         }
     }
+}
+
+pub async fn update_tokio_runtime_metrics(runtime_monitor: &RuntimeMonitor) {
+    let Some(metrics) = runtime_monitor.intervals().next() else {
+        error!("No tokio runtime metrics available");
+        return;
+    };
+
+    // Worker metrics
+    metrics::gauge!("tokio_workers_count").set(metrics.workers_count as f64);
+
+    // Park count metrics
+    metrics::gauge!("tokio_total_park_count").set(metrics.total_park_count as f64);
+    metrics::gauge!("tokio_max_park_count").set(metrics.max_park_count as f64);
+    metrics::gauge!("tokio_min_park_count").set(metrics.min_park_count as f64);
+
+    // Poll duration metrics
+    metrics::gauge!("tokio_mean_poll_duration_ns")
+        .set(metrics.mean_poll_duration.as_nanos() as f64);
+    metrics::gauge!("tokio_mean_poll_duration_worker_min_ns")
+        .set(metrics.mean_poll_duration_worker_min.as_nanos() as f64);
+    metrics::gauge!("tokio_mean_poll_duration_worker_max_ns")
+        .set(metrics.mean_poll_duration_worker_max.as_nanos() as f64);
+
+    // Noop metrics
+    metrics::gauge!("tokio_total_noop_count").set(metrics.total_noop_count as f64);
+    metrics::gauge!("tokio_max_noop_count").set(metrics.max_noop_count as f64);
+    metrics::gauge!("tokio_min_noop_count").set(metrics.min_noop_count as f64);
+
+    // Steal metrics
+    metrics::gauge!("tokio_total_steal_count").set(metrics.total_steal_count as f64);
+    metrics::gauge!("tokio_max_steal_count").set(metrics.max_steal_count as f64);
+    metrics::gauge!("tokio_min_steal_count").set(metrics.min_steal_count as f64);
+    metrics::gauge!("tokio_total_steal_operations").set(metrics.total_steal_operations as f64);
+    metrics::gauge!("tokio_max_steal_operations").set(metrics.max_steal_operations as f64);
+    metrics::gauge!("tokio_min_steal_operations").set(metrics.min_steal_operations as f64);
+
+    // Schedule metrics
+    metrics::gauge!("tokio_num_remote_schedules").set(metrics.num_remote_schedules as f64);
+    metrics::gauge!("tokio_total_local_schedule_count")
+        .set(metrics.total_local_schedule_count as f64);
+    metrics::gauge!("tokio_max_local_schedule_count").set(metrics.max_local_schedule_count as f64);
+    metrics::gauge!("tokio_min_local_schedule_count").set(metrics.min_local_schedule_count as f64);
+
+    // Overflow metrics
+    metrics::gauge!("tokio_total_overflow_count").set(metrics.total_overflow_count as f64);
+    metrics::gauge!("tokio_max_overflow_count").set(metrics.max_overflow_count as f64);
+    metrics::gauge!("tokio_min_overflow_count").set(metrics.min_overflow_count as f64);
+
+    // Polls metrics
+    metrics::gauge!("tokio_total_polls_count").set(metrics.total_polls_count as f64);
+    metrics::gauge!("tokio_max_polls_count").set(metrics.max_polls_count as f64);
+    metrics::gauge!("tokio_min_polls_count").set(metrics.min_polls_count as f64);
+
+    // Busy duration metrics
+    metrics::gauge!("tokio_total_busy_duration_ns")
+        .set(metrics.total_busy_duration.as_nanos() as f64);
+    metrics::gauge!("tokio_max_busy_duration_ns").set(metrics.max_busy_duration.as_nanos() as f64);
+    metrics::gauge!("tokio_min_busy_duration_ns").set(metrics.min_busy_duration.as_nanos() as f64);
+
+    // Queue depth metrics
+    metrics::gauge!("tokio_global_queue_depth").set(metrics.global_queue_depth as f64);
+    metrics::gauge!("tokio_total_local_queue_depth").set(metrics.total_local_queue_depth as f64);
+    metrics::gauge!("tokio_max_local_queue_depth").set(metrics.max_local_queue_depth as f64);
+    metrics::gauge!("tokio_min_local_queue_depth").set(metrics.min_local_queue_depth as f64);
+    metrics::gauge!("tokio_blocking_queue_depth").set(metrics.blocking_queue_depth as f64);
+
+    // Task and thread metrics
+    metrics::gauge!("tokio_live_tasks_count").set(metrics.live_tasks_count as f64);
+    metrics::gauge!("tokio_blocking_threads_count").set(metrics.blocking_threads_count as f64);
+    metrics::gauge!("tokio_idle_blocking_threads_count")
+        .set(metrics.idle_blocking_threads_count as f64);
+
+    // Other metrics
+    metrics::gauge!("tokio_elapsed_us").set(metrics.elapsed.as_micros() as f64);
+    metrics::gauge!("tokio_budget_forced_yield_count")
+        .set(metrics.budget_forced_yield_count as f64);
+    metrics::gauge!("tokio_io_driver_ready_count").set(metrics.io_driver_ready_count as f64);
 }
 
 pub async fn start_metrics(run_options: RunOptions, server_state: Arc<ServerState>) -> Result<()> {
