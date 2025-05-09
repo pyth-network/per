@@ -21,6 +21,7 @@ use {
                 update_bid_status::UpdateBidStatusInput,
                 verification::{
                     get_current_time_rounded_with_offset,
+                    BID_MAXIMUM_LIFE_TIME_SVM,
                     BID_MINIMUM_LIFE_TIME_SVM_OTHER,
                 },
             },
@@ -437,10 +438,13 @@ impl Service {
             &input.quote_create.chain_id,
         )?;
 
-        if input.quote_create.minimum_lifetime.unwrap_or(0) > 45 {
-            return Err(RestError::BadParameters(
-                "Minimum lifetime cannot be greater than 45 seconds".to_string(),
-            ));
+        if Duration::from_secs(input.quote_create.minimum_lifetime.unwrap_or(0) as u64)
+            > BID_MAXIMUM_LIFE_TIME_SVM
+        {
+            return Err(RestError::BadParameters(format!(
+                "Minimum lifetime cannot be greater than {} seconds",
+                BID_MAXIMUM_LIFE_TIME_SVM.as_secs()
+            )));
         }
 
         // TODO use compute_swap_fees to make sure instead when the metadata is fetched from on-chain

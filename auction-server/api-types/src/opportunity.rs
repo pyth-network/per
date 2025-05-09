@@ -470,7 +470,7 @@ pub struct QuoteCreateV1SvmParams {
     #[schema(example = "true")]
     #[serde(default = "default_cancellable")]
     pub cancellable:            bool,
-    /// Optional minimum transaction lifetime in seconds. This value can not exceed 45 seconds.
+    /// Optional minimum transaction lifetime in seconds.
     #[schema(example = 10, value_type = Option<u32>)]
     pub minimum_lifetime:       Option<u32>,
 }

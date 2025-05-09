@@ -443,6 +443,11 @@ pub enum RestError {
         deadline: OffsetDateTime,
         minimum:  OffsetDateTime,
     },
+    /// Deadline is too late and the blockhash may expire by then
+    DeadlineTooLate {
+        deadline: OffsetDateTime,
+        maximum:  OffsetDateTime,
+    },
     /// Invalid Signature
     InvalidSignature(Pubkey),
     /// Relayer is not a signer
@@ -557,6 +562,10 @@ impl RestError {
             RestError::InvalidDeadline { deadline, minimum } => (
                 StatusCode::BAD_REQUEST,
                 format!("Bid deadline {:?} is too early; it must remain valid at least until {:?}", deadline, minimum),
+            ),
+            RestError::DeadlineTooLate { deadline, maximum } => (
+                StatusCode::BAD_REQUEST,
+                format!("Bid deadline {:?} is too late; it must be less than {:?}", deadline, maximum),
             ),
             RestError::InvalidSignature(pubkey) => (
                 StatusCode::BAD_REQUEST,
