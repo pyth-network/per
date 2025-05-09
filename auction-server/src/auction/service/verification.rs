@@ -145,6 +145,7 @@ pub struct BidDataSvm {
 
 const BID_MINIMUM_LIFE_TIME_SVM_SERVER: Duration = Duration::from_secs(5);
 pub const BID_MINIMUM_LIFE_TIME_SVM_OTHER: Duration = Duration::from_secs(10);
+pub const BID_MAXIMUM_LIFE_TIME_SVM: Duration = Duration::from_secs(45);
 
 // TODO: this uses the time at the server, which can lead to issues if Solana ever experiences clock drift
 // using the time at the server is not ideal, but the alternative is to make an RPC call to get the Solana block time
@@ -1555,6 +1556,13 @@ impl Verification for Service {
                 minimum:  bid_data.minimum_deadline,
             });
         }
+        let max_deadline = get_current_time_rounded_with_offset(BID_MAXIMUM_LIFE_TIME_SVM);
+        if bid_data.deadline > max_deadline {
+            return Err(RestError::DeadlineTooLate {
+                deadline: bid_data.deadline,
+                maximum:  max_deadline,
+            });
+        }
         self.verify_signatures(&bid, &bid_chain_data, &bid_data.submit_type)
             .await?;
         match bid_payment_instruction_type {
@@ -1614,6 +1622,7 @@ mod tests {
                 service::{
                     verification::{
                         Verification,
+                        BID_MAXIMUM_LIFE_TIME_SVM,
                         BID_MINIMUM_LIFE_TIME_SVM_OTHER,
                     },
                     Service,
@@ -2212,7 +2221,7 @@ mod tests {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
             bid_amount,
-            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
         })
@@ -2258,7 +2267,7 @@ mod tests {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
             bid_amount,
-            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
         })
@@ -2301,7 +2310,7 @@ mod tests {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
             bid_amount,
-            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
         })
@@ -2659,7 +2668,7 @@ mod tests {
             searcher:             searcher.pubkey(),
             opportunity_params:   get_opportunity_params(opportunity.clone()),
             bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            deadline:             (OffsetDateTime::now_utc() + Duration::seconds(30))
                 .unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
@@ -2669,7 +2678,7 @@ mod tests {
             svm::Svm::get_submit_bid_instruction(GetSubmitBidInstructionParams {
                 chain_id:             service.config.chain_id.clone(),
                 amount:               1,
-                deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+                deadline:             (OffsetDateTime::now_utc() + Duration::seconds(30))
                     .unix_timestamp(),
                 searcher:             searcher.pubkey(),
                 permission:           Pubkey::new_unique(),
@@ -2725,7 +2734,7 @@ mod tests {
             searcher:             searcher.pubkey(),
             opportunity_params:   get_opportunity_params(opportunity.clone()),
             bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            deadline:             (OffsetDateTime::now_utc() + Duration::seconds(30))
                 .unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
@@ -2754,7 +2763,7 @@ mod tests {
             searcher:             searcher.pubkey(),
             opportunity_params:   get_opportunity_params(opportunity.clone()),
             bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            deadline:             (OffsetDateTime::now_utc() + Duration::seconds(30))
                 .unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
@@ -2783,7 +2792,7 @@ mod tests {
             searcher:             searcher.pubkey(),
             opportunity_params:   get_opportunity_params(opportunity.clone()),
             bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            deadline:             (OffsetDateTime::now_utc() + Duration::seconds(30))
                 .unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
@@ -2814,7 +2823,7 @@ mod tests {
             searcher:             searcher.pubkey(),
             opportunity_params:   get_opportunity_params(opportunity.clone()),
             bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            deadline:             (OffsetDateTime::now_utc() + Duration::seconds(30))
                 .unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
@@ -2848,7 +2857,7 @@ mod tests {
             searcher:             searcher.pubkey(),
             opportunity_params:   get_opportunity_params(opportunity.clone()),
             bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            deadline:             (OffsetDateTime::now_utc() + Duration::seconds(30))
                 .unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
@@ -2877,7 +2886,7 @@ mod tests {
             searcher:             searcher.pubkey(),
             opportunity_params:   get_opportunity_params(opportunity.clone()),
             bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            deadline:             (OffsetDateTime::now_utc() + Duration::seconds(30))
                 .unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
@@ -2906,7 +2915,7 @@ mod tests {
             searcher:             searcher.pubkey(),
             opportunity_params:   get_opportunity_params(opportunity.clone()),
             bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            deadline:             (OffsetDateTime::now_utc() + Duration::seconds(30))
                 .unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
@@ -2938,7 +2947,7 @@ mod tests {
             searcher:             searcher.pubkey(),
             opportunity_params:   get_opportunity_params(opportunity.clone()),
             bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            deadline:             (OffsetDateTime::now_utc() + Duration::seconds(30))
                 .unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
@@ -2970,7 +2979,7 @@ mod tests {
             searcher:             searcher.pubkey(),
             opportunity_params:   get_opportunity_params(opportunity.clone()),
             bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            deadline:             (OffsetDateTime::now_utc() + Duration::seconds(30))
                 .unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
@@ -2996,7 +3005,7 @@ mod tests {
             searcher:             searcher.pubkey(),
             opportunity_params:   get_opportunity_params(opportunity.clone()),
             bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            deadline:             (OffsetDateTime::now_utc() + Duration::seconds(30))
                 .unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
@@ -3019,7 +3028,7 @@ mod tests {
             searcher:             searcher.pubkey(),
             opportunity_params:   get_opportunity_params(opportunity.clone()),
             bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            deadline:             (OffsetDateTime::now_utc() + Duration::seconds(30))
                 .unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
@@ -3049,7 +3058,7 @@ mod tests {
             searcher:             searcher.pubkey(),
             opportunity_params:   get_opportunity_params(opportunity.clone()),
             bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            deadline:             (OffsetDateTime::now_utc() + Duration::seconds(30))
                 .unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
@@ -3090,7 +3099,7 @@ mod tests {
             searcher:             searcher.pubkey(),
             opportunity_params:   get_opportunity_params(opportunity.clone()),
             bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            deadline:             (OffsetDateTime::now_utc() + Duration::seconds(30))
                 .unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
@@ -3127,7 +3136,7 @@ mod tests {
             searcher:             searcher.pubkey(),
             opportunity_params:   get_opportunity_params(opportunity.clone()),
             bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            deadline:             (OffsetDateTime::now_utc() + Duration::seconds(30))
                 .unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
@@ -3165,7 +3174,7 @@ mod tests {
             searcher:             searcher.pubkey(),
             opportunity_params:   get_opportunity_params(opportunity.clone()),
             bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            deadline:             (OffsetDateTime::now_utc() + Duration::seconds(30))
                 .unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
@@ -3207,7 +3216,7 @@ mod tests {
             searcher:             searcher.pubkey(),
             opportunity_params:   get_opportunity_params(opportunity.clone()),
             bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            deadline:             (OffsetDateTime::now_utc() + Duration::seconds(30))
                 .unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
@@ -3252,7 +3261,7 @@ mod tests {
             searcher:             searcher.pubkey(),
             opportunity_params:   get_opportunity_params(opportunity.clone()),
             bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            deadline:             (OffsetDateTime::now_utc() + Duration::seconds(30))
                 .unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
@@ -3307,7 +3316,7 @@ mod tests {
             searcher:             searcher.pubkey(),
             opportunity_params:   get_opportunity_params(opportunity.clone()),
             bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            deadline:             (OffsetDateTime::now_utc() + Duration::seconds(30))
                 .unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
@@ -3355,7 +3364,7 @@ mod tests {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
             bid_amount,
-            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
         })
@@ -3425,7 +3434,7 @@ mod tests {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
             bid_amount,
-            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
         })
@@ -3502,7 +3511,7 @@ mod tests {
             searcher:             searcher.pubkey(),
             opportunity_params:   get_opportunity_params(opportunity.clone()),
             bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            deadline:             (OffsetDateTime::now_utc() + Duration::seconds(30))
                 .unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
@@ -3554,7 +3563,7 @@ mod tests {
             searcher:             searcher.pubkey(),
             opportunity_params:   get_opportunity_params(opportunity.clone()),
             bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            deadline:             (OffsetDateTime::now_utc() + Duration::seconds(30))
                 .unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
@@ -3580,7 +3589,7 @@ mod tests {
             searcher:             searcher.pubkey(),
             opportunity_params:   get_opportunity_params(opportunity.clone()),
             bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            deadline:             (OffsetDateTime::now_utc() + Duration::seconds(30))
                 .unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
@@ -3624,7 +3633,7 @@ mod tests {
             searcher:             searcher.pubkey(),
             opportunity_params:   get_opportunity_params(opportunity.clone()),
             bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            deadline:             (OffsetDateTime::now_utc() + Duration::seconds(30))
                 .unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
@@ -3676,7 +3685,7 @@ mod tests {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
             bid_amount,
-            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
         })
@@ -3744,7 +3753,7 @@ mod tests {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
             bid_amount,
-            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
         })
@@ -3815,7 +3824,7 @@ mod tests {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
             bid_amount,
-            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
         })
@@ -3852,7 +3861,7 @@ mod tests {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
             bid_amount,
-            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
         })
@@ -3900,7 +3909,7 @@ mod tests {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
             bid_amount,
-            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
         })
@@ -3962,7 +3971,7 @@ mod tests {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
             bid_amount,
-            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
         })
@@ -4006,7 +4015,7 @@ mod tests {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
             bid_amount,
-            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
         })
@@ -4049,7 +4058,7 @@ mod tests {
             searcher:             searcher.pubkey(),
             opportunity_params:   get_opportunity_params(opportunity.clone()),
             bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::minutes(1))
+            deadline:             (OffsetDateTime::now_utc() + Duration::seconds(30))
                 .unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
@@ -4101,7 +4110,7 @@ mod tests {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
             bid_amount,
-            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
         })
@@ -4179,7 +4188,7 @@ mod tests {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
             bid_amount,
-            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
         })
@@ -4243,7 +4252,7 @@ mod tests {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
             bid_amount,
-            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
         })
@@ -4320,7 +4329,7 @@ mod tests {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
             bid_amount,
-            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
         })
@@ -4380,7 +4389,7 @@ mod tests {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
             bid_amount,
-            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
         })
@@ -4442,7 +4451,7 @@ mod tests {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
             bid_amount,
-            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
         })
@@ -4482,7 +4491,7 @@ mod tests {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
             bid_amount,
-            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
         })
@@ -4530,7 +4539,7 @@ mod tests {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
             bid_amount,
-            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
         })
@@ -4580,7 +4589,7 @@ mod tests {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
             bid_amount,
-            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
         })
@@ -4630,7 +4639,7 @@ mod tests {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
             bid_amount,
-            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
         })
@@ -4691,7 +4700,7 @@ mod tests {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
             bid_amount,
-            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
         })
@@ -4758,7 +4767,7 @@ mod tests {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
             bid_amount,
-            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
         })
@@ -4824,7 +4833,7 @@ mod tests {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
             bid_amount,
-            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
         })
@@ -4889,7 +4898,7 @@ mod tests {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
             bid_amount,
-            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
         })
@@ -4960,7 +4969,7 @@ mod tests {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
             bid_amount,
-            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
         })
@@ -4987,7 +4996,7 @@ mod tests {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
             bid_amount,
-            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
         })
@@ -5014,7 +5023,7 @@ mod tests {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
             bid_amount,
-            deadline: (OffsetDateTime::now_utc() + Duration::minutes(1)).unix_timestamp(),
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
             fee_receiver_relayer: Pubkey::new_unique(),
             relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
         })
@@ -5078,6 +5087,49 @@ mod tests {
                 deadline: OffsetDateTime::from_unix_timestamp(deadline).unwrap(),
                 minimum:  OffsetDateTime::from_unix_timestamp(swap_params.minimum_deadline)
                     .unwrap(),
+            },
+        )
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_deadline_too_late() {
+        let (service, opportunities) = get_service(true);
+
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let opportunity = opportunities.with_minimum_lifetime.clone();
+        let max_deadline = get_current_time_rounded_with_offset(BID_MAXIMUM_LIFE_TIME_SVM);
+        let deadline = (max_deadline + Duration::seconds(1)).unix_timestamp();
+        let instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunity.clone()),
+            bid_amount,
+            deadline,
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let mut transaction = Transaction::new_with_payer(&[instruction], Some(&searcher.pubkey()));
+        transaction.partial_sign(&[searcher], Hash::default());
+
+        let bid_create = BidCreate {
+            chain_id:        service.config.chain_id.clone(),
+            initiation_time: OffsetDateTime::now_utc(),
+            profile:         None,
+            chain_data:      BidChainDataCreateSvm::Swap(BidChainDataSwapCreateSvm {
+                opportunity_id: opportunity.id,
+                transaction:    transaction.clone().into(),
+            }),
+        };
+
+        let result = service
+            .verify_bid(super::VerifyBidInput { bid_create })
+            .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::DeadlineTooLate {
+                deadline: OffsetDateTime::from_unix_timestamp(deadline).unwrap(),
+                maximum:  max_deadline,
             },
         )
     }
