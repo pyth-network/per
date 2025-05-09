@@ -335,11 +335,12 @@ impl Service {
 
         if referral_fee_info.referral_fee_ppm == 0 {
             // If the referral fee is 0, we can skip the initialization of the router token account
-            token_account_initialization_configs.router_fee_receiver_ta =
-                TokenAccountInitializationConfig::Unneeded;
+            // TODO: enable this at some point
+            // token_account_initialization_configs.router_fee_receiver_ta =
+            //     TokenAccountInitializationConfig::Unneeded;
         }
         if metadata.swap_platform_fee_bps == 0 {
-            // If the platform fee is 0, we can skip the initialization of the router token accounts
+            // If the platform fee is 0, we can skip the initialization of the express relay and relayer token accounts
             token_account_initialization_configs.express_relay_fee_receiver_ata =
                 TokenAccountInitializationConfig::Unneeded;
             token_account_initialization_configs.relayer_fee_receiver_ata =
