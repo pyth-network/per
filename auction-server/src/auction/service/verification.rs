@@ -5099,7 +5099,7 @@ mod tests {
         let searcher = Keypair::new();
         let opportunity = opportunities.with_minimum_lifetime.clone();
         let max_deadline = get_current_time_rounded_with_offset(BID_MAXIMUM_LIFE_TIME_SVM);
-        let deadline = (max_deadline + Duration::seconds(10)).unix_timestamp();
+        let deadline = (max_deadline + Duration::seconds(1)).unix_timestamp();
         let instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
