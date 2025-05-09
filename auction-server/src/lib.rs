@@ -45,8 +45,11 @@ mod per_metrics;
 mod server;
 mod state;
 
-pub mod models_api {
-    use crate::auction;
+pub mod private_api {
+    use crate::{
+        auction,
+        server,
+    };
     // Bid model exports
     pub use auction::repository::{
         Bid,
@@ -54,6 +57,8 @@ pub mod models_api {
         BidStatus,
         ChainType,
     };
+    // Swap account positions from IDL
+    pub use server::get_swap_instruction_account_positions;
 }
 
 fn is_internal(metadata: &Metadata) -> bool {
