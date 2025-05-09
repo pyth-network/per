@@ -252,6 +252,40 @@ importers:
         specifier: "catalog:"
         version: 5.5.4
 
+  scripts/rfq-dynamic-deadline:
+    dependencies:
+      "@pythnetwork/express-relay-js":
+        specifier: workspace:*
+        version: link:../../sdk/js
+      "@solana/web3.js":
+        specifier: "catalog:"
+        version: 1.95.3(bufferutil@4.0.8)(utf-8-validate@5.0.10)
+      decimal.js:
+        specifier: ^10.4.3
+        version: 10.4.3
+      lodash:
+        specifier: ^4.17.21
+        version: 4.17.21
+      yargs:
+        specifier: "catalog:"
+        version: 17.7.2
+    devDependencies:
+      "@types/lodash":
+        specifier: ^4.17.15
+        version: 4.17.15
+      "@types/node":
+        specifier: "catalog:"
+        version: 20.14.9
+      "@types/yargs":
+        specifier: "catalog:"
+        version: 17.0.32
+      jest:
+        specifier: "catalog:"
+        version: 27.5.1(bufferutil@4.0.8)(ts-node@10.9.2(@types/node@20.14.9)(typescript@5.5.4))(utf-8-validate@5.0.10)
+      typescript:
+        specifier: "catalog:"
+        version: 5.5.4
+
   scripts/rfq-stress-test:
     dependencies:
       "@pythnetwork/express-relay-js":
@@ -1510,6 +1544,7 @@ packages:
       {
         integrity: sha512-0S5mzeFCSiKul34sc50BF8litweXI3E7jJ8OtKiXM4QdyHpI5R/ufHGgpu+xV0vzhSYxeGvHQtG7s/fhL4w7Wg==,
       }
+    deprecated: broken cli build
     hasBin: true
 
   "@coral-xyz/anchor-errors@0.31.0":
@@ -16305,24 +16340,24 @@ snapshots:
 
   "@types/babel__core@7.20.5":
     dependencies:
-      "@babel/parser": 7.26.2
-      "@babel/types": 7.26.0
+      "@babel/parser": 7.26.5
+      "@babel/types": 7.26.5
       "@types/babel__generator": 7.6.8
       "@types/babel__template": 7.4.4
       "@types/babel__traverse": 7.20.6
 
   "@types/babel__generator@7.6.8":
     dependencies:
-      "@babel/types": 7.26.0
+      "@babel/types": 7.26.5
 
   "@types/babel__template@7.4.4":
     dependencies:
-      "@babel/parser": 7.26.2
-      "@babel/types": 7.26.0
+      "@babel/parser": 7.26.5
+      "@babel/types": 7.26.5
 
   "@types/babel__traverse@7.20.6":
     dependencies:
-      "@babel/types": 7.26.0
+      "@babel/types": 7.26.5
 
   "@types/connect@3.4.38":
     dependencies:
@@ -17339,7 +17374,7 @@ snapshots:
 
   babel-plugin-istanbul@6.1.1:
     dependencies:
-      "@babel/helper-plugin-utils": 7.25.9
+      "@babel/helper-plugin-utils": 7.26.5
       "@istanbuljs/load-nyc-config": 1.1.0
       "@istanbuljs/schema": 0.1.3
       istanbul-lib-instrument: 5.2.1
@@ -17357,7 +17392,7 @@ snapshots:
   babel-plugin-jest-hoist@29.6.3:
     dependencies:
       "@babel/template": 7.25.9
-      "@babel/types": 7.26.0
+      "@babel/types": 7.26.5
       "@types/babel__core": 7.20.5
       "@types/babel__traverse": 7.20.6
 
@@ -19392,7 +19427,7 @@ snapshots:
   istanbul-lib-instrument@5.2.1:
     dependencies:
       "@babel/core": 7.26.0
-      "@babel/parser": 7.26.2
+      "@babel/parser": 7.26.5
       "@istanbuljs/schema": 0.1.3
       istanbul-lib-coverage: 3.2.2
       semver: 6.3.1

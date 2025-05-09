@@ -8,6 +8,7 @@ packages:
   - "scripts/swap-beacon"
   - "apps/swap"
   - "scripts/rfq-stress-test"
+  - "scripts/rfq-dynamic-deadline"
 
 catalog:
   "typescript": 5.5.4
