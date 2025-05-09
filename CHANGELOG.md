@@ -4,7 +4,7 @@ All notable changes to the searcher sdks will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Rust: 0.12.0, Python 0.27.0, Javascript 0.28.0, api-types 0.11.0] - UNRELEASED
+## [Rust: 0.12.0, Python 0.27.0, Javascript 0.28.0, api-types 0.11.0] - 2025-05-09
 
 - Add a profile ID field to the opportunity api type. [538](https://github.com/pyth-network/per/pull/538)
 
