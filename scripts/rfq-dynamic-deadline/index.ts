@@ -19,7 +19,7 @@ const argv = yargs(hideBin(process.argv))
   .option("server-url", {
     description: "The URL of the auction server",
     type: "string",
-    default: "https://pyth-express-relay-mainnet.asymmetric.re",
+    default: "https://per-mainnet.dourolabs.app",
   })
   .help()
   .alias("help", "h")
