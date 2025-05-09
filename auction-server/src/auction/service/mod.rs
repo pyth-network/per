@@ -54,6 +54,7 @@ pub mod update_recent_prioritization_fee;
 pub mod verification;
 pub mod workers;
 
+#[derive(Debug, Clone)]
 pub struct SwapInstructionAccountPositions {
     pub searcher_account:       usize,
     pub router_token_account:   usize,
