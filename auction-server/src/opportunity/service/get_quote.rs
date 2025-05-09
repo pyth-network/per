@@ -437,6 +437,12 @@ impl Service {
             &input.quote_create.chain_id,
         )?;
 
+        if input.quote_create.minimum_lifetime.unwrap_or(0) > 45 {
+            return Err(RestError::BadParameters(
+                "Minimum lifetime cannot be greater than 45 seconds".to_string(),
+            ));
+        }
+
         // TODO use compute_swap_fees to make sure instead when the metadata is fetched from on-chain
         if FEE_SPLIT_PRECISION_PPM < referral_fee_info.referral_fee_ppm {
             return Err(RestError::BadParameters(format!(
