@@ -27,6 +27,7 @@ use {
     },
     solana_sdk::{
         commitment_config::CommitmentConfig,
+        instruction::InstructionError,
         signature::{
             Signature,
             Signer,
@@ -455,9 +456,29 @@ impl Service {
             .flatten()
     }
 
+    fn get_failure_reason_label(err: &TransactionError) -> Option<&'static str> {
+        match err {
+            TransactionError::InstructionError(_, InstructionError::Custom(1)) => {
+                Some("insufficient_funds_sol_transfer")
+            }
+            TransactionError::InstructionError(_, InstructionError::Custom(6002)) => {
+                Some("deadline_passed")
+            }
+            TransactionError::InstructionError(_, InstructionError::Custom(6006)) => {
+                Some("insufficient_searcher_funds")
+            }
+            TransactionError::InstructionError(_, InstructionError::Custom(6009)) => {
+                Some("insufficient_user_funds")
+            }
+            _ => Some("other"),
+        }
+    }
+
+
     #[tracing::instrument(skip_all, fields(bid_id, total_tries, tx_hash))]
     async fn blocking_send_transaction(&self, bid: entities::Bid, start: Instant) {
         let mut result_label = METRIC_LABEL_EXPIRED;
+        let mut reason_label = None;
         let signature = bid.chain_data.transaction.signatures[0];
         tracing::Span::current().record("bid_id", bid.id.to_string());
         tracing::Span::current().record("tx_hash", signature.to_string());
@@ -469,8 +490,9 @@ impl Service {
                 log = receiver.recv() => {
                     if let Ok(log) = log {
                         if log.value.signature.eq(&signature.to_string()) {
-                            if log.value.err.is_some() {
+                            if let Some(err) = log.value.err {
                                 result_label = METRIC_LABEL_FAILED;
+                                reason_label = Self::get_failure_reason_label(&err);
                             } else {
                                 result_label = METRIC_LABEL_SUCCESS;
                             }
@@ -480,8 +502,9 @@ impl Service {
                 }
                 _ = retry_interval.tick() => {
                     if let Some(status) = self.get_signature_status(&signature).await {
-                        if status.is_err() {
+                        if let Some(err) = status.err() {
                             result_label = METRIC_LABEL_FAILED;
+                            reason_label = Self::get_failure_reason_label(&err);
                         } else {
                             result_label = METRIC_LABEL_SUCCESS;
                         }
@@ -496,13 +519,19 @@ impl Service {
             }
         }
 
-        let labels = [
+
+        let mut labels = vec![
             ("chain_id", self.config.chain_id.clone()),
             // note: this metric can have the label "expired" even when the transaction landed
             // if the log listener didn't get the log in time
             // but this is rare as we retry for 60 seconds and blockhash expires after 60 seconds
             ("result", result_label.to_string()),
         ];
+
+        if let Some(reason_label) = reason_label {
+            labels.push(("reason", reason_label.to_string()));
+        }
+
         metrics::histogram!(TRANSACTION_LANDING_TIME_SVM_METRIC, &labels)
             .record(start.elapsed().as_secs_f64());
 
