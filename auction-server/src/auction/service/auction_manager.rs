@@ -383,6 +383,25 @@ const METRIC_LABEL_SUCCESS: &str = "success";
 const METRIC_LABEL_FAILED: &str = "failed";
 const METRIC_LABEL_EXPIRED: &str = "expired";
 
+fn get_failure_reason_label(err: &TransactionError) -> Option<&'static str> {
+    match err {
+        TransactionError::InstructionError(_, InstructionError::Custom(1)) => {
+            Some("insufficient_funds_sol_transfer")
+        }
+        TransactionError::InstructionError(_, InstructionError::Custom(6002)) => {
+            Some("deadline_passed")
+        }
+        TransactionError::InstructionError(_, InstructionError::Custom(6006)) => {
+            Some("insufficient_searcher_funds")
+        }
+        TransactionError::InstructionError(_, InstructionError::Custom(6009)) => {
+            Some("insufficient_user_funds")
+        }
+        _ => Some("other"),
+    }
+}
+
+
 impl Service {
     pub fn add_relayer_signature(&self, bid: &mut entities::Bid) {
         let relayer = &self.config.chain_config.express_relay.relayer;
@@ -456,25 +475,6 @@ impl Service {
             .flatten()
     }
 
-    fn get_failure_reason_label(err: &TransactionError) -> Option<&'static str> {
-        match err {
-            TransactionError::InstructionError(_, InstructionError::Custom(1)) => {
-                Some("insufficient_funds_sol_transfer")
-            }
-            TransactionError::InstructionError(_, InstructionError::Custom(6002)) => {
-                Some("deadline_passed")
-            }
-            TransactionError::InstructionError(_, InstructionError::Custom(6006)) => {
-                Some("insufficient_searcher_funds")
-            }
-            TransactionError::InstructionError(_, InstructionError::Custom(6009)) => {
-                Some("insufficient_user_funds")
-            }
-            _ => Some("other"),
-        }
-    }
-
-
     #[tracing::instrument(skip_all, fields(bid_id, total_tries, tx_hash))]
     async fn blocking_send_transaction(&self, bid: entities::Bid, start: Instant) {
         let mut result_label = METRIC_LABEL_EXPIRED;
@@ -492,7 +492,7 @@ impl Service {
                         if log.value.signature.eq(&signature.to_string()) {
                             if let Some(err) = log.value.err {
                                 result_label = METRIC_LABEL_FAILED;
-                                reason_label = Self::get_failure_reason_label(&err);
+                                reason_label = get_failure_reason_label(&err);
                             } else {
                                 result_label = METRIC_LABEL_SUCCESS;
                             }
@@ -502,9 +502,9 @@ impl Service {
                 }
                 _ = retry_interval.tick() => {
                     if let Some(status) = self.get_signature_status(&signature).await {
-                        if let Some(err) = status.err() {
+                        if let Err(err) = status {
                             result_label = METRIC_LABEL_FAILED;
-                            reason_label = Self::get_failure_reason_label(&err);
+                            reason_label = get_failure_reason_label(&err);
                         } else {
                             result_label = METRIC_LABEL_SUCCESS;
                         }
@@ -527,9 +527,8 @@ impl Service {
             // but this is rare as we retry for 60 seconds and blockhash expires after 60 seconds
             ("result", result_label.to_string()),
         ];
-
-        if let Some(reason_label) = reason_label {
-            labels.push(("reason", reason_label.to_string()));
+        if let Some(label) = reason_label {
+            labels.push(("reason", label.to_string()))
         }
 
         metrics::histogram!(TRANSACTION_LANDING_TIME_SVM_METRIC, &labels)
