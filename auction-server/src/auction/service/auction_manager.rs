@@ -1,7 +1,12 @@
 use {
-    super::Service, crate::{
+    super::Service,
+    crate::{
         auction::entities::{
-            self, BidFailedReason, BidPaymentInstructionType, BidStatus, BidStatusAuction
+            self,
+            BidFailedReason,
+            BidPaymentInstructionType,
+            BidStatus,
+            BidStatusAuction,
         },
         kernel::entities::PermissionKeySvm,
         opportunity::{
@@ -9,13 +14,19 @@ use {
             service::get_live_opportunities::GetLiveOpportunitiesInput,
         },
         per_metrics::TRANSACTION_LANDING_TIME_SVM_METRIC,
-    }, anyhow::Result, axum::async_trait, axum_prometheus::metrics, futures::{
+    },
+    anyhow::Result,
+    axum::async_trait,
+    axum_prometheus::metrics,
+    futures::{
         future::join_all,
         Stream,
-    }, solana_client::{
+    },
+    solana_client::{
         nonblocking::pubsub_client::PubsubClient,
         rpc_config::RpcSendTransactionConfig,
-    }, solana_sdk::{
+    },
+    solana_sdk::{
         commitment_config::CommitmentConfig,
         instruction::InstructionError,
         signature::{
@@ -26,7 +37,8 @@ use {
             TransactionError,
             VersionedTransaction,
         },
-    }, std::{
+    },
+    std::{
         fmt::Debug,
         pin::Pin,
         result,
@@ -38,10 +50,12 @@ use {
             Duration,
             Instant,
         },
-    }, time::OffsetDateTime, tokio::time::{
+    },
+    time::OffsetDateTime,
+    tokio::time::{
         interval,
         Interval,
-    }
+    },
 };
 
 /// The trait for handling the auction for the service.
@@ -283,7 +297,9 @@ impl AuctionManager for Service {
                     Some(res) => Some(match &res.err {
                         Some(err) => entities::BidStatusSvm::Failed {
                             auction,
-                            reason: Some(BidFailedReason::get_failed_reason_from_transaction_error(err)),
+                            reason: Some(
+                                BidFailedReason::get_failed_reason_from_transaction_error(err),
+                            ),
                         },
                         None => entities::BidStatusSvm::Won { auction },
                     }),

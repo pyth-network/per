@@ -88,7 +88,9 @@ impl Service {
                         id:      auction.id,
                         tx_hash: signature,
                     },
-                    reason:  Some(entities::BidFailedReason::get_failed_reason_from_transaction_error(&err)),
+                    reason:  Some(
+                        entities::BidFailedReason::get_failed_reason_from_transaction_error(&err),
+                    ),
                 },
                 None => entities::BidStatusSvm::Won {
                     auction: entities::BidStatusAuction {

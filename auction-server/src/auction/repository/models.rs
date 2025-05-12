@@ -102,9 +102,15 @@ impl From<BidStatusReason> for entities::BidFailedReason {
     fn from(reason: BidStatusReason) -> Self {
         match reason {
             BidStatusReason::DeadlinePassed => entities::BidFailedReason::DeadlinePassed,
-            BidStatusReason::InsufficientUserFunds => entities::BidFailedReason::InsufficientUserFunds,
-            BidStatusReason::InsufficientSearcherFunds => entities::BidFailedReason::InsufficientSearcherFunds,
-            BidStatusReason::InsufficientFundsSolTransfer => entities::BidFailedReason::InsufficientFundsSolTransfer,
+            BidStatusReason::InsufficientUserFunds => {
+                entities::BidFailedReason::InsufficientUserFunds
+            }
+            BidStatusReason::InsufficientSearcherFunds => {
+                entities::BidFailedReason::InsufficientSearcherFunds
+            }
+            BidStatusReason::InsufficientFundsSolTransfer => {
+                entities::BidFailedReason::InsufficientFundsSolTransfer
+            }
             BidStatusReason::Other => entities::BidFailedReason::Other,
         }
     }
@@ -114,9 +120,15 @@ impl From<entities::BidFailedReason> for BidStatusReason {
     fn from(reason: entities::BidFailedReason) -> Self {
         match reason {
             entities::BidFailedReason::DeadlinePassed => BidStatusReason::DeadlinePassed,
-            entities::BidFailedReason::InsufficientUserFunds => BidStatusReason::InsufficientUserFunds,
-            entities::BidFailedReason::InsufficientSearcherFunds => BidStatusReason::InsufficientSearcherFunds,
-            entities::BidFailedReason::InsufficientFundsSolTransfer => BidStatusReason::InsufficientFundsSolTransfer,
+            entities::BidFailedReason::InsufficientUserFunds => {
+                BidStatusReason::InsufficientUserFunds
+            }
+            entities::BidFailedReason::InsufficientSearcherFunds => {
+                BidStatusReason::InsufficientSearcherFunds
+            }
+            entities::BidFailedReason::InsufficientFundsSolTransfer => {
+                BidStatusReason::InsufficientFundsSolTransfer
+            }
             entities::BidFailedReason::Other => BidStatusReason::Other,
         }
     }
@@ -227,10 +239,7 @@ impl Svm {
                     tx_hash: sig,
                     id:      auction.id,
                 },
-                reason:  bid
-                    .reason
-                    .clone()
-                    .map(|r| r.into())
+                reason:  bid.reason.clone().map(|r| r.into()),
             }),
             (BidStatus::Cancelled, Some(auction)) => Ok(entities::BidStatusSvm::Cancelled {
                 auction: entities::BidStatusAuction {
