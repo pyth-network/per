@@ -45,10 +45,15 @@ pub enum SubmissionFailedReason {
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum BidFailedReason {
+    /// The user didn't have enough funds when the transaction landed
     InsufficientUserFunds,
+    /// The searcher didn't have enough funds when the transaction landed
     InsufficientSearcherFunds,
+    /// A SOL transfer failed with insufficient funds, for example because the user didn't have enough SOL to wrap
     InsufficientFundsSolTransfer,
+    /// The transaction landed after the deadline
     DeadlinePassed,
+    /// Other reasons
     Other,
 }
 
