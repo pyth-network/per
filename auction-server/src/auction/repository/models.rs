@@ -98,6 +98,30 @@ pub enum BidStatusReason {
     Other,
 }
 
+impl From<BidStatusReason> for entities::BidFailedReason {
+    fn from(reason: BidStatusReason) -> Self {
+        match reason {
+            BidStatusReason::DeadlinePassed => entities::BidFailedReason::DeadlinePassed,
+            BidStatusReason::InsufficientUserFunds => entities::BidFailedReason::InsufficientUserFunds,
+            BidStatusReason::InsufficientSearcherFunds => entities::BidFailedReason::InsufficientSearcherFunds,
+            BidStatusReason::InsufficientFundsSolTransfer => entities::BidFailedReason::InsufficientFundsSolTransfer,
+            BidStatusReason::Other => entities::BidFailedReason::Other,
+        }
+    }
+}
+
+impl From<entities::BidFailedReason> for BidStatusReason {
+    fn from(reason: entities::BidFailedReason) -> Self {
+        match reason {
+            entities::BidFailedReason::DeadlinePassed => BidStatusReason::DeadlinePassed,
+            entities::BidFailedReason::InsufficientUserFunds => BidStatusReason::InsufficientUserFunds,
+            entities::BidFailedReason::InsufficientSearcherFunds => BidStatusReason::InsufficientSearcherFunds,
+            entities::BidFailedReason::InsufficientFundsSolTransfer => BidStatusReason::InsufficientFundsSolTransfer,
+            entities::BidFailedReason::Other => BidStatusReason::Other,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BundleIndex(pub Option<u32>);
 impl Deref for BundleIndex {
@@ -206,6 +230,7 @@ impl Svm {
                 reason:  bid
                     .reason
                     .clone()
+                    .map(|r| r.into())
             }),
             (BidStatus::Cancelled, Some(auction)) => Ok(entities::BidStatusSvm::Cancelled {
                 auction: entities::BidStatusAuction {
@@ -382,7 +407,7 @@ impl Svm {
                 "UPDATE bid SET status = $1, conclusion_time = $2, status_reason = $3 WHERE id = $4 AND status IN ($5, $6)",
                 Self::convert_bid_status(&new_status) as _,
                 PrimitiveDateTime::new(now.date(), now.time()),
-                Self::convert_bid_failed_reason(reason) as _,
+                BidStatusReason::from(reason.clone()) as _,
                 bid.id,
                 BidStatus::Submitted as _,
                 BidStatus::SentToUserForSubmission as _,
@@ -452,7 +477,7 @@ pub struct Bid {
     pub conclusion_time: Option<PrimitiveDateTime>,
     pub profile_id:      Option<ProfileId>,
     pub metadata:        Json<BidMetadataSvm>,
-    pub reason:          Option<entities::BidFailedReason>,
+    pub reason:          Option<BidStatusReason>,
 }
 
 impl Bid {
