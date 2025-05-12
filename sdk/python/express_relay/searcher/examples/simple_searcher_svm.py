@@ -3,6 +3,7 @@ import asyncio
 import logging
 import random
 import typing
+from datetime import datetime
 from decimal import Decimal
 from typing import List
 
@@ -182,7 +183,7 @@ class SimpleSearcherSvm:
             router=router,
             permission_key=order["address"],
             bid_amount=bid_amount,
-            deadline=DEADLINE,
+            deadline=int(datetime.now().timestamp()) + 15,
             chain_id=self.chain_id,
             fee_receiver_relayer=(await self.get_metadata()).fee_receiver_relayer,
             relayer_signer=(await self.get_metadata()).relayer_signer,

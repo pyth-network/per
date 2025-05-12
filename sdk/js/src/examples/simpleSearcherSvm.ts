@@ -35,8 +35,6 @@ import {
 } from "@kamino-finance/limo-sdk/dist/utils";
 import { constructSubmitBidInstruction, constructSwapBid } from "../svm";
 
-const DAY_IN_SECONDS = 60 * 60 * 24;
-
 export class SimpleSearcherSvm {
   protected client: Client;
   protected readonly connectionSvm: Connection;
@@ -142,7 +140,7 @@ export class SimpleSearcherSvm {
       getPdaAuthority(limoClient.getProgramID(), order.state.globalConfig),
       order.address,
       bidAmount,
-      new anchor.BN(Math.round(Date.now() / 1000 + DAY_IN_SECONDS)),
+      new anchor.BN(Math.round(Date.now() / 1000 + 15)),
       this.chainId,
       config.relayerSigner,
       config.feeReceiverRelayer,

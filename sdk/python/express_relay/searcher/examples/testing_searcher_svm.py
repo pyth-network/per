@@ -30,7 +30,7 @@ class TestingSearcherSvm(SimpleSearcherSvm):
 
     async def opportunity_callback(self, opp: Opportunity):
         if self.with_latency:
-            latency = 0.5 * random.random()
+            latency = 0.3 * random.random()
             self.logger.info(f"Adding latency of {latency * 1000}ms")
             await asyncio.sleep(latency)
         return await super().opportunity_callback(opp)

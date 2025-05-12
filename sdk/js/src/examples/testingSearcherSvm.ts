@@ -32,7 +32,7 @@ class SearcherLimo extends SimpleSearcherSvm {
 
   async opportunityHandler(opportunity: Opportunity): Promise<void> {
     if (this.withLatency) {
-      const latency = Math.floor(Math.random() * 500);
+      const latency = Math.floor(Math.random() * 300);
       console.log(`Adding latency of ${latency}ms`);
       await new Promise((resolve) => setTimeout(resolve, latency));
     }
