@@ -11,12 +11,17 @@ use {
         },
         opportunity::entities::OpportunityId,
     },
+    express_relay::error::ErrorCode,
     express_relay_api_types::bid as api,
     solana_sdk::{
         clock::Slot,
+        instruction::InstructionError,
         pubkey::Pubkey,
         signature::Signature,
-        transaction::VersionedTransaction,
+        transaction::{
+            TransactionError,
+            VersionedTransaction,
+        },
     },
     std::{
         fmt::{
@@ -72,6 +77,37 @@ pub enum BidSubmissionFailedReason {
     DeadlinePassed,
 }
 
+#[derive(Clone, Debug, PartialEq, strum::Display)]
+#[strum(serialize_all = "snake_case")]
+pub enum BidFailedReason {
+    InsufficientUserFunds,
+    InsufficientSearcherFunds,
+    InsufficientFundsSolTransfer,
+    DeadlinePassed,
+    Other,
+}
+
+impl BidFailedReason {
+    pub fn get_failed_reason_from_transaction_error(error: &TransactionError) -> Self {
+        if let TransactionError::InstructionError(_, InstructionError::Custom(code)) = error {
+            return match *code {
+                1 => BidFailedReason::InsufficientFundsSolTransfer,
+                code if code == u32::from(ErrorCode::DeadlinePassed) => {
+                    BidFailedReason::DeadlinePassed
+                }
+                code if code == u32::from(ErrorCode::InsufficientSearcherFunds) => {
+                    BidFailedReason::InsufficientSearcherFunds
+                }
+                code if code == u32::from(ErrorCode::InsufficientUserFunds) => {
+                    BidFailedReason::InsufficientUserFunds
+                }
+                _ => BidFailedReason::Other,
+            };
+        }
+        BidFailedReason::Other
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum BidStatusSvm {
     Pending,
@@ -92,6 +128,7 @@ pub enum BidStatusSvm {
     },
     Failed {
         auction: BidStatusAuction,
+        reason:  Option<BidFailedReason>,
     },
     Expired {
         auction: BidStatusAuction,
@@ -152,7 +189,7 @@ impl BidStatus for BidStatusSvm {
             BidStatusSvm::Submitted { auction } => Some(auction.id),
             BidStatusSvm::Lost { auction } => auction.as_ref().map(|a| a.id),
             BidStatusSvm::Won { auction } => Some(auction.id),
-            BidStatusSvm::Failed { auction } => Some(auction.id),
+            BidStatusSvm::Failed { auction, .. } => Some(auction.id),
             BidStatusSvm::Expired { auction } => Some(auction.id),
             BidStatusSvm::Cancelled { auction } => Some(auction.id),
             BidStatusSvm::SubmissionFailed { auction, .. } => Some(auction.id),

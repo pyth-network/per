@@ -1,0 +1,89 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE bid SET status = $1, conclusion_time = $2, status_reason = $3 WHERE id = $4 AND status IN ($5, $6)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        {
+          "Custom": {
+            "name": "bid_status",
+            "kind": {
+              "Enum": [
+                "pending",
+                "lost",
+                "submitted",
+                "won",
+                "expired",
+                "failed",
+                "awaiting_signature",
+                "cancelled",
+                "sent_to_user_for_submission",
+                "submission_failed_cancelled",
+                "submission_failed_deadline_passed"
+              ]
+            }
+          }
+        },
+        "Timestamp",
+        {
+          "Custom": {
+            "name": "status_reason",
+            "kind": {
+              "Enum": [
+                "insufficient_user_funds",
+                "insufficient_searcher_funds",
+                "insufficient_funds_sol_transfer",
+                "deadline_passed",
+                "other"
+              ]
+            }
+          }
+        },
+        "Uuid",
+        {
+          "Custom": {
+            "name": "bid_status",
+            "kind": {
+              "Enum": [
+                "pending",
+                "lost",
+                "submitted",
+                "won",
+                "expired",
+                "failed",
+                "awaiting_signature",
+                "cancelled",
+                "sent_to_user_for_submission",
+                "submission_failed_cancelled",
+                "submission_failed_deadline_passed"
+              ]
+            }
+          }
+        },
+        {
+          "Custom": {
+            "name": "bid_status",
+            "kind": {
+              "Enum": [
+                "pending",
+                "lost",
+                "submitted",
+                "won",
+                "expired",
+                "failed",
+                "awaiting_signature",
+                "cancelled",
+                "sent_to_user_for_submission",
+                "submission_failed_cancelled",
+                "submission_failed_deadline_passed"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2135314a6c4e6e8b8e969162be5b47d212eb43de4124d0b0e7823ae6c7e44ec9"
+}

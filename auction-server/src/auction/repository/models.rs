@@ -88,6 +88,52 @@ pub enum BidStatus {
     SubmissionFailedDeadlinePassed,
 }
 
+#[derive(Clone, Debug, PartialEq, PartialOrd, sqlx::Type)]
+#[sqlx(type_name = "status_reason", rename_all = "snake_case")]
+pub enum BidStatusReason {
+    InsufficientUserFunds,
+    InsufficientSearcherFunds,
+    InsufficientFundsSolTransfer,
+    DeadlinePassed,
+    Other,
+}
+
+impl From<BidStatusReason> for entities::BidFailedReason {
+    fn from(reason: BidStatusReason) -> Self {
+        match reason {
+            BidStatusReason::DeadlinePassed => entities::BidFailedReason::DeadlinePassed,
+            BidStatusReason::InsufficientUserFunds => {
+                entities::BidFailedReason::InsufficientUserFunds
+            }
+            BidStatusReason::InsufficientSearcherFunds => {
+                entities::BidFailedReason::InsufficientSearcherFunds
+            }
+            BidStatusReason::InsufficientFundsSolTransfer => {
+                entities::BidFailedReason::InsufficientFundsSolTransfer
+            }
+            BidStatusReason::Other => entities::BidFailedReason::Other,
+        }
+    }
+}
+
+impl From<entities::BidFailedReason> for BidStatusReason {
+    fn from(reason: entities::BidFailedReason) -> Self {
+        match reason {
+            entities::BidFailedReason::DeadlinePassed => BidStatusReason::DeadlinePassed,
+            entities::BidFailedReason::InsufficientUserFunds => {
+                BidStatusReason::InsufficientUserFunds
+            }
+            entities::BidFailedReason::InsufficientSearcherFunds => {
+                BidStatusReason::InsufficientSearcherFunds
+            }
+            entities::BidFailedReason::InsufficientFundsSolTransfer => {
+                BidStatusReason::InsufficientFundsSolTransfer
+            }
+            entities::BidFailedReason::Other => BidStatusReason::Other,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BundleIndex(pub Option<u32>);
 impl Deref for BundleIndex {
@@ -193,6 +239,7 @@ impl Svm {
                     tx_hash: sig,
                     id:      auction.id,
                 },
+                reason:  bid.status_reason.clone().map(|r| r.into()),
             }),
             (BidStatus::Cancelled, Some(auction)) => Ok(entities::BidStatusSvm::Cancelled {
                 auction: entities::BidStatusAuction {
@@ -242,6 +289,22 @@ impl Svm {
                     BidStatus::SubmissionFailedDeadlinePassed
                 }
             },
+        }
+    }
+
+    fn convert_bid_failed_reason(reason: &entities::BidFailedReason) -> BidStatusReason {
+        match reason {
+            entities::BidFailedReason::DeadlinePassed => BidStatusReason::DeadlinePassed,
+            entities::BidFailedReason::InsufficientUserFunds => {
+                BidStatusReason::InsufficientUserFunds
+            }
+            entities::BidFailedReason::InsufficientSearcherFunds => {
+                BidStatusReason::InsufficientSearcherFunds
+            }
+            entities::BidFailedReason::InsufficientFundsSolTransfer => {
+                BidStatusReason::InsufficientFundsSolTransfer
+            }
+            entities::BidFailedReason::Other => BidStatusReason::Other,
         }
     }
 
@@ -341,10 +404,19 @@ impl Svm {
                     bid.id,
                     BidStatus::Pending as _
                 )),
-            entities::BidStatusSvm::Won { .. } | entities::BidStatusSvm::Failed { .. }  => Ok(sqlx::query!(
+            entities::BidStatusSvm::Won { .. }  |  entities::BidStatusSvm::Failed { reason: None, .. } => Ok(sqlx::query!(
                 "UPDATE bid SET status = $1, conclusion_time = $2 WHERE id = $3 AND status IN ($4, $5)",
                 Self::convert_bid_status(&new_status) as _,
                 PrimitiveDateTime::new(now.date(), now.time()),
+                bid.id,
+                BidStatus::Submitted as _,
+                BidStatus::SentToUserForSubmission as _,
+            )),
+            entities::BidStatusSvm::Failed { reason : Some(reason), .. } => Ok(sqlx::query!(
+                "UPDATE bid SET status = $1, conclusion_time = $2, status_reason = $3 WHERE id = $4 AND status IN ($5, $6)",
+                Self::convert_bid_status(&new_status) as _,
+                PrimitiveDateTime::new(now.date(), now.time()),
+                BidStatusReason::from(reason.clone()) as _,
                 bid.id,
                 BidStatus::Submitted as _,
                 BidStatus::SentToUserForSubmission as _,
@@ -414,6 +486,7 @@ pub struct Bid {
     pub conclusion_time: Option<PrimitiveDateTime>,
     pub profile_id:      Option<ProfileId>,
     pub metadata:        Json<BidMetadataSvm>,
+    pub status_reason:   Option<BidStatusReason>,
 }
 
 impl Bid {
@@ -439,6 +512,7 @@ impl Bid {
             conclusion_time: None,
             profile_id:      bid.profile.map(|p| p.id),
             metadata:        Json(Svm::get_metadata(chain_data)),
+            status_reason:   None,
         }
     }
 

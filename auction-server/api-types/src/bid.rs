@@ -42,6 +42,21 @@ pub enum SubmissionFailedReason {
     DeadlinePassed,
 }
 
+#[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum BidFailedReason {
+    /// The user didn't have enough funds when the transaction landed
+    InsufficientUserFunds,
+    /// The searcher didn't have enough funds when the transaction landed
+    InsufficientSearcherFunds,
+    /// A SOL transfer failed with insufficient funds, for example because the user didn't have enough SOL to wrap
+    InsufficientFundsSolTransfer,
+    /// The transaction landed after the deadline
+    DeadlinePassed,
+    /// Other reasons
+    Other,
+}
+
 #[serde_as]
 #[derive(Serialize, Deserialize, ToSchema, Clone, PartialEq, Debug)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -96,6 +111,7 @@ pub enum BidStatusSvm {
         #[schema(example = "Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
         result: Signature,
+        reason: Option<BidFailedReason>,
     },
     /// The bid was submitted on-chain but expired before it was included in a block.
     #[schema(title = "Expired")]
