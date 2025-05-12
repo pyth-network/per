@@ -28,7 +28,6 @@ use {
     },
     solana_sdk::{
         commitment_config::CommitmentConfig,
-        instruction::InstructionError,
         signature::{
             Signature,
             Signer,
