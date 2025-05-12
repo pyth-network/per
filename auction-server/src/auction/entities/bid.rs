@@ -90,19 +90,19 @@ pub enum BidFailedReason {
 impl BidFailedReason {
     pub fn get_failed_reason_from_transaction_error(error: &TransactionError) -> Self {
         if let TransactionError::InstructionError(_, InstructionError::Custom(code)) = error {
-            match *code {
-                1 => return BidFailedReason::InsufficientFundsSolTransfer,
+            return match *code {
+                1 => BidFailedReason::InsufficientFundsSolTransfer,
                 code if code == u32::from(ErrorCode::DeadlinePassed) => {
-                    return BidFailedReason::DeadlinePassed
+                    BidFailedReason::DeadlinePassed
                 }
                 code if code == u32::from(ErrorCode::InsufficientSearcherFunds) => {
-                    return BidFailedReason::InsufficientSearcherFunds
+                    BidFailedReason::InsufficientSearcherFunds
                 }
                 code if code == u32::from(ErrorCode::InsufficientUserFunds) => {
-                    return BidFailedReason::InsufficientUserFunds
+                    BidFailedReason::InsufficientUserFunds
                 }
-                _ => return BidFailedReason::Other,
-            }
+                _ => BidFailedReason::Other,
+            };
         }
         BidFailedReason::Other
     }
