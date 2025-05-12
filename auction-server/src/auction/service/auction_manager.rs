@@ -280,10 +280,10 @@ impl AuctionManager for Service {
                         .expect("Bid has no signature"),
                 };
                 match status {
-                    Some(res) => Some(match res.err {
-                        Some(_) => entities::BidStatusSvm::Failed {
+                    Some(res) => Some(match &res.err {
+                        Some(err) => entities::BidStatusSvm::Failed {
                             auction,
-                            reason: Some(entities::BidFailedReason::DeadlinePassed),
+                            reason: Some(BidFailedReason::get_failed_reason_from_transaction_error(err)),
                         },
                         None => entities::BidStatusSvm::Won { auction },
                     }),

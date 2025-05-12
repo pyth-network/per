@@ -83,12 +83,12 @@ impl Service {
             .find(|bid| bid.chain_data.transaction.signatures[0] == signature)
         {
             let bid_status = match log.err {
-                Some(_) => entities::BidStatusSvm::Failed {
+                Some(err) => entities::BidStatusSvm::Failed {
                     auction: entities::BidStatusAuction {
                         id:      auction.id,
                         tx_hash: signature,
                     },
-                    reason:  Some(entities::BidFailedReason::DeadlinePassed),
+                    reason:  Some(entities::BidFailedReason::get_failed_reason_from_transaction_error(&err)),
                 },
                 None => entities::BidStatusSvm::Won {
                     auction: entities::BidStatusAuction {
