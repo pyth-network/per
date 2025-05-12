@@ -61,6 +61,35 @@ pub struct Profile {
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
+#[serde(rename_all = "snake_case")]
+pub enum PermissionFeature {
+    /// The feature for which the permission is for.
+    CancelQuote,
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
+#[serde(rename_all = "snake_case")]
+pub enum PermissionState {
+    /// The permission is enabled.
+    Enabled,
+    /// The permission is disabled.
+    Disabled,
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
+pub struct CreatePermission {
+    /// The id of the profile to create permission for.
+    #[schema(example = "obo3ee3e-58cc-4372-a567-0e02b2c3d479", value_type = String)]
+    pub profile_id: ProfileId,
+    /// The feature which the permission is for.
+    #[schema(example = "cancel_quote", value_type = PermissionFeature)]
+    pub feature:    PermissionFeature,
+    /// The state of the permission.
+    #[schema(example = "disabled", value_type = PermissionState)]
+    pub state:      PermissionState,
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
 pub struct CreateAccessToken {
     /// The id of the profile to create token for.
     #[schema(example = "obo3ee3e-58cc-4372-a567-0e02b2c3d479", value_type = String)]
@@ -85,6 +114,8 @@ pub enum Route {
     PostProfileAccessToken,
     #[strum(serialize = "access_tokens")]
     DeleteProfileAccessToken,
+    #[strum(serialize = "permissions")]
+    PostPermission,
 }
 
 impl Routable for Route {
@@ -116,6 +147,11 @@ impl Routable for Route {
             Route::DeleteProfileAccessToken => crate::RouteProperties {
                 access_level: AccessLevel::LoggedIn,
                 method: http::Method::DELETE,
+                full_path,
+            },
+            Route::PostPermission => crate::RouteProperties {
+                access_level: AccessLevel::Admin,
+                method: http::Method::POST,
                 full_path,
             },
         }

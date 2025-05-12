@@ -36,6 +36,17 @@ impl Service {
             return Err(RestError::Forbidden);
         }
 
+        if !self
+            .store
+            .is_permitted(
+                input.profile.id,
+                crate::models::PermissionFeature::CancelQuote,
+            )
+            .await?
+        {
+            return Err(RestError::CancelQuoteAccessRevoked);
+        }
+
         match bid.status.clone() {
             entities::BidStatusSvm::AwaitingSignature { auction } => {
                 let tx_hash = bid.chain_data.transaction.signatures[0];

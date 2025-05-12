@@ -62,3 +62,50 @@ pub enum ChainType {
     Evm,
     Svm,
 }
+
+pub type PermissionId = Uuid;
+
+#[derive(Clone, Debug, PartialEq, PartialOrd, Hash, Eq, sqlx::Type)]
+#[sqlx(rename_all = "snake_case")]
+pub enum PermissionFeature {
+    CancelQuote,
+}
+
+impl TryFrom<String> for PermissionFeature {
+    type Error = sqlx::error::BoxDynError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        match value.as_str() {
+            "cancel_quote" => Ok(PermissionFeature::CancelQuote),
+            _ => Err(sqlx::error::BoxDynError::from("Invalid permission feature")),
+        }
+    }
+}
+
+impl PermissionFeature {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            PermissionFeature::CancelQuote => "cancel_quote",
+        }
+    }
+}
+
+#[derive(Clone, Debug, sqlx::Type, PartialEq, PartialOrd)]
+#[sqlx(type_name = "permission_state", rename_all = "snake_case")]
+pub enum PermissionState {
+    Enabled,
+    Disabled,
+}
+
+#[derive(Clone, FromRow, Debug, PartialEq)]
+pub struct Permission {
+    pub id: PermissionId,
+
+    #[sqlx(try_from = "String")]
+    pub feature:    PermissionFeature,
+    pub profile_id: ProfileId,
+    pub state:      PermissionState,
+
+    pub created_at: PrimitiveDateTime,
+    pub updated_at: PrimitiveDateTime,
+}

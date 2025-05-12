@@ -238,6 +238,7 @@ pub mod tests {
                 ws:            ws::WsState::new("X-Forwarded-For".to_string(), 100),
                 secret_key:    "test".to_string(),
                 access_tokens: RwLock::new(HashMap::new()),
+                permissions:   RwLock::new(HashMap::new()),
             });
 
             let ws_receiver = store.ws.broadcast_receiver.resubscribe();

@@ -69,12 +69,15 @@ pub struct ServerState {
     pub metrics_recorder: PrometheusHandle,
 }
 
+pub type PermissionKey = (models::ProfileId, models::PermissionFeature);
+
 pub struct Store {
     pub chains_svm:    HashMap<ChainId, Arc<ChainStoreSvm>>,
     pub ws:            WsState,
     pub db:            sqlx::PgPool,
     pub secret_key:    String,
     pub access_tokens: RwLock<HashMap<models::AccessTokenToken, models::Profile>>,
+    pub permissions:   RwLock<HashMap<PermissionKey, models::Permission>>,
 }
 
 pub struct StoreNew {
@@ -277,5 +280,61 @@ impl Store {
             .get(token)
             .cloned()
             .ok_or(RestError::InvalidToken)
+    }
+
+    pub async fn update_in_memory_permission(&self, permission: models::Permission) {
+        let mut permissions = self.permissions.write().await;
+        let key = (permission.profile_id, permission.feature.clone());
+        if let Some(existing_permission) = permissions.get_mut(&key) {
+            if existing_permission.created_at < permission.created_at {
+                *existing_permission = permission;
+            }
+        } else {
+            permissions.insert(key, permission);
+        }
+    }
+
+    pub async fn create_permission(
+        &self,
+        create_permission: express_relay_api_types::profile::CreatePermission,
+    ) -> Result<(), RestError> {
+        let id = Uuid::new_v4();
+        let state: models::PermissionState = create_permission.state.clone().into();
+        let feature: models::PermissionFeature = create_permission.feature.clone().into();
+        let permission: models::Permission = sqlx::query_as(
+            "INSERT INTO permission (id, profile_id, state, feature) VALUES ($1, $2, $3, $4) RETURNING id, profile_id, state, feature, created_at, updated_at",
+        )
+        .bind(id)
+        .bind(create_permission.profile_id)
+        .bind(state.clone())
+        .bind(feature.as_str())
+        .fetch_one(&self.db)
+        .instrument(info_span!("db_create_permission"))
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                error = ?e,
+                profile_id = ?create_permission.profile_id,
+                feature = ?feature,
+                state = ?state,
+                "DB: Failed to create permission",
+            );
+            RestError::TemporarilyUnavailable
+        })?;
+        self.update_in_memory_permission(permission).await;
+        Ok(())
+    }
+
+    pub async fn is_permitted(
+        &self,
+        profile_id: models::ProfileId,
+        feature: models::PermissionFeature,
+    ) -> Result<bool, RestError> {
+        let permissions = self.permissions.read().await;
+        if let Some(permission) = permissions.get(&(profile_id, feature.clone())) {
+            Ok(permission.state == models::PermissionState::Enabled)
+        } else {
+            Ok(true)
+        }
     }
 }

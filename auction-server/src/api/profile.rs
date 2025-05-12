@@ -13,13 +13,18 @@ use {
             Query,
             State,
         },
+        http::StatusCode,
+        response::IntoResponse,
         Json,
     },
     express_relay_api_types::profile::{
         AccessToken,
         CreateAccessToken,
+        CreatePermission,
         CreateProfile,
         GetProfile,
+        PermissionFeature,
+        PermissionState,
         Profile,
         ProfileRole,
     },
@@ -141,4 +146,56 @@ pub async fn delete_profile_access_token(
         Auth::Authorized(token, _) => store.store.revoke_access_token(&token).await,
         _ => Ok(()),
     }
+}
+
+impl From<models::PermissionFeature> for PermissionFeature {
+    fn from(feature: models::PermissionFeature) -> Self {
+        match feature {
+            models::PermissionFeature::CancelQuote => PermissionFeature::CancelQuote,
+        }
+    }
+}
+
+impl From<PermissionFeature> for models::PermissionFeature {
+    fn from(feature: PermissionFeature) -> Self {
+        match feature {
+            PermissionFeature::CancelQuote => models::PermissionFeature::CancelQuote,
+        }
+    }
+}
+
+impl From<models::PermissionState> for PermissionState {
+    fn from(state: models::PermissionState) -> Self {
+        match state {
+            models::PermissionState::Enabled => PermissionState::Enabled,
+            models::PermissionState::Disabled => PermissionState::Disabled,
+        }
+    }
+}
+
+impl From<PermissionState> for models::PermissionState {
+    fn from(state: PermissionState) -> Self {
+        match state {
+            PermissionState::Enabled => models::PermissionState::Enabled,
+            PermissionState::Disabled => models::PermissionState::Disabled,
+        }
+    }
+}
+
+/// Create a permission for a profile.
+///
+/// Returns empty response.
+#[utoipa::path(post, path = "/v1/profiles/permissions",
+security(
+("bearerAuth" = []),
+),request_body = CreatePermission, responses(
+(status = 201, description = "The permission successfully created"),
+(status = 400, response = ErrorBodyResponse),
+),)]
+pub async fn post_permission(
+    State(store): State<Arc<StoreNew>>,
+    Json(params): Json<CreatePermission>,
+) -> Result<impl IntoResponse, RestError> {
+    store.store.create_permission(params).await?;
+    Ok(StatusCode::CREATED)
 }
