@@ -1,0 +1,2 @@
+CREATE TYPE bid_failed_reason AS ENUM ('insufficient_user_funds', 'insufficient_searcher_funds', 'insufficient_funds_sol_transfer', 'deadline_passed', 'other');
+ALTER TABLE bid ADD COLUMN reason bid_failed_reason;

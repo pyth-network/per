@@ -79,7 +79,7 @@ pub enum BidFailedReason {
     InsufficientSearcherFunds,
     InsufficientFundsSolTransfer,
     DeadlinePassed,
-    Other
+    Other,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -163,7 +163,7 @@ impl BidStatus for BidStatusSvm {
             BidStatusSvm::Submitted { auction } => Some(auction.id),
             BidStatusSvm::Lost { auction } => auction.as_ref().map(|a| a.id),
             BidStatusSvm::Won { auction } => Some(auction.id),
-            BidStatusSvm::Failed { auction , ..} => Some(auction.id),
+            BidStatusSvm::Failed { auction, .. } => Some(auction.id),
             BidStatusSvm::Expired { auction } => Some(auction.id),
             BidStatusSvm::Cancelled { auction } => Some(auction.id),
             BidStatusSvm::SubmissionFailed { auction, .. } => Some(auction.id),

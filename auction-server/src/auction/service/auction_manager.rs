@@ -1,5 +1,6 @@
 use {
-    super::Service, crate::{
+    super::Service,
+    crate::{
         auction::entities::{
             self,
             BidPaymentInstructionType,
@@ -12,13 +13,19 @@ use {
             service::get_live_opportunities::GetLiveOpportunitiesInput,
         },
         per_metrics::TRANSACTION_LANDING_TIME_SVM_METRIC,
-    }, anyhow::Result, axum::async_trait, axum_prometheus::metrics, express_relay_api_types::bid::SubmissionFailedReason, futures::{
+    },
+    anyhow::Result,
+    axum::async_trait,
+    axum_prometheus::metrics,
+    futures::{
         future::join_all,
         Stream,
-    }, solana_client::{
+    },
+    solana_client::{
         nonblocking::pubsub_client::PubsubClient,
         rpc_config::RpcSendTransactionConfig,
-    }, solana_sdk::{
+    },
+    solana_sdk::{
         commitment_config::CommitmentConfig,
         instruction::InstructionError,
         signature::{
@@ -29,7 +36,8 @@ use {
             TransactionError,
             VersionedTransaction,
         },
-    }, std::{
+    },
+    std::{
         fmt::Debug,
         pin::Pin,
         result,
@@ -41,10 +49,12 @@ use {
             Duration,
             Instant,
         },
-    }, time::OffsetDateTime, tokio::time::{
+    },
+    time::OffsetDateTime,
+    tokio::time::{
         interval,
         Interval,
-    }
+    },
 };
 
 /// The trait for handling the auction for the service.
@@ -284,7 +294,10 @@ impl AuctionManager for Service {
                 };
                 match status {
                     Some(res) => Some(match res.err {
-                        Some(_) => entities::BidStatusSvm::Failed { auction , reason: entities::BidFailedReason::DeadlinePassed},
+                        Some(_) => entities::BidStatusSvm::Failed {
+                            auction,
+                            reason: entities::BidFailedReason::DeadlinePassed,
+                        },
                         None => entities::BidStatusSvm::Won { auction },
                     }),
                     None => {

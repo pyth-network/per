@@ -49,7 +49,7 @@ pub enum BidFailedReason {
     InsufficientSearcherFunds,
     InsufficientFundsSolTransfer,
     DeadlinePassed,
-    Other
+    Other,
 }
 
 #[serde_as]

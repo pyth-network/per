@@ -193,7 +193,10 @@ impl Svm {
                     tx_hash: sig,
                     id:      auction.id,
                 },
-                reason: bid.reason.clone().unwrap_or(entities::BidFailedReason::Other),
+                reason:  bid
+                    .reason
+                    .clone()
+                    .unwrap_or(entities::BidFailedReason::Other),
             }),
             (BidStatus::Cancelled, Some(auction)) => Ok(entities::BidStatusSvm::Cancelled {
                 auction: entities::BidStatusAuction {

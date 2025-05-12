@@ -320,11 +320,21 @@ pub fn get_routes(store: Arc<StoreNew>) -> Router<Arc<StoreNew>> {
 impl From<entities::BidFailedReason> for express_relay_api_types::bid::BidFailedReason {
     fn from(reason: entities::BidFailedReason) -> Self {
         match reason {
-            entities::BidFailedReason::InsufficientUserFunds => express_relay_api_types::bid::BidFailedReason::InsufficientUserFunds,
-            entities::BidFailedReason::InsufficientSearcherFunds => express_relay_api_types::bid::BidFailedReason::InsufficientSearcherFunds,
-            entities::BidFailedReason::InsufficientFundsSolTransfer => express_relay_api_types::bid::BidFailedReason::InsufficientFundsSolTransfer,
-            entities::BidFailedReason::DeadlinePassed => express_relay_api_types::bid::BidFailedReason::DeadlinePassed,
-            entities::BidFailedReason::Other => express_relay_api_types::bid::BidFailedReason::Other,
+            entities::BidFailedReason::InsufficientUserFunds => {
+                express_relay_api_types::bid::BidFailedReason::InsufficientUserFunds
+            }
+            entities::BidFailedReason::InsufficientSearcherFunds => {
+                express_relay_api_types::bid::BidFailedReason::InsufficientSearcherFunds
+            }
+            entities::BidFailedReason::InsufficientFundsSolTransfer => {
+                express_relay_api_types::bid::BidFailedReason::InsufficientFundsSolTransfer
+            }
+            entities::BidFailedReason::DeadlinePassed => {
+                express_relay_api_types::bid::BidFailedReason::DeadlinePassed
+            }
+            entities::BidFailedReason::Other => {
+                express_relay_api_types::bid::BidFailedReason::Other
+            }
         }
     }
 }
@@ -352,7 +362,7 @@ impl From<entities::BidStatusSvm> for BidStatusSvm {
             entities::BidStatusSvm::Won { auction } => BidStatusSvm::Won {
                 result: auction.tx_hash,
             },
-            entities::BidStatusSvm::Failed { auction , reason} => BidStatusSvm::Failed {
+            entities::BidStatusSvm::Failed { auction, reason } => BidStatusSvm::Failed {
                 result: auction.tx_hash,
                 reason: reason.into(),
             },
