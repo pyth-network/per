@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE bid SET status = $1, conclusion_time = $2, reason = $3 WHERE id = $4 AND status IN ($5, $6)",
+  "query": "UPDATE bid SET status = $1, conclusion_time = $2, status_reason = $3 WHERE id = $4 AND status IN ($5, $6)",
   "describe": {
     "columns": [],
     "parameters": {
@@ -28,7 +28,7 @@
         "Timestamp",
         {
           "Custom": {
-            "name": "bid_failed_reason",
+            "name": "status_reason",
             "kind": {
               "Enum": [
                 "insufficient_user_funds",
@@ -85,5 +85,5 @@
     },
     "nullable": []
   },
-  "hash": "5f976d52734f354d9acf3d08c44a4636eff1e905b42f9270825564ac3101c420"
+  "hash": "2135314a6c4e6e8b8e969162be5b47d212eb43de4124d0b0e7823ae6c7e44ec9"
 }

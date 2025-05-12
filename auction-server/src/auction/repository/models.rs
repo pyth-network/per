@@ -88,6 +88,16 @@ pub enum BidStatus {
     SubmissionFailedDeadlinePassed,
 }
 
+#[derive(Clone, Debug, PartialEq, PartialOrd, sqlx::Type)]
+#[sqlx(type_name = "status_reason", rename_all = "snake_case")]
+pub enum BidStatusReason {
+    InsufficientUserFunds,
+    InsufficientSearcherFunds,
+    InsufficientFundsSolTransfer,
+    DeadlinePassed,
+    Other,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BundleIndex(pub Option<u32>);
 impl Deref for BundleIndex {
@@ -249,6 +259,22 @@ impl Svm {
         }
     }
 
+    fn convert_bid_failed_reason(reason: &entities::BidFailedReason) -> BidStatusReason {
+        match reason {
+            entities::BidFailedReason::DeadlinePassed => BidStatusReason::DeadlinePassed,
+            entities::BidFailedReason::InsufficientUserFunds => {
+                BidStatusReason::InsufficientUserFunds
+            }
+            entities::BidFailedReason::InsufficientSearcherFunds => {
+                BidStatusReason::InsufficientSearcherFunds
+            }
+            entities::BidFailedReason::InsufficientFundsSolTransfer => {
+                BidStatusReason::InsufficientFundsSolTransfer
+            }
+            entities::BidFailedReason::Other => BidStatusReason::Other,
+        }
+    }
+
     fn get_chain_data_entity(bid: &Bid) -> anyhow::Result<entities::BidChainDataSvm> {
         // The permission keys that are 64 bytes are the ones that are for submit_bid type.
         // These are stored in the database before adding the bid instruction type to the permission key svm.
@@ -354,10 +380,10 @@ impl Svm {
                 BidStatus::SentToUserForSubmission as _,
             )),
             entities::BidStatusSvm::Failed { reason, .. } => Ok(sqlx::query!(
-                "UPDATE bid SET status = $1, conclusion_time = $2, reason = $3 WHERE id = $4 AND status IN ($5, $6)",
+                "UPDATE bid SET status = $1, conclusion_time = $2, status_reason = $3 WHERE id = $4 AND status IN ($5, $6)",
                 Self::convert_bid_status(&new_status) as _,
                 PrimitiveDateTime::new(now.date(), now.time()),
-                reason as _,
+                Self::convert_bid_failed_reason(reason) as _,
                 bid.id,
                 BidStatus::Submitted as _,
                 BidStatus::SentToUserForSubmission as _,
