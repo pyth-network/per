@@ -206,7 +206,6 @@ impl Svm {
                 reason:  bid
                     .reason
                     .clone()
-                    .unwrap_or(entities::BidFailedReason::Other),
             }),
             (BidStatus::Cancelled, Some(auction)) => Ok(entities::BidStatusSvm::Cancelled {
                 auction: entities::BidStatusAuction {
@@ -371,7 +370,7 @@ impl Svm {
                     bid.id,
                     BidStatus::Pending as _
                 )),
-            entities::BidStatusSvm::Won { .. }  => Ok(sqlx::query!(
+            entities::BidStatusSvm::Won { .. }  |  entities::BidStatusSvm::Failed { reason: None, .. } => Ok(sqlx::query!(
                 "UPDATE bid SET status = $1, conclusion_time = $2 WHERE id = $3 AND status IN ($4, $5)",
                 Self::convert_bid_status(&new_status) as _,
                 PrimitiveDateTime::new(now.date(), now.time()),
@@ -379,7 +378,7 @@ impl Svm {
                 BidStatus::Submitted as _,
                 BidStatus::SentToUserForSubmission as _,
             )),
-            entities::BidStatusSvm::Failed { reason, .. } => Ok(sqlx::query!(
+            entities::BidStatusSvm::Failed { reason : Some(reason), .. } => Ok(sqlx::query!(
                 "UPDATE bid SET status = $1, conclusion_time = $2, status_reason = $3 WHERE id = $4 AND status IN ($5, $6)",
                 Self::convert_bid_status(&new_status) as _,
                 PrimitiveDateTime::new(now.date(), now.time()),

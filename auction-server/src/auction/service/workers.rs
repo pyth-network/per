@@ -88,7 +88,7 @@ impl Service {
                         id:      auction.id,
                         tx_hash: signature,
                     },
-                    reason:  entities::BidFailedReason::DeadlinePassed,
+                    reason:  Some(entities::BidFailedReason::DeadlinePassed),
                 },
                 None => entities::BidStatusSvm::Won {
                     auction: entities::BidStatusAuction {

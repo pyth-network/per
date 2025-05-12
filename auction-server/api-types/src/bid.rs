@@ -106,7 +106,7 @@ pub enum BidStatusSvm {
         #[schema(example = "Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg", value_type = String)]
         #[serde_as(as = "DisplayFromStr")]
         result: Signature,
-        reason: BidFailedReason,
+        reason: Option<BidFailedReason>,
     },
     /// The bid was submitted on-chain but expired before it was included in a block.
     #[schema(title = "Expired")]

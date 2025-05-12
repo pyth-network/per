@@ -13,10 +13,7 @@ use {
     },
     express_relay_api_types::bid as api,
     solana_sdk::{
-        clock::Slot,
-        pubkey::Pubkey,
-        signature::Signature,
-        transaction::VersionedTransaction,
+        clock::Slot, instruction::InstructionError, pubkey::Pubkey, signature::Signature, transaction::{TransactionError, VersionedTransaction}
     },
     std::{
         fmt::{
@@ -30,6 +27,7 @@ use {
     time::OffsetDateTime,
     tokio::sync::Mutex,
     uuid::Uuid,
+    express_relay::error::ErrorCode
 };
 
 pub type BidId = Uuid;
@@ -72,7 +70,8 @@ pub enum BidSubmissionFailedReason {
     DeadlinePassed,
 }
 
-#[derive(Clone, Debug, PartialEq, sqlx::Type)]
+#[derive(Clone, Debug, PartialEq, sqlx::Type, strum::Display)]
+#[strum(serialize_all = "snake_case")]
 #[sqlx(type_name = "bid_failed_reason", rename_all = "snake_case")]
 pub enum BidFailedReason {
     InsufficientUserFunds,
@@ -80,6 +79,26 @@ pub enum BidFailedReason {
     InsufficientFundsSolTransfer,
     DeadlinePassed,
     Other,
+}
+
+impl BidFailedReason {
+    pub fn get_failed_reason_from_transaction_error(error: &TransactionError) -> Self {
+        if let TransactionError::InstructionError(_, InstructionError::Custom(code)) = error {
+            if *code == 1 {
+                return BidFailedReason::InsufficientFundsSolTransfer;
+            }
+            else if *code == u32::from(ErrorCode::DeadlinePassed) {
+                return BidFailedReason::DeadlinePassed;
+            }
+            else if *code == u32::from(ErrorCode::InsufficientSearcherFunds) {
+                return BidFailedReason::InsufficientSearcherFunds;
+            }
+            else if *code == u32::from(ErrorCode::InsufficientUserFunds) {
+                return BidFailedReason::InsufficientUserFunds;
+            }    
+        }
+        BidFailedReason::Other
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -102,7 +121,7 @@ pub enum BidStatusSvm {
     },
     Failed {
         auction: BidStatusAuction,
-        reason:  BidFailedReason,
+        reason:  Option<BidFailedReason>,
     },
     Expired {
         auction: BidStatusAuction,

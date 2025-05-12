@@ -364,7 +364,7 @@ impl From<entities::BidStatusSvm> for BidStatusSvm {
             },
             entities::BidStatusSvm::Failed { auction, reason } => BidStatusSvm::Failed {
                 result: auction.tx_hash,
-                reason: reason.into(),
+                reason: reason.map(|r| r.into()),
             },
             entities::BidStatusSvm::Expired { auction } => BidStatusSvm::Expired {
                 result: auction.tx_hash,
