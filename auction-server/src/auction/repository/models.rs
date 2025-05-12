@@ -193,6 +193,7 @@ impl Svm {
                     tx_hash: sig,
                     id:      auction.id,
                 },
+                reason: bid.reason.clone().unwrap_or(entities::BidFailedReason::Other),
             }),
             (BidStatus::Cancelled, Some(auction)) => Ok(entities::BidStatusSvm::Cancelled {
                 auction: entities::BidStatusAuction {
@@ -414,6 +415,7 @@ pub struct Bid {
     pub conclusion_time: Option<PrimitiveDateTime>,
     pub profile_id:      Option<ProfileId>,
     pub metadata:        Json<BidMetadataSvm>,
+    pub reason:          Option<entities::BidFailedReason>,
 }
 
 impl Bid {
@@ -439,6 +441,7 @@ impl Bid {
             conclusion_time: None,
             profile_id:      bid.profile.map(|p| p.id),
             metadata:        Json(Svm::get_metadata(chain_data)),
+            reason:          None,
         }
     }
 

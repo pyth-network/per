@@ -72,6 +72,16 @@ pub enum BidSubmissionFailedReason {
     DeadlinePassed,
 }
 
+#[derive(Clone, Debug, PartialEq, sqlx::Type)]
+#[sqlx(type_name = "bid_failed_reason", rename_all = "snake_case")]
+pub enum BidFailedReason {
+    InsufficientUserFunds,
+    InsufficientSearcherFunds,
+    InsufficientFundsSolTransfer,
+    DeadlinePassed,
+    Other
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum BidStatusSvm {
     Pending,
@@ -92,6 +102,7 @@ pub enum BidStatusSvm {
     },
     Failed {
         auction: BidStatusAuction,
+        reason:  BidFailedReason,
     },
     Expired {
         auction: BidStatusAuction,
@@ -152,7 +163,7 @@ impl BidStatus for BidStatusSvm {
             BidStatusSvm::Submitted { auction } => Some(auction.id),
             BidStatusSvm::Lost { auction } => auction.as_ref().map(|a| a.id),
             BidStatusSvm::Won { auction } => Some(auction.id),
-            BidStatusSvm::Failed { auction } => Some(auction.id),
+            BidStatusSvm::Failed { auction , ..} => Some(auction.id),
             BidStatusSvm::Expired { auction } => Some(auction.id),
             BidStatusSvm::Cancelled { auction } => Some(auction.id),
             BidStatusSvm::SubmissionFailed { auction, .. } => Some(auction.id),
