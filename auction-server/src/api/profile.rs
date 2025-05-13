@@ -13,13 +13,18 @@ use {
             Query,
             State,
         },
+        http::StatusCode,
+        response::IntoResponse,
         Json,
     },
     express_relay_api_types::profile::{
         AccessToken,
         CreateAccessToken,
+        CreatePrivilege,
         CreateProfile,
         GetProfile,
+        PrivilegeFeature,
+        PrivilegeState,
         Profile,
         ProfileRole,
     },
@@ -141,4 +146,56 @@ pub async fn delete_profile_access_token(
         Auth::Authorized(token, _) => store.store.revoke_access_token(&token).await,
         _ => Ok(()),
     }
+}
+
+impl From<models::PrivilegeFeature> for PrivilegeFeature {
+    fn from(feature: models::PrivilegeFeature) -> Self {
+        match feature {
+            models::PrivilegeFeature::CancelQuote => PrivilegeFeature::CancelQuote,
+        }
+    }
+}
+
+impl From<PrivilegeFeature> for models::PrivilegeFeature {
+    fn from(feature: PrivilegeFeature) -> Self {
+        match feature {
+            PrivilegeFeature::CancelQuote => models::PrivilegeFeature::CancelQuote,
+        }
+    }
+}
+
+impl From<models::PrivilegeState> for PrivilegeState {
+    fn from(state: models::PrivilegeState) -> Self {
+        match state {
+            models::PrivilegeState::Enabled => PrivilegeState::Enabled,
+            models::PrivilegeState::Disabled => PrivilegeState::Disabled,
+        }
+    }
+}
+
+impl From<PrivilegeState> for models::PrivilegeState {
+    fn from(state: PrivilegeState) -> Self {
+        match state {
+            PrivilegeState::Enabled => models::PrivilegeState::Enabled,
+            PrivilegeState::Disabled => models::PrivilegeState::Disabled,
+        }
+    }
+}
+
+/// Create a privilege for a profile.
+///
+/// Returns empty response.
+#[utoipa::path(post, path = "/v1/profiles/privileges",
+security(
+("bearerAuth" = []),
+),request_body = CreatePrivilege, responses(
+(status = 201, description = "The privilege successfully created"),
+(status = 400, response = ErrorBodyResponse),
+),)]
+pub async fn post_privilege(
+    State(store): State<Arc<StoreNew>>,
+    Json(params): Json<CreatePrivilege>,
+) -> Result<impl IntoResponse, RestError> {
+    store.store.create_privilege(params).await?;
+    Ok(StatusCode::CREATED)
 }

@@ -12,6 +12,7 @@ use {
             db::DB,
             entities::ChainId,
         },
+        state::Store,
     },
     mockall_double::double,
     solana_client::{
@@ -93,6 +94,7 @@ pub struct Config {
 }
 
 pub struct ServiceInner {
+    store:               Arc<Store>,
     opportunity_service: Arc<OpportunityService>,
     config:              Config,
     repo:                Arc<Repository>,
@@ -111,6 +113,7 @@ impl std::ops::Deref for Service {
 
 impl Service {
     pub fn new(
+        store: Arc<Store>,
         db: DB,
         config: Config,
         opportunity_service: Arc<OpportunityService>,
@@ -118,6 +121,7 @@ impl Service {
         event_sender: broadcast::Sender<UpdateEvent>,
     ) -> Self {
         Self(Arc::new(ServiceInner {
+            store,
             repo: Arc::new(repository::Repository::new(db, config.chain_id.clone())),
             config,
             opportunity_service,
@@ -254,11 +258,13 @@ pub mod tests {
             ServiceInner,
         },
         crate::{
+            api::ws,
             auction::repository::{
                 Database,
                 Repository,
             },
             kernel::{
+                db::DB,
                 entities::ChainId,
                 traced_sender_svm::{
                     tests::MockRpcClient,
@@ -270,14 +276,21 @@ pub mod tests {
                 get_submit_bid_instruction_account_positions,
                 get_swap_instruction_account_positions,
             },
+            state::Store,
         },
         solana_client::{
             nonblocking::rpc_client::RpcClient,
             rpc_client::RpcClientConfig,
         },
         solana_sdk::signature::Keypair,
-        std::sync::Arc,
-        tokio::sync::broadcast,
+        std::{
+            collections::HashMap,
+            sync::Arc,
+        },
+        tokio::sync::{
+            broadcast,
+            RwLock,
+        },
         tokio_util::task::TaskTracker,
     };
 
@@ -289,9 +302,18 @@ pub mod tests {
             rpc_client: MockRpcClient,
             broadcaster_client: MockRpcClient,
         ) -> Self {
+            let store = Arc::new(Store {
+                db:            DB::connect_lazy("https://test").unwrap(),
+                chains_svm:    HashMap::new(),
+                ws:            ws::WsState::new("X-Forwarded-For".to_string(), 100),
+                secret_key:    "test".to_string(),
+                access_tokens: RwLock::new(HashMap::new()),
+                privileges:    RwLock::new(HashMap::new()),
+            });
             Service(Arc::new(ServiceInner {
+                store,
                 opportunity_service: Arc::new(opportunity_service),
-                config:              Config {
+                config: Config {
                     chain_id:     chain_id.clone(),
                     chain_config: ConfigSvm {
                         client:                        RpcClient::new_sender(
@@ -322,9 +344,9 @@ pub mod tests {
                         prioritization_fee_percentile: None,
                     },
                 },
-                repo:                Arc::new(Repository::new(db, chain_id.clone())),
-                task_tracker:        TaskTracker::new(),
-                event_sender:        broadcast::channel(1).0,
+                repo: Arc::new(Repository::new(db, chain_id.clone())),
+                task_tracker: TaskTracker::new(),
+                event_sender: broadcast::channel(1).0,
             }))
         }
     }

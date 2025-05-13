@@ -62,3 +62,50 @@ pub enum ChainType {
     Evm,
     Svm,
 }
+
+pub type PrivilegeId = Uuid;
+
+#[derive(Clone, Debug, PartialEq, PartialOrd, Hash, Eq, sqlx::Type)]
+#[sqlx(rename_all = "snake_case")]
+pub enum PrivilegeFeature {
+    CancelQuote,
+}
+
+impl TryFrom<String> for PrivilegeFeature {
+    type Error = sqlx::error::BoxDynError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        match value.as_str() {
+            "cancel_quote" => Ok(PrivilegeFeature::CancelQuote),
+            _ => Err(sqlx::error::BoxDynError::from("Invalid privilege feature")),
+        }
+    }
+}
+
+impl PrivilegeFeature {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            PrivilegeFeature::CancelQuote => "cancel_quote",
+        }
+    }
+}
+
+#[derive(Clone, Debug, sqlx::Type, PartialEq, PartialOrd)]
+#[sqlx(type_name = "privilege_state", rename_all = "snake_case")]
+pub enum PrivilegeState {
+    Enabled,
+    Disabled,
+}
+
+#[derive(Clone, FromRow, Debug, PartialEq)]
+pub struct Privilege {
+    pub id: PrivilegeId,
+
+    #[sqlx(try_from = "String")]
+    pub feature:    PrivilegeFeature,
+    pub profile_id: ProfileId,
+    pub state:      PrivilegeState,
+
+    pub created_at: PrimitiveDateTime,
+    pub updated_at: PrimitiveDateTime,
+}

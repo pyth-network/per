@@ -466,6 +466,8 @@ pub enum RestError {
     QuoteIsFinalized,
     /// Token mint is not allowed
     TokenMintNotAllowed(String, String),
+    /// Access to cancel quote feature is revoked
+    CancelQuoteAccessRevoked,
 }
 
 
@@ -602,6 +604,10 @@ impl RestError {
             RestError::TokenMintNotAllowed(msg, mint) => (
                 StatusCode::NOT_FOUND,
                 format!("Token mint address is not allowed for: {}, mint: {}", msg, mint)
+            ),
+            RestError::CancelQuoteAccessRevoked => (
+                StatusCode::FORBIDDEN,
+                "Access to cancel quote feature is revoked".to_string(),
             ),
         }
     }
@@ -865,6 +871,7 @@ pub async fn start_api(
             ProfileRoute::DeleteProfileAccessToken,
             profile::delete_profile_access_token,
         )
+        .route(ProfileRoute::PostPrivilege, profile::post_privilege)
         .router;
 
     let routes = Router::new()

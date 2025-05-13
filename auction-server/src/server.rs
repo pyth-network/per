@@ -28,6 +28,7 @@ use {
         per_metrics,
         state::{
             ChainStoreSvm,
+            PrivilegeKey,
             ServerState,
             Store,
             StoreNew,
@@ -150,6 +151,26 @@ async fn fetch_access_tokens(db: &PgPool) -> HashMap<models::AccessTokenToken, m
                 .find(|profile| profile.id == token.profile_id)
                 .expect("Profile not found");
             (token.token, profile.clone())
+        })
+        .collect()
+}
+
+async fn fetch_privileges(db: &PgPool) -> HashMap<PrivilegeKey, models::Privilege> {
+    let privileges: Vec<models::Privilege> = sqlx::query_as(
+        "SELECT DISTINCT ON (profile_id, feature) *
+         FROM privilege
+         ORDER BY profile_id, feature, created_at DESC;",
+    )
+    .fetch_all(db)
+    .instrument(info_span!("db_fetch_privileges"))
+    .await
+    .expect("Failed to fetch privileges from database");
+
+    privileges
+        .into_iter()
+        .map(|privilege| {
+            let key: PrivilegeKey = (privilege.profile_id, privilege.feature.clone());
+            (key, privilege)
         })
         .collect()
 }
@@ -290,6 +311,7 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
         .collect::<HashMap<_, _>>();
 
     let access_tokens = fetch_access_tokens(&pool).await;
+    let privileges = fetch_privileges(&pool).await;
     let store = Arc::new(Store {
         db:            pool.clone(),
         chains_svm:    chains_svm.clone(),
@@ -299,6 +321,7 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
         ),
         secret_key:    run_options.secret_key.clone(),
         access_tokens: RwLock::new(access_tokens),
+        privileges:    RwLock::new(privileges),
     });
     let server_state = Arc::new(ServerState {
         metrics_recorder: setup_metrics_recorder()?,
@@ -333,6 +356,7 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
             (
                 chain_id.clone(),
                 auction_service::ServiceEnum::Svm(auction_service::Service::new(
+                    store.clone(),
                     pool.clone(),
                     auction_service::Config {
                         chain_id:     chain_id.clone(),

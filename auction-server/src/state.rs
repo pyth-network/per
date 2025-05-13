@@ -69,12 +69,15 @@ pub struct ServerState {
     pub metrics_recorder: PrometheusHandle,
 }
 
+pub type PrivilegeKey = (models::ProfileId, models::PrivilegeFeature);
+
 pub struct Store {
     pub chains_svm:    HashMap<ChainId, Arc<ChainStoreSvm>>,
     pub ws:            WsState,
     pub db:            sqlx::PgPool,
     pub secret_key:    String,
     pub access_tokens: RwLock<HashMap<models::AccessTokenToken, models::Profile>>,
+    pub privileges:    RwLock<HashMap<PrivilegeKey, models::Privilege>>,
 }
 
 pub struct StoreNew {
@@ -277,5 +280,65 @@ impl Store {
             .get(token)
             .cloned()
             .ok_or(RestError::InvalidToken)
+    }
+
+    pub async fn update_in_memory_privilege(&self, privilege: models::Privilege) {
+        let mut privileges = self.privileges.write().await;
+        let key = (privilege.profile_id, privilege.feature.clone());
+        if let Some(existing_privilege) = privileges.get_mut(&key) {
+            if existing_privilege.created_at < privilege.created_at {
+                *existing_privilege = privilege;
+            }
+        } else {
+            privileges.insert(key, privilege);
+        }
+    }
+
+    // Why not update privileges rows in-place?
+    // This approach allows us to track the history of a searcher's privileges.
+    // At any given point in time, we can see the searcher's state and extract useful data.
+    // This ensures that no data is lost, and we prefer this design over using a single variable to store the current state.
+    pub async fn create_privilege(
+        &self,
+        create_privilege: express_relay_api_types::profile::CreatePrivilege,
+    ) -> Result<(), RestError> {
+        let id = Uuid::new_v4();
+        let state: models::PrivilegeState = create_privilege.state.clone().into();
+        let feature: models::PrivilegeFeature = create_privilege.feature.clone().into();
+        let privilege: models::Privilege = sqlx::query_as(
+            "INSERT INTO privilege (id, profile_id, state, feature) VALUES ($1, $2, $3, $4) RETURNING id, profile_id, state, feature, created_at, updated_at",
+        )
+        .bind(id)
+        .bind(create_privilege.profile_id)
+        .bind(state.clone())
+        .bind(feature.as_str())
+        .fetch_one(&self.db)
+        .instrument(info_span!("db_create_privilege"))
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                error = ?e,
+                profile_id = ?create_privilege.profile_id,
+                feature = ?feature,
+                state = ?state,
+                "DB: Failed to create privilege",
+            );
+            RestError::TemporarilyUnavailable
+        })?;
+        self.update_in_memory_privilege(privilege).await;
+        Ok(())
+    }
+
+    pub async fn has_privilege(
+        &self,
+        profile_id: models::ProfileId,
+        feature: models::PrivilegeFeature,
+    ) -> Result<bool, RestError> {
+        let privileges = self.privileges.read().await;
+        if let Some(privilege) = privileges.get(&(profile_id, feature.clone())) {
+            Ok(privilege.state == models::PrivilegeState::Enabled)
+        } else {
+            Ok(true)
+        }
     }
 }
