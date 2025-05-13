@@ -38,9 +38,9 @@ impl Service {
 
         if !self
             .store
-            .is_permitted(
+            .has_privilege(
                 input.profile.id,
-                crate::models::PermissionFeature::CancelQuote,
+                crate::models::PrivilegeFeature::CancelQuote,
             )
             .await?
         {

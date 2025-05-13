@@ -28,7 +28,7 @@ use {
         per_metrics,
         state::{
             ChainStoreSvm,
-            PermissionKey,
+            PrivilegeKey,
             ServerState,
             Store,
             StoreNew,
@@ -155,22 +155,22 @@ async fn fetch_access_tokens(db: &PgPool) -> HashMap<models::AccessTokenToken, m
         .collect()
 }
 
-async fn fetch_permissions(db: &PgPool) -> HashMap<PermissionKey, models::Permission> {
-    let permissions: Vec<models::Permission> = sqlx::query_as(
+async fn fetch_privileges(db: &PgPool) -> HashMap<PrivilegeKey, models::Privilege> {
+    let privileges: Vec<models::Privilege> = sqlx::query_as(
         "SELECT DISTINCT ON (profile_id, feature) *
-         FROM permission
+         FROM privilege
          ORDER BY profile_id, feature, created_at DESC;",
     )
     .fetch_all(db)
-    .instrument(info_span!("db_fetch_permissions"))
+    .instrument(info_span!("db_fetch_privileges"))
     .await
-    .expect("Failed to fetch permissions from database");
+    .expect("Failed to fetch privileges from database");
 
-    permissions
-        .iter()
-        .map(|permission| {
-            let key: PermissionKey = (permission.profile_id, permission.feature.clone());
-            (key, permission.clone())
+    privileges
+        .into_iter()
+        .map(|privilege| {
+            let key: PrivilegeKey = (privilege.profile_id, privilege.feature.clone());
+            (key, privilege)
         })
         .collect()
 }
@@ -311,7 +311,7 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
         .collect::<HashMap<_, _>>();
 
     let access_tokens = fetch_access_tokens(&pool).await;
-    let permissions = fetch_permissions(&pool).await;
+    let privileges = fetch_privileges(&pool).await;
     let store = Arc::new(Store {
         db:            pool.clone(),
         chains_svm:    chains_svm.clone(),
@@ -321,7 +321,7 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
         ),
         secret_key:    run_options.secret_key.clone(),
         access_tokens: RwLock::new(access_tokens),
-        permissions:   RwLock::new(permissions),
+        privileges:    RwLock::new(privileges),
     });
     let server_state = Arc::new(ServerState {
         metrics_recorder: setup_metrics_recorder()?,

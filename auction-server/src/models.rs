@@ -63,48 +63,48 @@ pub enum ChainType {
     Svm,
 }
 
-pub type PermissionId = Uuid;
+pub type PrivilegeId = Uuid;
 
 #[derive(Clone, Debug, PartialEq, PartialOrd, Hash, Eq, sqlx::Type)]
 #[sqlx(rename_all = "snake_case")]
-pub enum PermissionFeature {
+pub enum PrivilegeFeature {
     CancelQuote,
 }
 
-impl TryFrom<String> for PermissionFeature {
+impl TryFrom<String> for PrivilegeFeature {
     type Error = sqlx::error::BoxDynError;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         match value.as_str() {
-            "cancel_quote" => Ok(PermissionFeature::CancelQuote),
-            _ => Err(sqlx::error::BoxDynError::from("Invalid permission feature")),
+            "cancel_quote" => Ok(PrivilegeFeature::CancelQuote),
+            _ => Err(sqlx::error::BoxDynError::from("Invalid privilege feature")),
         }
     }
 }
 
-impl PermissionFeature {
+impl PrivilegeFeature {
     pub fn as_str(&self) -> &'static str {
         match self {
-            PermissionFeature::CancelQuote => "cancel_quote",
+            PrivilegeFeature::CancelQuote => "cancel_quote",
         }
     }
 }
 
 #[derive(Clone, Debug, sqlx::Type, PartialEq, PartialOrd)]
-#[sqlx(type_name = "permission_state", rename_all = "snake_case")]
-pub enum PermissionState {
+#[sqlx(type_name = "privilege_state", rename_all = "snake_case")]
+pub enum PrivilegeState {
     Enabled,
     Disabled,
 }
 
 #[derive(Clone, FromRow, Debug, PartialEq)]
-pub struct Permission {
-    pub id: PermissionId,
+pub struct Privilege {
+    pub id: PrivilegeId,
 
     #[sqlx(try_from = "String")]
-    pub feature:    PermissionFeature,
+    pub feature:    PrivilegeFeature,
     pub profile_id: ProfileId,
-    pub state:      PermissionState,
+    pub state:      PrivilegeState,
 
     pub created_at: PrimitiveDateTime,
     pub updated_at: PrimitiveDateTime,

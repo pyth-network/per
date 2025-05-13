@@ -308,7 +308,7 @@ pub mod tests {
                 ws:            ws::WsState::new("X-Forwarded-For".to_string(), 100),
                 secret_key:    "test".to_string(),
                 access_tokens: RwLock::new(HashMap::new()),
-                permissions:   RwLock::new(HashMap::new()),
+                privileges:    RwLock::new(HashMap::new()),
             });
             Service(Arc::new(ServiceInner {
                 store,

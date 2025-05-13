@@ -62,31 +62,31 @@ pub struct Profile {
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
 #[serde(rename_all = "snake_case")]
-pub enum PermissionFeature {
-    /// The feature for which the permission is for.
+pub enum PrivilegeFeature {
+    /// The feature for which the privilege is for.
     CancelQuote,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
 #[serde(rename_all = "snake_case")]
-pub enum PermissionState {
-    /// The permission is enabled.
+pub enum PrivilegeState {
+    /// The privilege is enabled.
     Enabled,
-    /// The permission is disabled.
+    /// The privilege is disabled.
     Disabled,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
-pub struct CreatePermission {
-    /// The id of the profile to create permission for.
+pub struct CreatePrivilege {
+    /// The id of the profile to create privilege for.
     #[schema(example = "obo3ee3e-58cc-4372-a567-0e02b2c3d479", value_type = String)]
     pub profile_id: ProfileId,
-    /// The feature which the permission is for.
-    #[schema(example = "cancel_quote", value_type = PermissionFeature)]
-    pub feature:    PermissionFeature,
-    /// The state of the permission.
-    #[schema(example = "disabled", value_type = PermissionState)]
-    pub state:      PermissionState,
+    /// The feature which the privilege is for.
+    #[schema(example = "cancel_quote", value_type = PrivilegeFeature)]
+    pub feature:    PrivilegeFeature,
+    /// The state of the privilege.
+    #[schema(example = "disabled", value_type = PrivilegeState)]
+    pub state:      PrivilegeState,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, ToResponse)]
@@ -114,8 +114,8 @@ pub enum Route {
     PostProfileAccessToken,
     #[strum(serialize = "access_tokens")]
     DeleteProfileAccessToken,
-    #[strum(serialize = "permissions")]
-    PostPermission,
+    #[strum(serialize = "privileges")]
+    PostPrivilege,
 }
 
 impl Routable for Route {
@@ -149,7 +149,7 @@ impl Routable for Route {
                 method: http::Method::DELETE,
                 full_path,
             },
-            Route::PostPermission => crate::RouteProperties {
+            Route::PostPrivilege => crate::RouteProperties {
                 access_level: AccessLevel::Admin,
                 method: http::Method::POST,
                 full_path,

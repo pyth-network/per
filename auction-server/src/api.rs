@@ -871,7 +871,7 @@ pub async fn start_api(
             ProfileRoute::DeleteProfileAccessToken,
             profile::delete_profile_access_token,
         )
-        .route(ProfileRoute::PostPermission, profile::post_permission)
+        .route(ProfileRoute::PostPrivilege, profile::post_privilege)
         .router;
 
     let routes = Router::new()

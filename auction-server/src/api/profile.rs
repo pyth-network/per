@@ -20,11 +20,11 @@ use {
     express_relay_api_types::profile::{
         AccessToken,
         CreateAccessToken,
-        CreatePermission,
+        CreatePrivilege,
         CreateProfile,
         GetProfile,
-        PermissionFeature,
-        PermissionState,
+        PrivilegeFeature,
+        PrivilegeState,
         Profile,
         ProfileRole,
     },
@@ -148,54 +148,54 @@ pub async fn delete_profile_access_token(
     }
 }
 
-impl From<models::PermissionFeature> for PermissionFeature {
-    fn from(feature: models::PermissionFeature) -> Self {
+impl From<models::PrivilegeFeature> for PrivilegeFeature {
+    fn from(feature: models::PrivilegeFeature) -> Self {
         match feature {
-            models::PermissionFeature::CancelQuote => PermissionFeature::CancelQuote,
+            models::PrivilegeFeature::CancelQuote => PrivilegeFeature::CancelQuote,
         }
     }
 }
 
-impl From<PermissionFeature> for models::PermissionFeature {
-    fn from(feature: PermissionFeature) -> Self {
+impl From<PrivilegeFeature> for models::PrivilegeFeature {
+    fn from(feature: PrivilegeFeature) -> Self {
         match feature {
-            PermissionFeature::CancelQuote => models::PermissionFeature::CancelQuote,
+            PrivilegeFeature::CancelQuote => models::PrivilegeFeature::CancelQuote,
         }
     }
 }
 
-impl From<models::PermissionState> for PermissionState {
-    fn from(state: models::PermissionState) -> Self {
+impl From<models::PrivilegeState> for PrivilegeState {
+    fn from(state: models::PrivilegeState) -> Self {
         match state {
-            models::PermissionState::Enabled => PermissionState::Enabled,
-            models::PermissionState::Disabled => PermissionState::Disabled,
+            models::PrivilegeState::Enabled => PrivilegeState::Enabled,
+            models::PrivilegeState::Disabled => PrivilegeState::Disabled,
         }
     }
 }
 
-impl From<PermissionState> for models::PermissionState {
-    fn from(state: PermissionState) -> Self {
+impl From<PrivilegeState> for models::PrivilegeState {
+    fn from(state: PrivilegeState) -> Self {
         match state {
-            PermissionState::Enabled => models::PermissionState::Enabled,
-            PermissionState::Disabled => models::PermissionState::Disabled,
+            PrivilegeState::Enabled => models::PrivilegeState::Enabled,
+            PrivilegeState::Disabled => models::PrivilegeState::Disabled,
         }
     }
 }
 
-/// Create a permission for a profile.
+/// Create a privilege for a profile.
 ///
 /// Returns empty response.
-#[utoipa::path(post, path = "/v1/profiles/permissions",
+#[utoipa::path(post, path = "/v1/profiles/privileges",
 security(
 ("bearerAuth" = []),
-),request_body = CreatePermission, responses(
-(status = 201, description = "The permission successfully created"),
+),request_body = CreatePrivilege, responses(
+(status = 201, description = "The privilege successfully created"),
 (status = 400, response = ErrorBodyResponse),
 ),)]
-pub async fn post_permission(
+pub async fn post_privilege(
     State(store): State<Arc<StoreNew>>,
-    Json(params): Json<CreatePermission>,
+    Json(params): Json<CreatePrivilege>,
 ) -> Result<impl IntoResponse, RestError> {
-    store.store.create_permission(params).await?;
+    store.store.create_privilege(params).await?;
     Ok(StatusCode::CREATED)
 }
