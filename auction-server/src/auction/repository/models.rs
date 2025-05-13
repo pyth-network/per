@@ -292,22 +292,6 @@ impl Svm {
         }
     }
 
-    fn convert_bid_failed_reason(reason: &entities::BidFailedReason) -> BidStatusReason {
-        match reason {
-            entities::BidFailedReason::DeadlinePassed => BidStatusReason::DeadlinePassed,
-            entities::BidFailedReason::InsufficientUserFunds => {
-                BidStatusReason::InsufficientUserFunds
-            }
-            entities::BidFailedReason::InsufficientSearcherFunds => {
-                BidStatusReason::InsufficientSearcherFunds
-            }
-            entities::BidFailedReason::InsufficientFundsSolTransfer => {
-                BidStatusReason::InsufficientFundsSolTransfer
-            }
-            entities::BidFailedReason::Other => BidStatusReason::Other,
-        }
-    }
-
     fn get_chain_data_entity(bid: &Bid) -> anyhow::Result<entities::BidChainDataSvm> {
         // The permission keys that are 64 bytes are the ones that are for submit_bid type.
         // These are stored in the database before adding the bid instruction type to the permission key svm.
