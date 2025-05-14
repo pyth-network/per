@@ -4,6 +4,7 @@ from enum import Enum
 from typing import Annotated, Any, ClassVar, Literal
 
 from express_relay.models.base import (
+    BidFailedReasonVariantsSvm,
     BidStatusVariantsSvm,
     BidSubmissionFailedReasonVariantsSvm,
     IntString,
@@ -382,12 +383,14 @@ class BidStatusSvm(BaseModel):
         type: The current status of the bid.
         result: The result of the bid: a transaction hash if the status is not PENDING.
                 The LOST status may have a result.
-        reason: The reason for the bid submission failure. This is only set when the status is SUBMISSION_FAILED.
+        reason: The reason for the bid submission failure. This is only set when the status is SUBMISSION_FAILED or FAILED.
     """
 
     type: BidStatusVariantsSvm
     result: SvmSignature | None = Field(default=None)
-    reason: BidSubmissionFailedReasonVariantsSvm | None = Field(default=None)
+    reason: BidSubmissionFailedReasonVariantsSvm | BidFailedReasonVariantsSvm | None = (
+        Field(default=None)
+    )
 
     @field_validator("type", mode="before")
     @classmethod
@@ -407,10 +410,13 @@ class BidStatusSvm(BaseModel):
 
     @model_validator(mode="after")
     def check_failed_reason(self):
-        if self.type == BidStatusVariantsSvm.SUBMISSION_FAILED:
+        if (
+            self.type == BidStatusVariantsSvm.SUBMISSION_FAILED
+            or self.type == BidStatusVariantsSvm.FAILED
+        ):
             assert (
                 self.reason is not None
-            ), "bid reason should not be empty when status is submission failed"
+            ), "bid reason should not be empty when status is submission failed or failed"
         return self
 
 

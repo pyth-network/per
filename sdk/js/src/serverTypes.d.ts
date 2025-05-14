@@ -262,6 +262,13 @@ export interface components {
     };
     /** @enum {string} */
     BidCreateSwapSvmTag: "swap";
+    /** @enum {string} */
+    BidFailedReason:
+      | "insufficient_user_funds"
+      | "insufficient_searcher_funds"
+      | "insufficient_funds_sol_transfer"
+      | "deadline_passed"
+      | "other";
     BidResult: {
       /**
        * @description The unique id created to identify the bid. This id can be used to query the status of the bid.
@@ -311,6 +318,7 @@ export interface components {
           type: "won";
         }
       | {
+          reason?: null | components["schemas"]["BidFailedReason"];
           /** @example Jb2urXPyEh4xiBgzYvwEFe4q1iMxG1DNxWGGQg94AmKgqFTwLAiTiHrYiYxwHUB4DV8u5ahNEVtMMDm3sNSRdTg */
           result: string;
           /** @enum {string} */
@@ -670,7 +678,7 @@ export interface components {
       /**
        * @description Whether the quote is cancellable by the searcher between the time the quote is requested and the time the quote is signed and submitted back.
        *     For cancellable quotes, the quote needs to be signed and submitted back to the API. If the quote is not cancellable, the user may broadcast the transaction to the blockchain on their own instead of submitting it back to the API.
-       *     Therefore cancellable quotes allow the integrator to reduce the number of API calls to one, but at the cost of potentially worse prices. Price-optimizing integrators should use the default value of false.
+       *     Therefore, non-cancellable quotes allow the integrator to reduce the number of API calls to one, but at the cost of potentially worse prices. Price-optimizing integrators should use the default value of true.
        * @example true
        */
       cancellable?: boolean;
