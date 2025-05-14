@@ -36,5 +36,13 @@ class BidSubmissionFailedReasonVariantsSvm(Enum):
     DEADLINE_PASSED = "deadline_passed"
 
 
+class BidFailedReasonVariantsSvm(Enum):
+    INSUFFICIENT_USER_FUNDS = "insufficient_user_funds"
+    INSUFFICIENT_SEARCHER_FUNDS = "insufficient_searcher_funds"
+    INSUFFICIENT_FUNDS_SOL_TRANSFER = "insufficient_funds_sol_transfer"
+    DEADLINE_PASSED = "deadline_passed"
+    OTHER = "other"
+
+
 IntString = Annotated[int, PlainSerializer(lambda x: str(x), return_type=str)]
 UUIDString = Annotated[UUID, PlainSerializer(lambda x: str(x), return_type=str)]
