@@ -514,7 +514,6 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
         fault_tolerant_handler("start api".to_string(), || api::start_api(
             run_options.clone(),
             store_new.clone(),
-            server_state.clone(),
         )),
         fault_tolerant_handler("start metrics".to_string(), || per_metrics::start_metrics(
             run_options.clone(),

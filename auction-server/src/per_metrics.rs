@@ -59,6 +59,7 @@ pub struct MetricsLayerData {
     started_at: std::time::Instant,
     result:     String,
     name:       String,
+    profile:    String,
 }
 
 pub struct MetricsLayer;
@@ -76,6 +77,8 @@ impl Visit for MetricsLayerData {
             self.result = value.to_string();
         } else if field.name() == "name" {
             self.name = value.to_string();
+        } else if field.name() == "profile" {
+            self.profile = value.to_string();
         }
     }
 }
@@ -87,6 +90,7 @@ impl Default for MetricsLayerData {
             started_at: Instant::now(),
             result:     "unknown".to_string(),
             name:       "unknown".to_string(),
+            profile:    "unknown".to_string(),
         }
     }
 }
@@ -153,7 +157,11 @@ where
             Some(span) => match span.extensions().get::<MetricsLayerData>() {
                 Some(data) => {
                     let latency = (Instant::now() - data.started_at).as_secs_f64();
-                    let labels = [("name", data.name.clone()), ("result", data.result.clone())];
+                    let labels = [
+                        ("name", data.name.clone()),
+                        ("result", data.result.clone()),
+                        ("profile", data.profile.clone()),
+                    ];
                     metrics::histogram!(format!("{}_duration_seconds", data.category), &labels)
                         .record(latency);
                     metrics::counter!(format!("{}_total", data.category), &labels).increment(1);
