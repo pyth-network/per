@@ -31,7 +31,6 @@ use {
             entities::{
                 self,
                 OpportunitySvmProgram,
-                OpportunitySvmProgramSwap,
                 TokenAccountInitializationConfig,
                 TokenAccountInitializationConfigs,
                 TokenAmountSvm,
@@ -666,15 +665,15 @@ impl Service {
             ),
         };
 
-        let OpportunitySvmProgramSwap {
-            user_mint_user_balance,
-            ..
-        } = match &opportunity.program {
+        let opportunity_svm_program_swap = match &opportunity.program {
             OpportunitySvmProgram::Swap(swap) => swap,
             _ => return Err(RestError::TemporarilyUnavailable), // This should be unreachable
         };
 
-        let (transaction, expiration_time) = if *user_mint_user_balance >= swap_data.amount_user {
+        let (transaction, expiration_time) = if opportunity_svm_program_swap
+            .get_user_ata_mint_user_after_token_account_initializations()
+            >= swap_data.amount_user
+        {
             (
                 Some(winner_bid.chain_data.transaction.clone()),
                 Some(deadline),
