@@ -670,17 +670,26 @@ impl Service {
             _ => return Err(RestError::TemporarilyUnavailable), // This should be unreachable
         };
 
-        let (transaction, expiration_time) = if opportunity_svm_program_swap
-            .get_user_ata_mint_user_after_token_account_initializations()
-            >= swap_data.amount_user
-        {
-            (
-                Some(winner_bid.chain_data.transaction.clone()),
-                Some(deadline),
-            )
-        } else {
-            (None, None)
-        };
+        let user_mint_user_balance_after_token_account_initializations =
+            if user_token.token == native_mint::ID {
+                opportunity_svm_program_swap
+                    .user_mint_user_balance
+                    .saturating_sub(
+                        opportunity_svm_program_swap
+                            .get_user_sol_amount_paid_for_token_account_initializations(),
+                    )
+            } else {
+                opportunity_svm_program_swap.user_mint_user_balance
+            };
+        let (transaction, expiration_time) =
+            if user_mint_user_balance_after_token_account_initializations >= swap_data.amount_user {
+                (
+                    Some(winner_bid.chain_data.transaction.clone()),
+                    Some(deadline),
+                )
+            } else {
+                (None, None)
+            };
 
         let transaction = match (&transaction, input.quote_create.cancellable) {
             (Some(_), false) => Some(
