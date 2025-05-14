@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Rust: 0.13.0, Python 0.28.0, Javascript 0.29.0, api-types 0.12.0] - 2025-05-14
 
-- Failed bids for swap quotes now have a reason status that exposes why the transaction failed on-chain.
+- Failed bids for swap quotes now have a reason status that exposes why the transaction failed on-chain. [554](https://github.com/pyth-network/per/pull/554)
 
 ## [Rust: 0.12.0, Python 0.27.0, Javascript 0.28.0, api-types 0.11.0] - 2025-05-09
 
