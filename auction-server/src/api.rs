@@ -49,7 +49,11 @@ use {
         },
         TypedHeader,
     },
-    axum_prometheus::metrics,
+    axum_prometheus::{
+        metrics,
+        AXUM_HTTP_REQUESTS_DURATION_SECONDS,
+        AXUM_HTTP_REQUESTS_TOTAL,
+    },
     clap::crate_version,
     express_relay_api_types::{
         self as api_types,
@@ -775,8 +779,8 @@ async fn track_metrics(
         ("profile", profile),
     ];
 
-    metrics::counter!("axum_http_requests_total", &labels).increment(1);
-    metrics::histogram!("axum_http_requests_duration_seconds_bucket", &labels).record(latency);
+    metrics::counter!(AXUM_HTTP_REQUESTS_TOTAL, &labels).increment(1);
+    metrics::histogram!(AXUM_HTTP_REQUESTS_DURATION_SECONDS, &labels).record(latency);
 
     response
 }
