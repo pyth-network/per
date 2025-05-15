@@ -11,10 +11,7 @@ use {
             EXIT_CHECK_INTERVAL,
             SHOULD_EXIT,
         },
-        state::{
-            ServerState,
-            StoreNew,
-        },
+        state::StoreNew,
     },
     anyhow::Result,
     axum::{
@@ -53,8 +50,9 @@ use {
         TypedHeader,
     },
     axum_prometheus::{
-        EndpointLabel,
-        PrometheusMetricLayerBuilder,
+        metrics,
+        AXUM_HTTP_REQUESTS_DURATION_SECONDS,
+        AXUM_HTTP_REQUESTS_TOTAL,
     },
     clap::crate_version,
     express_relay_api_types::{
@@ -81,6 +79,7 @@ use {
         },
     },
     time::OffsetDateTime,
+    tokio::time::Instant,
     tower_http::cors::CorsLayer,
     utoipa::{
         openapi::security::{
@@ -750,11 +749,43 @@ impl WrappedRouter {
     }
 }
 
-pub async fn start_api(
-    run_options: RunOptions,
-    store: Arc<StoreNew>,
-    server_state: Arc<ServerState>,
-) -> Result<()> {
+async fn track_metrics(
+    auth: Auth,
+    req: extract::Request,
+    next: middleware::Next,
+) -> impl IntoResponse {
+    let start = Instant::now();
+    let endpoint = if let Some(matched_path) = req.extensions().get::<extract::MatchedPath>() {
+        matched_path.as_str().to_owned()
+    } else {
+        "unknown".to_string()
+    };
+    let profile = if let Auth::Authorized(_, profile) = auth {
+        profile.name
+    } else {
+        "unauthorized".to_string()
+    };
+    let method = req.method().clone();
+
+    let response = next.run(req).await;
+
+    let latency = start.elapsed().as_secs_f64();
+    let status = response.status().as_u16().to_string();
+
+    let labels = [
+        ("method", method.to_string()),
+        ("endpoint", endpoint),
+        ("status", status),
+        ("profile", profile),
+    ];
+
+    metrics::counter!(AXUM_HTTP_REQUESTS_TOTAL, &labels).increment(1);
+    metrics::histogram!(AXUM_HTTP_REQUESTS_DURATION_SECONDS, &labels).record(latency);
+
+    response
+}
+
+pub async fn start_api(run_options: RunOptions, store: Arc<StoreNew>) -> Result<()> {
     // Make sure functions included in the paths section have distinct names, otherwise some api generators will fail
     #[derive(OpenApi)]
     #[openapi(
@@ -880,13 +911,6 @@ pub async fn start_api(
         .merge(profile_routes)
         .merge(ws::get_routes(store.clone()));
 
-    let (prometheus_layer, _) = PrometheusMetricLayerBuilder::new()
-        .with_metrics_from_fn(|| server_state.metrics_recorder.clone())
-        .with_endpoint_label_type(EndpointLabel::MatchedPathWithFallbackFn(|_| {
-            "unknown".to_string()
-        }))
-        .build_pair();
-
     let original_doc = serde_json::to_value(ApiDoc::openapi())
         .expect("Failed to serialize OpenAPI document to json value");
 
@@ -898,7 +922,7 @@ pub async fn start_api(
         .route(Route::OpenApi.as_ref(), get(original_doc.to_string()))
         .layer(CorsLayer::permissive())
         .layer(middleware::from_extractor_with_state::<Auth, Arc<StoreNew>>(store.clone()))
-        .layer(prometheus_layer)
+        .layer(middleware::from_fn_with_state(store.clone(), track_metrics))
         .with_state(store);
 
     let listener = tokio::net::TcpListener::bind(&run_options.server.listen_addr).await?;
