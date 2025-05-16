@@ -772,7 +772,10 @@ mod tests {
             Account as TokenAccount,
             AccountState,
         },
-        std::time::Instant,
+        std::{
+            sync::Arc,
+            time::Instant,
+        },
         uuid::Uuid,
     };
 
@@ -946,7 +949,8 @@ mod tests {
         let test_token_program_user = Pubkey::new_unique();
         let test_token_program_searcher = Pubkey::new_unique();
         let (mut service, _) = Service::new_with_mocks_svm(chain_id.clone(), mock_db, &rpc_client);
-        let config = service.config.get_mut(&chain_id).unwrap();
+        let inner = Arc::get_mut(&mut service.0).expect("Only one reference should exist at setup");
+        let config = inner.config.get_mut(&chain_id).unwrap();
 
         let allowed_token_mint_1 = Pubkey::new_unique();
         let allowed_token_mint_2 = Pubkey::new_unique();
@@ -1670,7 +1674,9 @@ mod tests {
             .cache_token_program(user_token, token_program_searcher)
             .await;
 
-        service
+        let service_inner =
+            Arc::get_mut(&mut service.0).expect("Only one reference should exist at setup");
+        service_inner
             .config
             .get_mut(DEFAULT_CHAIN_ID)
             .expect("chain")

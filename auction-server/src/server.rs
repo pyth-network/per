@@ -13,6 +13,7 @@ use {
             SwapInstructionAccountPositions,
         },
         config::{
+            server::ClickhouseConfig,
             ChainId,
             Config,
             ConfigMap,
@@ -61,7 +62,12 @@ use {
         PgPool,
     },
     std::{
-        collections::HashMap,
+        collections::{
+            BTreeMap,
+            HashMap,
+            HashSet,
+        },
+        fs,
         sync::{
             atomic::{
                 AtomicBool,
@@ -204,6 +210,14 @@ pub fn setup_metrics_recorder() -> Result<PrometheusHandle> {
 
 const NOTIFICATIONS_CHAN_LEN: usize = 1000;
 
+fn get_analytics_client(config: ClickhouseConfig) -> clickhouse::Client {
+    clickhouse::Client::default()
+        .with_url(config.database_url_clickhouse)
+        .with_database(config.database_name_clickhouse)
+        .with_user(config.database_user_clickhouse)
+        .with_password(config.database_password_clickhouse)
+}
+
 // TODO move to kernel repo
 async fn create_pg_pool(
     database_url: &str,
@@ -216,6 +230,61 @@ async fn create_pg_pool(
         .connect(database_url)
         .await
         .map_err(|err| anyhow!("Failed to connect to database: {:?}", err))
+}
+
+pub async fn run_migrations_clichouse(config: ClickhouseConfig) -> Result<()> {
+    let client = get_analytics_client(config);
+
+    // 1. Create the migration history table
+    client
+        .query(
+            r#"
+        CREATE TABLE IF NOT EXISTS migration_history (
+            name String,
+            applied_at DateTime DEFAULT now()
+        ) ENGINE = MergeTree()
+        ORDER BY name
+        "#,
+        )
+        .execute()
+        .await?;
+
+    // 2. Read already-applied migration names
+    let rows: Vec<String> = client
+        .query("SELECT name FROM migration_history")
+        .fetch_all()
+        .await?;
+    let applied: HashSet<String> = rows.into_iter().collect();
+
+    // 3. Read and sort migration files by filename
+    let mut files = BTreeMap::new();
+    for entry in fs::read_dir("./clickhouse_migrations")? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) == Some("sql") {
+            let name = path.file_name().unwrap().to_string_lossy().to_string();
+            let sql = fs::read_to_string(&path)?;
+            files.insert(name, sql);
+        }
+    }
+
+    // 4. Apply each file if not already applied
+    for (filename, sql) in files {
+        if applied.contains(&filename) {
+            println!("✅ Already applied: {}", filename);
+        } else {
+            println!("🚀 Applying: {}", filename);
+            client.query(&sql).execute().await?;
+            client
+                .query("INSERT INTO migration_history (name) VALUES (?)")
+                .bind(filename)
+                .execute()
+                .await?;
+        }
+    }
+
+    println!("✅ All ClickHouse migrations complete.");
+    Ok(())
 }
 
 pub async fn run_migrations(migrate_options: MigrateOptions) -> Result<()> {
@@ -300,6 +369,8 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
         run_options.server.database_max_connections,
     )
     .await?;
+    let analytics_db = get_analytics_client(run_options.server.clickhouse_config.clone());
+
     let task_tracker = TaskTracker::new();
 
     let config_opportunity_service_svm =
@@ -331,6 +402,7 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
         store.clone(),
         task_tracker.clone(),
         pool.clone(),
+        analytics_db.clone(),
         config_opportunity_service_svm,
     ));
     #[allow(clippy::iter_kv_map)]
