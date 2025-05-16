@@ -12,6 +12,7 @@ use {
         serde_as,
         DisplayFromStr,
     },
+    server::ClickhouseConfig,
     solana_sdk::pubkey::Pubkey,
     std::{
         collections::HashMap,
@@ -20,7 +21,7 @@ use {
     },
 };
 
-mod server;
+pub mod server;
 
 // `Options` is a structup definition to provide clean command-line args for Hermes.
 #[derive(Parser, Debug)]
@@ -34,6 +35,8 @@ pub enum Options {
     Run(RunOptions),
     /// Run db migrations and exit.
     Migrate(MigrateOptions),
+    /// Run clickhouse migrations and exit.
+    MigrateClickhouse(ClickhouseConfig),
 }
 
 #[derive(Args, Clone, Debug)]

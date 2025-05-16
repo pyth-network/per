@@ -75,7 +75,7 @@ local_resource(
 
 local_resource(
     "auction-server",
-    serve_cmd="source ../tilt-resources.env; source ./.env; cargo run -- run --database-url $DATABASE_URL --secret-key $SECRET_KEY",
+    serve_cmd="cat ./.env; source ../tilt-resources.env; env $(grep -v '^#' .env | xargs) cargo run -- run",
     serve_dir="auction-server",
     resource_deps=["create-server-configs", "svm-build-programs", "svm-setup-accounts"],
     readiness_probe=probe(period_secs=5, http_get=http_get_action(port=9000)),

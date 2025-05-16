@@ -1,7 +1,6 @@
 #![cfg_attr(test, allow(dead_code))]
 
 use {
-    crate::server::run_migrations,
     anyhow::Result,
     clap::Parser,
     opentelemetry::KeyValue,
@@ -14,7 +13,11 @@ use {
         is_metrics,
         MetricsLayer,
     },
-    server::start_server,
+    server::{
+        run_migrations,
+        run_migrations_clichouse,
+        start_server,
+    },
     std::{
         io::IsTerminal,
         time::Duration,
@@ -107,5 +110,6 @@ async fn main() -> Result<()> {
     match config::Options::parse() {
         config::Options::Run(opts) => start_server(opts).await,
         config::Options::Migrate(opts) => run_migrations(opts).await,
+        config::Options::MigrateClickhouse(opts) => run_migrations_clichouse(opts).await,
     }
 }
