@@ -58,9 +58,27 @@ impl Service {
         let opportunity = if let OpportunityAction::Refresh(opp) = action {
             self.repo.refresh_in_memory_opportunity(*opp).await
         } else {
-            self.repo
+            let opportunity = self
+                .repo
                 .add_opportunity(opportunity_create.clone())
-                .await?
+                .await?;
+            tokio::spawn({
+                let (service, opportunity) = (self.clone(), opportunity.clone());
+                async move {
+                    if let Err(err) = service
+                        .repo
+                        .add_opportunity_analytics(opportunity.clone())
+                        .await
+                    {
+                        tracing::error!(
+                            error = ?err,
+                            opportunity = ?opportunity,
+                            "Failed to add opportunity analytics",
+                        );
+                    }
+                }
+            });
+            opportunity
         };
 
         self.store
