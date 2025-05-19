@@ -10,22 +10,18 @@ const DEFAULT_REQUESTER_IP_HEADER_NAME: &str = "X-Forwarded-For";
 
 #[derive(Args, Clone, Debug)]
 pub struct ClickhouseConfig {
-    /// database url to run the migrations for.
-    #[arg(long = "database-url-clickhouse")]
-    #[arg(env = "DATABASE_URL_CLICKHOUSE")]
-    pub database_url_clickhouse:      String,
-    /// database name to run the migrations for.
-    #[arg(long = "database-name-clickhouse")]
-    #[arg(env = "DATABASE_NAME_CLICKHOUSE")]
-    pub database_name_clickhouse:     String,
-    /// database user to run the migrations for.
-    #[arg(long = "database-user-clickhouse")]
-    #[arg(env = "DATABASE_USER_CLICKHOUSE")]
-    pub database_user_clickhouse:     String,
-    /// database password to run the migrations for.
-    #[arg(long = "database-password-clickhouse")]
-    #[arg(env = "DATABASE_PASSWORD_CLICKHOUSE")]
-    pub database_password_clickhouse: String,
+    #[arg(long = "clickhouse-url")]
+    #[arg(env = "CLICKHOUSE_URL")]
+    pub clickhouse_url:      String,
+    #[arg(long = "clickhouse-name")]
+    #[arg(env = "CLICKHOUSE_NAME")]
+    pub clickhouse_name:     String,
+    #[arg(long = "clickhouse-user")]
+    #[arg(env = "CLICKHOUSE_USER")]
+    pub clickhouse_user:     String,
+    #[arg(long = "clickhouse-password")]
+    #[arg(env = "CLICKHOUSE_PASSWORD")]
+    pub clickhouse_password: String,
 }
 
 
@@ -62,7 +58,7 @@ pub struct Options {
     #[arg(default_value = DEFAULT_REQUESTER_IP_HEADER_NAME)]
     #[arg(env = "REQUESTER_IP_HEADER_NAME")]
     pub requester_ip_header_name: String,
-    /// Clickhouse database config
+    /// Clickhouse database config to run the migrations for.
     #[command(flatten)]
     pub clickhouse_config:        ClickhouseConfig,
 }

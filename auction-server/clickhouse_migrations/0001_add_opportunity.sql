@@ -1,13 +1,10 @@
 CREATE TABLE IF NOT EXISTS opportunity (
     id UUID,
     creation_time DateTime64(6),
-    permission_key FixedString(64),
-    chain_id String,
+    permission_key String,
+    chain_id LowCardinality(String),
 
-    program LowCardinality(String), -- "limit_order" or "quote"
-
-    sell_tokens String,
-    buy_tokens String,
+    program LowCardinality(String),
 
     -- Token info
     sell_token_mint String,
@@ -21,8 +18,6 @@ CREATE TABLE IF NOT EXISTS opportunity (
     -- Optional removal tracking
     removal_time Nullable(DateTime64(6)),
     removal_reason Nullable(String),
-
-    -- === Flattened Metadata Fields ===
 
     -- For Limo variant
     limo_order Nullable(String),
@@ -38,7 +33,7 @@ CREATE TABLE IF NOT EXISTS opportunity (
     swap_platform_fee_ppm Nullable(UInt64),
     swap_token_program_user Nullable(String),
     swap_token_program_searcher Nullable(String),
-    swap_token_account_initialization_configs Nullable(String), -- store as JSON
+    swap_token_account_initialization_configs Nullable(String),
     swap_user_mint_user_balance Nullable(UInt64),
     swap_memo Nullable(String),
     swap_cancellable Nullable(Bool),
@@ -46,7 +41,6 @@ CREATE TABLE IF NOT EXISTS opportunity (
 
     -- Profile
     profile_id Nullable(UUID),
-    profile_name Nullable(String)
 
 ) ENGINE = ReplacingMergeTree
 ORDER BY (creation_time, id);

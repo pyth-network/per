@@ -2,8 +2,8 @@
 use crate::auction::service::Service as AuctionService;
 use {
     super::repository::{
+        AnalyticsDatabase,
         Database,
-        DatabaseAnalytics,
         Repository,
     },
     crate::{
@@ -51,6 +51,7 @@ pub mod get_opportunities;
 pub mod get_quote;
 pub mod remove_invalid_or_expired_opportunities;
 pub mod remove_opportunities;
+pub mod remove_opportunity;
 
 mod get_quote_request_account_balances;
 mod get_token_program;
@@ -191,7 +192,7 @@ impl Service {
         store: Arc<Store>,
         task_tracker: TaskTracker,
         db: impl Database,
-        db_analytics: impl DatabaseAnalytics,
+        db_analytics: impl AnalyticsDatabase,
         config: HashMap<ChainId, ConfigSvm>,
     ) -> Self {
         Self(Arc::new(ServiceInner {
@@ -218,8 +219,8 @@ pub mod tests {
             config,
             kernel::rpc_client_svm_tester::RpcClientSvmTester,
             opportunity::repository::{
+                MockAnalyticsDatabase,
                 MockDatabase,
-                MockDatabaseAnalytics,
             },
         },
         tokio::sync::{
@@ -261,7 +262,7 @@ pub mod tests {
                 store.clone(),
                 TaskTracker::new(),
                 db,
-                MockDatabaseAnalytics::new(),
+                MockAnalyticsDatabase::new(),
                 chains_svm,
             );
 

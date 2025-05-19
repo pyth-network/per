@@ -2,6 +2,7 @@ use {
     super::{
         get_quote_request_account_balances::QuoteRequestAccountBalancesInput,
         get_token_program::GetTokenProgramInput,
+        remove_opportunity::RemoveOpportunityInput,
         Service,
     },
     crate::{
@@ -412,8 +413,10 @@ impl Service {
             RestError::InvalidOpportunity("Auction finished for the opportunity".to_string()),
         );
         if let Err(e) = self
-            .repo
-            .remove_opportunity(&opportunity, removal_reason)
+            .remove_opportunity(RemoveOpportunityInput {
+                opportunity,
+                reason: removal_reason,
+            })
             .await
         {
             tracing::error!("Failed to remove opportunity: {:?}", e);
@@ -952,7 +955,9 @@ mod tests {
         let rpc_client = RpcClientSvmTester::new();
         let mut mock_db = MockDatabase::default();
         mock_db.expect_add_opportunity().returning(|_| Ok(()));
-        mock_db.expect_remove_opportunity().returning(|_, _| Ok(()));
+        mock_db
+            .expect_remove_opportunity()
+            .returning(|_, _| Ok(None));
 
         let test_token_program_user = Pubkey::new_unique();
         let test_token_program_searcher = Pubkey::new_unique();

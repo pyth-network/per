@@ -1,18 +1,18 @@
 use {
     super::Repository,
-    crate::{
-        api::RestError,
-        opportunity::entities::OpportunitySvm,
-    },
+    crate::opportunity::entities,
+    time::OffsetDateTime,
 };
 
 impl Repository {
     pub async fn add_opportunity_analytics(
         &self,
-        opportunity: OpportunitySvm,
-    ) -> Result<(), RestError> {
+        opportunity: entities::OpportunitySvm,
+        removal_time: Option<OffsetDateTime>,
+        removal_reason: Option<entities::OpportunityRemovalReason>,
+    ) -> anyhow::Result<()> {
         self.db_analytics
-            .add_opportunity(&opportunity, None, None)
+            .add_opportunity(&opportunity, removal_time, removal_reason.map(|r| r.into()))
             .await
     }
 }

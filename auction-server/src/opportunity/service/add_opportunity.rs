@@ -67,7 +67,7 @@ impl Service {
                 async move {
                     if let Err(err) = service
                         .repo
-                        .add_opportunity_analytics(opportunity.clone())
+                        .add_opportunity_analytics(opportunity.clone(), None, None)
                         .await
                     {
                         tracing::error!(

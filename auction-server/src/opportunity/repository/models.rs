@@ -5,10 +5,7 @@ use {
     crate::{
         api::RestError,
         kernel::{
-            db::{
-                DBAnalytics,
-                DB,
-            },
+            db::DB,
             entities::{
                 ChainId,
                 PermissionKeySvm,
@@ -27,7 +24,9 @@ use {
             },
         },
     },
+    ::uuid::Uuid,
     axum::async_trait,
+    clickhouse::Row,
     serde::{
         de::DeserializeOwned,
         Deserialize,
@@ -56,7 +55,6 @@ use {
         PrimitiveDateTime,
     },
     tracing::instrument,
-    uuid::Uuid,
 };
 
 #[derive(Clone, Debug, PartialEq, PartialOrd, sqlx::Type, Serialize, Deserialize)]
@@ -169,13 +167,13 @@ pub struct Opportunity<T: OpportunityMetadata> {
 
 #[cfg_attr(test, automock)]
 #[async_trait]
-pub trait DatabaseAnalytics: Send + Sync + 'static {
+pub trait AnalyticsDatabase: Send + Sync + 'static {
     async fn add_opportunity(
         &self,
         opportunity: &OpportunitySvm,
         removal_time: Option<OffsetDateTime>,
         removal_reason: Option<OpportunityRemovalReason>,
-    ) -> Result<(), RestError>;
+    ) -> Result<(), anyhow::Error>;
 }
 
 #[cfg_attr(test, automock)]
@@ -192,68 +190,61 @@ pub trait Database: Debug + Send + Sync + 'static {
         permission_key: &PermissionKeySvm,
         chain_id: &ChainId,
         reason: OpportunityRemovalReason,
-    ) -> anyhow::Result<()>;
+    ) -> anyhow::Result<OffsetDateTime>;
     async fn remove_opportunity(
         &self,
         opportunity: &OpportunitySvm,
         reason: OpportunityRemovalReason,
-    ) -> anyhow::Result<()>;
+    ) -> anyhow::Result<Option<OffsetDateTime>>;
 }
 
-#[derive(Debug, Serialize, Deserialize, clickhouse::Row)]
-#[serde_as]
+#[derive(Row, Serialize, Deserialize, Debug)]
 pub struct OpportunityAnalytics {
+    #[serde(with = "clickhouse::serde::uuid")]
     pub id:             Uuid,
+    #[serde(with = "clickhouse::serde::time::datetime64::micros")]
     pub creation_time:  OffsetDateTime,
     pub permission_key: String,
     pub chain_id:       String,
 
     pub program: String,
 
-    pub sell_tokens: JsonValue,
-    pub buy_tokens:  JsonValue,
-
-    #[serde_as(as = "DisplayFromStr")]
-    pub sell_token_mint:      Pubkey,
+    pub sell_token_mint:      String,
     pub sell_token_amount:    u64,
     pub sell_token_usd_price: Option<f64>,
 
-    #[serde_as(as = "DisplayFromStr")]
-    pub buy_token_mint:      Pubkey,
+    pub buy_token_mint:      String,
     pub buy_token_amount:    u64,
     pub buy_token_usd_price: Option<f64>,
 
+    #[serde(with = "clickhouse::serde::time::datetime64::micros::option")]
     pub removal_time:   Option<OffsetDateTime>,
-    pub removal_reason: Option<OpportunityRemovalReason>,
+    pub removal_reason: Option<String>,
 
-    // Limo-specific
-    #[serde_as(as = "DisplayFromStr")]
-    pub limo_order:         Option<Pubkey>,
-    #[serde_as(as = "DisplayFromStr")]
-    pub limo_order_address: Option<Pubkey>,
+    pub limo_order:         Option<String>,
+    pub limo_order_address: Option<String>,
     pub limo_slot:          Option<u64>,
 
-    // Swap-specific
-    #[serde_as(as = "DisplayFromStr")]
-    pub swap_user_wallet_address:                  Option<Pubkey>,
-    pub swap_fee_token:                            Option<FeeToken>,
+    pub swap_user_wallet_address:                  Option<String>,
+    pub swap_fee_token:                            Option<String>,
     pub swap_referral_fee_bps:                     Option<u16>,
     pub swap_referral_fee_ppm:                     Option<u64>,
     pub swap_platform_fee_bps:                     Option<u64>,
     pub swap_platform_fee_ppm:                     Option<u64>,
-    pub swap_token_program_user:                   Option<Pubkey>,
-    pub swap_token_program_searcher:               Option<Pubkey>,
-    pub swap_token_account_initialization_configs: Option<JsonValue>,
+    pub swap_token_program_user:                   Option<String>,
+    pub swap_token_program_searcher:               Option<String>,
+    pub swap_token_account_initialization_configs: Option<String>,
     pub swap_user_mint_user_balance:               Option<u64>,
     pub swap_memo:                                 Option<String>,
     pub swap_cancellable:                          Option<bool>,
     pub swap_minimum_lifetime:                     Option<u32>,
 
+    #[serde(with = "clickhouse::serde::uuid::option")]
     pub profile_id: Option<Uuid>,
 }
 
 #[async_trait]
-impl DatabaseAnalytics for DBAnalytics {
+impl AnalyticsDatabase for clickhouse::Client {
     #[instrument(
         target = "metrics",
         name = "db_analytics_add_opportunity",
@@ -270,39 +261,38 @@ impl DatabaseAnalytics for DBAnalytics {
         opportunity: &OpportunitySvm,
         removal_time: Option<OffsetDateTime>,
         removal_reason: Option<OpportunityRemovalReason>,
-    ) -> Result<(), RestError> {
-        let sell_token = opportunity.sell_tokens.first().ok_or_else(|| {
-            tracing::error!(opportunity = ?opportunity, "Opportunity has no sell tokens");
-            RestError::TemporarilyUnavailable
-        })?;
+    ) -> anyhow::Result<()> {
+        let sell_token = opportunity
+            .sell_tokens
+            .first()
+            .ok_or(anyhow::anyhow!("Opportunity has no sell tokens"))?;
 
-        let buy_token = opportunity.buy_tokens.first().ok_or_else(|| {
-            tracing::error!(opportunity = ?opportunity, "Opportunity has no buy tokens");
-            RestError::TemporarilyUnavailable
-        })?;
+        let buy_token = opportunity
+            .buy_tokens
+            .first()
+            .ok_or(anyhow::anyhow!("Opportunity has no buy tokens"))?;
 
         let opportunity_analytics: OpportunityAnalytics = match opportunity.program.clone() {
             entities::OpportunitySvmProgram::Limo(params) => OpportunityAnalytics {
                 id: opportunity.id,
                 creation_time: opportunity.creation_time,
-                permission_key: format!("{:?}", opportunity.permission_key),
+                permission_key: format!("{}", opportunity.permission_key),
                 chain_id: opportunity.chain_id.clone(),
                 program: "limo".to_string(),
-                sell_tokens: serde_json::to_value(opportunity.sell_tokens.clone())
-                    .expect("Failed to deserialize sell tokens"),
-                buy_tokens: serde_json::to_value(opportunity.buy_tokens.clone())
-                    .expect("Failed to deserialize buy tokens"),
                 removal_time,
-                removal_reason,
-                sell_token_mint: sell_token.token,
+                removal_reason: removal_reason.map(|reason| {
+                    serde_json::to_string(&reason).expect("Failed to serialize removal reason")
+                }),
+                sell_token_mint: sell_token.token.to_string(),
                 sell_token_amount: sell_token.amount,
                 sell_token_usd_price: None,
-                buy_token_mint: buy_token.token,
+                buy_token_mint: buy_token.token.to_string(),
                 buy_token_amount: buy_token.amount,
                 buy_token_usd_price: None,
-                limo_order: Some(params.order_address),
-                limo_order_address: Some(params.order_address),
+                limo_order: Some(params.order_address.to_string()),
+                limo_order_address: Some(params.order_address.to_string()),
                 limo_slot: Some(params.slot),
+
                 swap_user_wallet_address: None,
                 swap_fee_token: None,
                 swap_referral_fee_bps: None,
@@ -319,62 +309,52 @@ impl DatabaseAnalytics for DBAnalytics {
 
                 profile_id: opportunity.profile_id,
             },
-            entities::OpportunitySvmProgram::Swap(params) => {
-                OpportunityAnalytics {
-                    id: opportunity.id,
-                    creation_time: opportunity.creation_time,
-                    permission_key: format!("{:?}", opportunity.permission_key),
-                    chain_id: opportunity.chain_id.clone(),
-                    program: "limo".to_string(),
-                    sell_tokens: serde_json::to_value(opportunity.sell_tokens.clone())
-                        .expect("Failed to deserialize sell tokens"),
-                    buy_tokens: serde_json::to_value(opportunity.buy_tokens.clone())
-                        .expect("Failed to deserialize buy tokens"),
-                    removal_time,
-                    removal_reason,
-                    sell_token_mint: sell_token.token,
-                    sell_token_amount: sell_token.amount,
-                    sell_token_usd_price: None,
-                    buy_token_mint: buy_token.token,
-                    buy_token_amount: buy_token.amount,
-                    buy_token_usd_price: None,
-                    limo_order: None,
-                    limo_order_address: None,
-                    limo_slot: None,
-                    swap_user_wallet_address: Some(params.user_wallet_address),
-                    // swap_fee_token: Some(params.fee_token),
-                    swap_fee_token: None,
-                    swap_referral_fee_bps: Some(params.referral_fee_bps),
-                    swap_referral_fee_ppm: Some(params.referral_fee_ppm),
-                    swap_platform_fee_bps: Some(params.platform_fee_bps),
-                    swap_platform_fee_ppm: Some(params.platform_fee_ppm),
-                    swap_token_program_user: Some(params.token_program_user),
-                    swap_token_program_searcher: Some(params.token_program_searcher),
-                    swap_user_mint_user_balance: Some(params.user_mint_user_balance),
-                    swap_token_account_initialization_configs: Some(
-                        serde_json::to_value(params.token_account_initialization_configs)
-                            .expect("Failed to serialize token account initialization configs"),
-                    ),
-                    swap_memo: params.memo,
-                    swap_cancellable: Some(params.cancellable),
-                    swap_minimum_lifetime: params.minimum_lifetime,
+            entities::OpportunitySvmProgram::Swap(params) => OpportunityAnalytics {
+                id: opportunity.id,
+                creation_time: opportunity.creation_time,
+                permission_key: format!("{}", opportunity.permission_key),
+                chain_id: opportunity.chain_id.clone(),
+                program: "swap".to_string(),
+                removal_time,
+                removal_reason: removal_reason.map(|reason| {
+                    serde_json::to_string(&reason).expect("Failed to serialize removal reason")
+                }),
+                sell_token_mint: sell_token.token.to_string(),
+                sell_token_amount: sell_token.amount,
+                sell_token_usd_price: None,
+                buy_token_mint: buy_token.token.to_string(),
+                buy_token_amount: buy_token.amount,
+                buy_token_usd_price: None,
+                limo_order: None,
+                limo_order_address: None,
+                limo_slot: None,
+                swap_user_wallet_address: Some(params.user_wallet_address.to_string()),
+                swap_fee_token: Some(
+                    serde_json::to_string(&params.fee_token)
+                        .expect("Failed to serialize fee token"),
+                ),
+                swap_referral_fee_bps: Some(params.referral_fee_bps),
+                swap_referral_fee_ppm: Some(params.referral_fee_ppm),
+                swap_platform_fee_bps: Some(params.platform_fee_bps),
+                swap_platform_fee_ppm: Some(params.platform_fee_ppm),
+                swap_token_program_user: Some(params.token_program_user.to_string()),
+                swap_token_program_searcher: Some(params.token_program_searcher.to_string()),
+                swap_user_mint_user_balance: Some(params.user_mint_user_balance),
+                swap_token_account_initialization_configs: Some(
+                    serde_json::to_string(&params.token_account_initialization_configs)
+                        .expect("Failed to serialize token account initialization configs"),
+                ),
+                swap_memo: params.memo,
+                swap_cancellable: Some(params.cancellable),
+                swap_minimum_lifetime: params.minimum_lifetime,
 
-                    profile_id: opportunity.profile_id,
-                }
-            }
+                profile_id: opportunity.profile_id,
+            },
         };
-        let mut insert = self.insert("opportunity").map_err(|err| {
-            tracing::error!(error = ?err, "Failed to insert analytics opportunity");
-            RestError::TemporarilyUnavailable
-        })?;
-        insert.write(&opportunity_analytics).await.map_err(|err| {
-            tracing::error!(error = ?err, "Failed to write to analytics opportunity");
-            RestError::TemporarilyUnavailable
-        })?;
-        insert.end().await.map_err(|err| {
-            tracing::error!(error = ?err, "Failed to end write to analytics opportunity");
-            RestError::TemporarilyUnavailable
-        })
+        let mut insert = self.insert("opportunity")?;
+        insert.write(&opportunity_analytics).await?;
+        insert.end().await?;
+        Ok(())
     }
 }
 
@@ -488,7 +468,7 @@ impl Database for DB {
         permission_key: &PermissionKeySvm,
         chain_id: &ChainId,
         reason: OpportunityRemovalReason,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<OffsetDateTime> {
         let now = OffsetDateTime::now_utc();
         sqlx::query("UPDATE opportunity SET removal_time = $1, removal_reason = $2 WHERE permission_key = $3 AND chain_id = $4 and removal_time IS NULL")
             .bind(PrimitiveDateTime::new(now.date(), now.time()))
@@ -500,7 +480,7 @@ impl Database for DB {
             .inspect_err(|_| {
                 tracing::Span::current().record("result", "error");
             })?;
-        Ok(())
+        Ok(now)
     }
 
     #[instrument(
@@ -518,9 +498,9 @@ impl Database for DB {
         &self,
         opportunity: &OpportunitySvm,
         reason: OpportunityRemovalReason,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<Option<OffsetDateTime>> {
         let now = OffsetDateTime::now_utc();
-        sqlx::query("UPDATE opportunity SET removal_time = $1, removal_reason = $2 WHERE id = $3 AND removal_time IS NULL")
+        let updated = sqlx::query("UPDATE opportunity SET removal_time = $1, removal_reason = $2 WHERE id = $3 AND removal_time IS NULL")
             .bind(PrimitiveDateTime::new(now.date(), now.time()))
             .bind(reason)
             .bind(opportunity.id)
@@ -529,7 +509,12 @@ impl Database for DB {
             .inspect_err(|_| {
                 tracing::Span::current().record("result", "error");
             })?;
-        Ok(())
+
+        if updated.rows_affected() == 0 {
+            Ok(None)
+        } else {
+            Ok(Some(now))
+        }
     }
 }
 

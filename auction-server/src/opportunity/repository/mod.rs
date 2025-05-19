@@ -30,7 +30,7 @@ pub const OPPORTUNITY_PAGE_SIZE_CAP: usize = 100;
 pub struct Repository {
     pub in_memory_store: InMemoryStoreSvm,
     pub db:              Box<dyn Database>,
-    pub db_analytics:    Box<dyn DatabaseAnalytics>,
+    pub db_analytics:    Box<dyn AnalyticsDatabase>,
 }
 
 
@@ -72,7 +72,7 @@ impl Deref for InMemoryStoreSvm {
 }
 
 impl Repository {
-    pub fn new(db: impl Database, db_analytics: impl DatabaseAnalytics) -> Self {
+    pub fn new(db: impl Database, db_analytics: impl AnalyticsDatabase) -> Self {
         Self {
             in_memory_store: InMemoryStoreSvm::new(),
             db:              Box::new(db),

@@ -2,8 +2,11 @@ use {
     super::Service,
     crate::{
         api::ws::UpdateEvent,
-        opportunity::entities::{
-            self,
+        opportunity::{
+            entities::{
+                self,
+            },
+            service::remove_opportunity::RemoveOpportunityInput,
         },
     },
     time::{
@@ -33,7 +36,13 @@ impl Service {
                     "Removing Opportunity",
                 );
 
-                match self.repo.remove_opportunity(opportunity, reason).await {
+                match self
+                    .remove_opportunity(RemoveOpportunityInput {
+                        opportunity: opportunity.clone(),
+                        reason,
+                    })
+                    .await
+                {
                     Ok(()) => {
                         // If there are no more opportunities with this key, it means all of the
                         // opportunities have been removed for this key, so we can broadcast remove opportunities event.
@@ -177,7 +186,9 @@ mod test {
         let mut mock_db = MockDatabase::default();
 
         mock_db.expect_add_opportunity().returning(|_| Ok(()));
-        mock_db.expect_remove_opportunity().returning(|_, _| Ok(()));
+        mock_db
+            .expect_remove_opportunity()
+            .returning(|_, _| Ok(None));
 
         let (service, ws_receiver) =
             Service::new_with_mocks_svm(DEFAULT_CHAIN_ID.to_string(), mock_db, &rpc_client);
@@ -212,7 +223,9 @@ mod test {
         let mut mock_db = MockDatabase::default();
 
         mock_db.expect_add_opportunity().returning(|_| Ok(()));
-        mock_db.expect_remove_opportunity().returning(|_, _| Ok(()));
+        mock_db
+            .expect_remove_opportunity()
+            .returning(|_, _| Ok(None));
 
         let (service, mut ws_receiver) =
             Service::new_with_mocks_svm(DEFAULT_CHAIN_ID.to_string(), mock_db, &rpc_client);

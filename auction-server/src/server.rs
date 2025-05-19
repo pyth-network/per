@@ -48,6 +48,10 @@ use {
         Future,
     },
     mockall_double::double,
+    sha2::{
+        Digest,
+        Sha256,
+    },
     solana_client::{
         nonblocking::rpc_client::RpcClient,
         rpc_client::RpcClientConfig,
@@ -65,7 +69,6 @@ use {
         collections::{
             BTreeMap,
             HashMap,
-            HashSet,
         },
         fs,
         sync::{
@@ -212,10 +215,12 @@ const NOTIFICATIONS_CHAN_LEN: usize = 1000;
 
 fn get_analytics_client(config: ClickhouseConfig) -> clickhouse::Client {
     clickhouse::Client::default()
-        .with_url(config.database_url_clickhouse)
-        .with_database(config.database_name_clickhouse)
-        .with_user(config.database_user_clickhouse)
-        .with_password(config.database_password_clickhouse)
+        .with_url(config.clickhouse_url)
+        .with_database(config.clickhouse_name)
+        .with_user(config.clickhouse_user)
+        .with_password(config.clickhouse_password)
+        .with_option("async_insert", "1")
+        .with_option("wait_for_async_insert", "1") // https://clickhouse.com/docs/optimize/asynchronous-inserts
 }
 
 // TODO move to kernel repo
@@ -232,6 +237,12 @@ async fn create_pg_pool(
         .map_err(|err| anyhow!("Failed to connect to database: {:?}", err))
 }
 
+fn compute_checksum(sql: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(sql.as_bytes());
+    format!("{:x}", hasher.finalize())
+}
+
 pub async fn run_migrations_clichouse(config: ClickhouseConfig) -> Result<()> {
     let client = get_analytics_client(config);
 
@@ -241,6 +252,7 @@ pub async fn run_migrations_clichouse(config: ClickhouseConfig) -> Result<()> {
             r#"
         CREATE TABLE IF NOT EXISTS migration_history (
             name String,
+            checksum String,
             applied_at DateTime DEFAULT now()
         ) ENGINE = MergeTree()
         ORDER BY name
@@ -250,11 +262,11 @@ pub async fn run_migrations_clichouse(config: ClickhouseConfig) -> Result<()> {
         .await?;
 
     // 2. Read already-applied migration names
-    let rows: Vec<String> = client
-        .query("SELECT name FROM migration_history")
+    let rows: Vec<(String, String)> = client
+        .query("SELECT name, checksum FROM migration_history")
         .fetch_all()
         .await?;
-    let applied: HashSet<String> = rows.into_iter().collect();
+    let applied: HashMap<String, String> = rows.into_iter().collect();
 
     // 3. Read and sort migration files by filename
     let mut files = BTreeMap::new();
@@ -268,22 +280,41 @@ pub async fn run_migrations_clichouse(config: ClickhouseConfig) -> Result<()> {
         }
     }
 
+    let mut seen_missing = false;
     // 4. Apply each file if not already applied
     for (filename, sql) in files {
-        if applied.contains(&filename) {
-            println!("✅ Already applied: {}", filename);
-        } else {
-            println!("🚀 Applying: {}", filename);
-            client.query(&sql).execute().await?;
-            client
-                .query("INSERT INTO migration_history (name) VALUES (?)")
-                .bind(filename)
-                .execute()
-                .await?;
-        }
+        let checksum = compute_checksum(&sql);
+        match applied.get(&filename) {
+            Some(existing_checksum) => {
+                if seen_missing {
+                    panic!(
+                        "Migration '{}' was already applied, but an earlier migration was missing. Migrations must be applied in order.",
+                        filename
+                    );
+                }
+                if existing_checksum != &checksum {
+                    panic!(
+                        "Migration '{}' has already been applied but its contents have changed.",
+                        filename,
+                    );
+                }
+                tracing::info!("Already applied: {}", filename);
+            }
+            None => {
+                seen_missing = true;
+                tracing::info!("Applying: {}", filename);
+                client.query(&sql).execute().await?;
+                client
+                    .query("INSERT INTO migration_history (name, checksum) VALUES (?, ?)")
+                    .bind(filename)
+                    .bind(checksum)
+                    .execute()
+                    .await?;
+            }
+        };
     }
 
-    println!("✅ All ClickHouse migrations complete.");
+    tracing::info!("All ClickHouse migrations complete.");
     Ok(())
 }
 
