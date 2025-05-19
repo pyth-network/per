@@ -333,7 +333,7 @@ pub fn get_opportunity_swap_data(opp: &OpportunitySvm) -> &OpportunitySvmProgram
 }
 
 impl OpportunitySvmProgramSwap {
-    pub fn get_user_amount_to_wrap(&self, amount_user: u64) -> u64 {
+    pub fn get_user_sol_amount_paid_for_token_account_initializations(&self) -> u64 {
         let number_of_atas_paid_by_user = [
             &self.token_account_initialization_configs.user_ata_mint_user,
             &self
@@ -344,12 +344,15 @@ impl OpportunitySvmProgramSwap {
         .filter(|&&config| matches!(config, TokenAccountInitializationConfig::UserPayer))
         .count();
 
+        number_of_atas_paid_by_user as u64 * Rent::default().minimum_balance(TokenAccount::LEN)
+        // todo: token2022 accounts can be bigger than this, this hack might not work for them
+    }
+
+    pub fn get_user_amount_to_wrap(&self, amount_user: u64) -> u64 {
         std::cmp::min(
             amount_user,
-            self.user_mint_user_balance.saturating_sub(
-                number_of_atas_paid_by_user as u64
-                    * Rent::default().minimum_balance(TokenAccount::LEN), // todo: token2022 accounts can be bigger than this, this hack might not work for them
-            ),
+            self.user_mint_user_balance
+                .saturating_sub(self.get_user_sol_amount_paid_for_token_account_initializations()),
         )
     }
 }
