@@ -11,6 +11,7 @@ use {
 };
 
 mod add_opportunity;
+mod add_opportunity_analytics;
 mod get_express_relay_metadata;
 mod get_in_memory_opportunities;
 mod get_in_memory_opportunities_by_key;
@@ -29,6 +30,7 @@ pub const OPPORTUNITY_PAGE_SIZE_CAP: usize = 100;
 pub struct Repository {
     pub in_memory_store: InMemoryStoreSvm,
     pub db:              Box<dyn Database>,
+    pub db_analytics:    Box<dyn AnalyticsDatabase>,
 }
 
 
@@ -70,10 +72,11 @@ impl Deref for InMemoryStoreSvm {
 }
 
 impl Repository {
-    pub fn new(db: impl Database) -> Self {
+    pub fn new(db: impl Database, db_analytics: impl AnalyticsDatabase) -> Self {
         Self {
             in_memory_store: InMemoryStoreSvm::new(),
             db:              Box::new(db),
+            db_analytics:    Box::new(db_analytics),
         }
     }
     pub(super) async fn update_metrics(&self) {

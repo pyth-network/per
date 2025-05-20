@@ -15,13 +15,22 @@ use {
             ChainType,
             ProfileId,
         },
-        opportunity::entities::{
-            FeeToken,
-            OpportunitySvm,
-            TokenAccountInitializationConfigs,
+        opportunity::{
+            entities,
+            entities::{
+                FeeToken,
+                OpportunitySvm,
+                TokenAccountInitializationConfigs,
+            },
         },
     },
+    ::uuid::Uuid,
     axum::async_trait,
+    base64::engine::{
+        general_purpose,
+        Engine,
+    },
+    clickhouse::Row,
     serde::{
         de::DeserializeOwned,
         Deserialize,
@@ -50,11 +59,11 @@ use {
         PrimitiveDateTime,
     },
     tracing::instrument,
-    uuid::Uuid,
 };
 
-#[derive(Clone, Debug, PartialEq, PartialOrd, sqlx::Type)]
+#[derive(Clone, Debug, PartialEq, PartialOrd, sqlx::Type, Serialize, Deserialize)]
 #[sqlx(type_name = "opportunity_removal_reason", rename_all = "lowercase")]
+#[serde(rename_all = "snake_case")]
 pub enum OpportunityRemovalReason {
     Expired,
     Invalid,
@@ -159,6 +168,18 @@ pub struct Opportunity<T: OpportunityMetadata> {
     pub profile_id:     Option<ProfileId>,
 }
 
+
+#[cfg_attr(test, automock)]
+#[async_trait]
+pub trait AnalyticsDatabase: Send + Sync + 'static {
+    async fn add_opportunity(
+        &self,
+        opportunity: &OpportunitySvm,
+        removal_time: Option<OffsetDateTime>,
+        removal_reason: Option<OpportunityRemovalReason>,
+    ) -> Result<(), anyhow::Error>;
+}
+
 #[cfg_attr(test, automock)]
 #[async_trait]
 pub trait Database: Debug + Send + Sync + 'static {
@@ -173,13 +194,210 @@ pub trait Database: Debug + Send + Sync + 'static {
         permission_key: &PermissionKeySvm,
         chain_id: &ChainId,
         reason: OpportunityRemovalReason,
-    ) -> anyhow::Result<()>;
+    ) -> anyhow::Result<OffsetDateTime>;
     async fn remove_opportunity(
         &self,
         opportunity: &OpportunitySvm,
         reason: OpportunityRemovalReason,
-    ) -> anyhow::Result<()>;
+    ) -> anyhow::Result<Option<OffsetDateTime>>;
 }
+
+#[derive(Row, Serialize, Deserialize, Debug)]
+pub struct OpportunityAnalyticsLimo {
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub id:             Uuid,
+    #[serde(with = "clickhouse::serde::time::datetime64::micros")]
+    pub creation_time:  OffsetDateTime,
+    pub permission_key: String,
+    pub chain_id:       String,
+
+    pub sell_token_mint:      String,
+    pub sell_token_amount:    u64,
+    pub sell_token_usd_price: Option<f64>,
+
+    pub buy_token_mint:      String,
+    pub buy_token_amount:    u64,
+    pub buy_token_usd_price: Option<f64>,
+
+    #[serde(with = "clickhouse::serde::time::datetime64::micros::option")]
+    pub removal_time:   Option<OffsetDateTime>,
+    pub removal_reason: Option<String>,
+
+    pub order:         String,
+    pub order_address: String,
+    pub slot:          u64,
+
+    #[serde(with = "clickhouse::serde::uuid::option")]
+    pub profile_id: Option<Uuid>,
+}
+
+#[derive(Row, Serialize, Deserialize, Debug)]
+pub struct OpportunityAnalyticsSwap {
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub id:             Uuid,
+    #[serde(with = "clickhouse::serde::time::datetime64::micros")]
+    pub creation_time:  OffsetDateTime,
+    pub permission_key: String,
+    pub chain_id:       String,
+
+    pub sell_token_mint:      String,
+    pub sell_token_amount:    u64,
+    pub sell_token_usd_price: Option<f64>,
+
+    pub buy_token_mint:      String,
+    pub buy_token_amount:    u64,
+    pub buy_token_usd_price: Option<f64>,
+
+    #[serde(with = "clickhouse::serde::time::datetime64::micros::option")]
+    pub removal_time:   Option<OffsetDateTime>,
+    pub removal_reason: Option<String>,
+
+    pub user_wallet_address:                  String,
+    pub fee_token:                            String,
+    pub referral_fee_bps:                     u16,
+    pub referral_fee_ppm:                     u64,
+    pub platform_fee_bps:                     u64,
+    pub platform_fee_ppm:                     u64,
+    pub token_program_user:                   String,
+    pub token_program_searcher:               String,
+    pub token_account_initialization_configs: String,
+    pub user_mint_user_balance:               u64,
+    pub memo:                                 Option<String>,
+    pub cancellable:                          bool,
+    pub minimum_lifetime:                     Option<u32>,
+
+    #[serde(with = "clickhouse::serde::uuid::option")]
+    pub profile_id: Option<Uuid>,
+}
+
+#[async_trait]
+impl AnalyticsDatabase for clickhouse::Client {
+    #[instrument(
+        target = "metrics",
+        name = "db_analytics_add_opportunity",
+        fields(
+            category = "db_analytics_queries",
+            result = "success",
+            name = "add_opportunity",
+            tracing_enabled
+        ),
+        skip_all
+    )]
+    async fn add_opportunity(
+        &self,
+        opportunity: &OpportunitySvm,
+        removal_time: Option<OffsetDateTime>,
+        removal_reason: Option<OpportunityRemovalReason>,
+    ) -> anyhow::Result<()> {
+        // TODO Add USD price for tokens
+
+        let sell_token = opportunity
+            .sell_tokens
+            .first()
+            .ok_or(anyhow::anyhow!("Opportunity has no sell tokens"))?;
+
+        let buy_token = opportunity
+            .buy_tokens
+            .first()
+            .ok_or(anyhow::anyhow!("Opportunity has no buy tokens"))?;
+
+        // NOTE: It's very easy to forget setting some field in one variant or the other.
+        // We enforced this by destructing the params and make sure all the fields are used or explicitly discarded.
+        // This way if we add a field to Limo or Swap variants later on, the code will not compile until we decide what we want to do with that field here.
+        match opportunity.program.clone() {
+            entities::OpportunitySvmProgram::Limo(entities::OpportunitySvmProgramLimo {
+                order,
+                order_address,
+                slot,
+            }) => {
+                let opportunity_analytics = OpportunityAnalyticsLimo {
+                    id: opportunity.id,
+                    creation_time: opportunity.creation_time,
+                    permission_key: format!("{}", opportunity.permission_key),
+                    chain_id: opportunity.chain_id.clone(),
+                    removal_time,
+                    removal_reason: removal_reason.map(|reason| {
+                        serde_json::to_string(&reason).expect("Failed to serialize removal reason")
+                    }),
+                    sell_token_mint: sell_token.token.to_string(),
+                    sell_token_amount: sell_token.amount,
+                    sell_token_usd_price: None,
+                    buy_token_mint: buy_token.token.to_string(),
+                    buy_token_amount: buy_token.amount,
+                    buy_token_usd_price: None,
+
+                    order: general_purpose::STANDARD.encode(&order),
+                    order_address: order_address.to_string(),
+                    slot,
+
+                    profile_id: opportunity.profile_id,
+                };
+                let mut insert = self.insert("opportunity_limo")?;
+                insert.write(&opportunity_analytics).await?;
+                insert.end().await?;
+                Ok(())
+            }
+            entities::OpportunitySvmProgram::Swap(entities::OpportunitySvmProgramSwap {
+                user_wallet_address,
+                user_mint_user_balance,
+                fee_token,
+                referral_fee_bps,
+                referral_fee_ppm,
+                platform_fee_bps,
+                platform_fee_ppm,
+                token_program_user,
+                token_program_searcher,
+                token_account_initialization_configs,
+                memo,
+                cancellable,
+                minimum_lifetime,
+                minimum_deadline: _,
+            }) => {
+                let opportunity_analytics = OpportunityAnalyticsSwap {
+                    id: opportunity.id,
+                    creation_time: opportunity.creation_time,
+                    permission_key: format!("{}", opportunity.permission_key),
+                    chain_id: opportunity.chain_id.clone(),
+                    removal_time,
+                    removal_reason: removal_reason.map(|reason| {
+                        serde_json::to_string(&reason).expect("Failed to serialize removal reason")
+                    }),
+                    sell_token_mint: sell_token.token.to_string(),
+                    sell_token_amount: sell_token.amount,
+                    sell_token_usd_price: None,
+                    buy_token_mint: buy_token.token.to_string(),
+                    buy_token_amount: buy_token.amount,
+                    buy_token_usd_price: None,
+
+                    user_wallet_address: user_wallet_address.to_string(),
+                    fee_token: serde_json::to_string(&fee_token)
+                        .expect("Failed to serialize fee token"),
+                    referral_fee_bps,
+                    referral_fee_ppm,
+                    platform_fee_bps,
+                    platform_fee_ppm,
+                    token_program_user: token_program_user.to_string(),
+                    token_program_searcher: token_program_searcher.to_string(),
+                    user_mint_user_balance,
+                    token_account_initialization_configs: serde_json::to_string(
+                        &token_account_initialization_configs,
+                    )
+                    .expect("Failed to serialize token account initialization configs"),
+                    memo,
+                    cancellable,
+                    minimum_lifetime,
+
+                    profile_id: opportunity.profile_id,
+                };
+                let mut insert = self.insert("opportunity_swap")?;
+                insert.write(&opportunity_analytics).await?;
+                insert.end().await?;
+                Ok(())
+            }
+        }
+    }
+}
+
 #[async_trait]
 impl Database for DB {
     #[instrument(
@@ -290,7 +508,7 @@ impl Database for DB {
         permission_key: &PermissionKeySvm,
         chain_id: &ChainId,
         reason: OpportunityRemovalReason,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<OffsetDateTime> {
         let now = OffsetDateTime::now_utc();
         sqlx::query("UPDATE opportunity SET removal_time = $1, removal_reason = $2 WHERE permission_key = $3 AND chain_id = $4 and removal_time IS NULL")
             .bind(PrimitiveDateTime::new(now.date(), now.time()))
@@ -302,7 +520,7 @@ impl Database for DB {
             .inspect_err(|_| {
                 tracing::Span::current().record("result", "error");
             })?;
-        Ok(())
+        Ok(now)
     }
 
     #[instrument(
@@ -320,9 +538,9 @@ impl Database for DB {
         &self,
         opportunity: &OpportunitySvm,
         reason: OpportunityRemovalReason,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<Option<OffsetDateTime>> {
         let now = OffsetDateTime::now_utc();
-        sqlx::query("UPDATE opportunity SET removal_time = $1, removal_reason = $2 WHERE id = $3 AND removal_time IS NULL")
+        let updated = sqlx::query("UPDATE opportunity SET removal_time = $1, removal_reason = $2 WHERE id = $3 AND removal_time IS NULL")
             .bind(PrimitiveDateTime::new(now.date(), now.time()))
             .bind(reason)
             .bind(opportunity.id)
@@ -331,7 +549,12 @@ impl Database for DB {
             .inspect_err(|_| {
                 tracing::Span::current().record("result", "error");
             })?;
-        Ok(())
+
+        if updated.rows_affected() == 0 {
+            Ok(None)
+        } else {
+            Ok(Some(now))
+        }
     }
 }
 

@@ -58,7 +58,7 @@ pub enum OpportunityComparison {
     NeedsRefresh,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum OpportunityRemovalReason {
     Expired,
     // TODO use internal errors instead of RestError

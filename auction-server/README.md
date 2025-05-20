@@ -75,6 +75,8 @@ And access the jaeger UI at `http://127.0.0.1:16686`.
 
 ### Development
 
+#### 1. Postgres Database
+
 sqlx checks the database schema at compile time, so you need to have the database schema up-to-date
 before building the project. You can create a `.env` file similar
 to the `.env.example` file and set `DATABASE_URL` to the URL of your PostgreSQL database. This file
@@ -97,38 +99,50 @@ Since we don't have a running db instance on CI, we use `cargo sqlx prepare` to 
 info offline. This command will update the `.sqlx` folder.
 You need to commit the changes to this folder when adding or changing the queries.
 
+#### 2. ClickHouse Migrations
+
+For ClickHouse, update the relevant environment variables (`CLICKHOUSE_URL`, `CLICKHOUSE_NAME`, `CLICKHOUSE_USER`, `CLICKHOUSE_PASSWORD`) in your local `.env` file.
+
+Then run migrations using:
+
+```bash
+env $(grep -v '^#' .env | xargs) cargo run migrate-clickhouse
+```
+
+You can spin up a local ClickHouse instance using Docker:
+
+```bash
+docker run -d \
+  -p 18123:8123 \
+  -p 19000:9000 \
+  -e CLICKHOUSE_PASSWORD=clickhouse \
+  --name some-clickhouse-server \
+  --ulimit nofile=262144:262144 \
+  clickhouse/clickhouse-server
+```
+
 ### Production
 
-You need to apply the migrations manually on the production database before starting the server.
-Migrations are backward compatible, so it's ok to apply them while the server is running with the old schema.
-You can apply the migrations by running the following command:
+Before starting the server in production, you **must apply database migrations manually**.
+
+Migrations are **backward-compatible**, so it's safe to run them while an older version of the server is still live.
+
+---
+
+#### 1. Apply SQL Database Migrations
+
+Run the following command with the actual database URL:
 
 ```bash
 cargo run -- migrate --database-url <database-url>
 ```
 
-## Subwallet Management
+#### 2. Apply ClickHouse Migrations
 
-Express relay contract uses subwallets as a secure mechanism to relay bids without using the main relayer wallet which
-holds the funds.
-You can add the subwallets addresses to the `config.yaml` file under the `subwallets` key and use their private keys for
-the relayer:
-
-```yaml
-chains:
-  development:
-    # rest of the chain configuration
-    subwallets:
-      - 0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef
-      - 0xdecafdecafdecafdecafdecafdecafdecafdecaf
-```
-
-To sync the subwallets with the on-chain contracts you can run:
+To run ClickHouse migrations, use the migrate-clickhouse command with the actual variables:
 
 ```bash
-cargo run -- sync-subwallets
+cargo run -- migrate-clickhouse --clickhouse-url <clickhouse-url> --clickhouse-name <clickhouse-name> --clickhouse-user <clickhouse-user> --clickhouse-password <clickhouse-password>
 ```
 
-## License
-
-Auction server source code is licensed under the [BUSL-1.1](./license.txt).
+- Auction server source code is licensed under the [BUSL-1.1](./license.txt).

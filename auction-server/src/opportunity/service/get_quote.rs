@@ -2,6 +2,7 @@ use {
     super::{
         get_quote_request_account_balances::QuoteRequestAccountBalancesInput,
         get_token_program::GetTokenProgramInput,
+        remove_opportunity::RemoveOpportunityInput,
         Service,
     },
     crate::{
@@ -412,8 +413,10 @@ impl Service {
             RestError::InvalidOpportunity("Auction finished for the opportunity".to_string()),
         );
         if let Err(e) = self
-            .repo
-            .remove_opportunity(&opportunity, removal_reason)
+            .remove_opportunity(RemoveOpportunityInput {
+                opportunity,
+                reason: removal_reason,
+            })
             .await
         {
             tracing::error!("Failed to remove opportunity: {:?}", e);
@@ -780,7 +783,10 @@ mod tests {
             Account as TokenAccount,
             AccountState,
         },
-        std::time::Instant,
+        std::{
+            sync::Arc,
+            time::Instant,
+        },
         uuid::Uuid,
     };
 
@@ -949,12 +955,15 @@ mod tests {
         let rpc_client = RpcClientSvmTester::new();
         let mut mock_db = MockDatabase::default();
         mock_db.expect_add_opportunity().returning(|_| Ok(()));
-        mock_db.expect_remove_opportunity().returning(|_, _| Ok(()));
+        mock_db
+            .expect_remove_opportunity()
+            .returning(|_, _| Ok(None));
 
         let test_token_program_user = Pubkey::new_unique();
         let test_token_program_searcher = Pubkey::new_unique();
         let (mut service, _) = Service::new_with_mocks_svm(chain_id.clone(), mock_db, &rpc_client);
-        let config = service.config.get_mut(&chain_id).unwrap();
+        let inner = Arc::get_mut(&mut service.0).expect("Only one reference should exist at setup");
+        let config = inner.config.get_mut(&chain_id).unwrap();
 
         let allowed_token_mint_1 = Pubkey::new_unique();
         let allowed_token_mint_2 = Pubkey::new_unique();
@@ -1678,7 +1687,9 @@ mod tests {
             .cache_token_program(user_token, token_program_searcher)
             .await;
 
-        service
+        let service_inner =
+            Arc::get_mut(&mut service.0).expect("Only one reference should exist at setup");
+        service_inner
             .config
             .get_mut(DEFAULT_CHAIN_ID)
             .expect("chain")

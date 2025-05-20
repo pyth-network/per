@@ -1,18 +1,17 @@
 use {
     super::Repository,
-    crate::opportunity::entities::{
-        self,
-        OpportunitySvm,
-    },
+    crate::opportunity::entities,
+    time::OffsetDateTime,
 };
 
 impl Repository {
     pub async fn remove_opportunity(
         &self,
-        opportunity: &OpportunitySvm,
+        opportunity: &entities::OpportunitySvm,
         reason: entities::OpportunityRemovalReason,
-    ) -> anyhow::Result<()> {
-        self.db
+    ) -> anyhow::Result<Option<OffsetDateTime>> {
+        let removal_time = self
+            .db
             .remove_opportunity(opportunity, reason.into())
             .await?;
 
@@ -28,6 +27,6 @@ impl Repository {
         }
         drop(write_guard);
 
-        Ok(())
+        Ok(removal_time)
     }
 }

@@ -7,14 +7,7 @@ use {
         },
         auction::entities::BidPaymentInstructionType,
         kernel::entities::ChainId,
-        opportunity::{
-            entities::{
-                self,
-            },
-            repository::{
-                self,
-            },
-        },
+        opportunity::entities,
     },
     solana_sdk::pubkey::Pubkey,
 };
@@ -36,11 +29,14 @@ impl Service {
             input.router,
             input.permission_account,
         );
-        let opportunities = self
+        let reason = entities::OpportunityRemovalReason::Invalid(RestError::InvalidOpportunity(
+            "Opportunity not valid anymore".to_string(),
+        ));
+        let (opportunities, removal_time) = self
             .repo
             .remove_opportunities(
                 &entities::OpportunityKey(input.chain_id.clone(), permission_key),
-                repository::OpportunityRemovalReason::Invalid,
+                reason.clone(),
             )
             .await
             .map_err(|e| {
@@ -54,6 +50,30 @@ impl Service {
             })?;
 
         if !opportunities.is_empty() {
+            opportunities.iter().for_each(|opportunity| {
+                self.task_tracker.spawn({
+                    let (service, opportunity, reason) =
+                        (self.clone(), opportunity.clone(), reason.clone());
+                    async move {
+                        service
+                            .repo
+                            .add_opportunity_analytics(
+                                opportunity.clone(),
+                                Some(removal_time),
+                                Some(reason.clone()),
+                            )
+                            .await
+                            .map_err(|err| {
+                                tracing::error!(
+                                    error = ?err,
+                                    opportunity = ?opportunity,
+                                    "Failed to add opportunity analytics",
+                                );
+                            })
+                    }
+                });
+            });
+
             let opportunity = opportunities[0].clone();
             self.store
                 .ws

@@ -2,6 +2,7 @@
 use crate::auction::service::Service as AuctionService;
 use {
     super::repository::{
+        AnalyticsDatabase,
         Database,
         Repository,
     },
@@ -50,6 +51,7 @@ pub mod get_opportunities;
 pub mod get_quote;
 pub mod remove_invalid_or_expired_opportunities;
 pub mod remove_opportunities;
+pub mod remove_opportunity;
 
 mod get_quote_request_account_balances;
 mod get_token_program;
@@ -168,7 +170,16 @@ impl From<TokenWhitelistConfig> for TokenWhitelist {
 }
 
 // TODO maybe just create a service per chain_id?
-pub struct Service {
+#[derive(Clone)]
+pub struct Service(Arc<ServiceInner>);
+impl std::ops::Deref for Service {
+    type Target = ServiceInner;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+pub struct ServiceInner {
     store:        Arc<Store>,
     // TODO maybe after adding state for opportunity we can remove the arc
     repo:         Arc<Repository>,
@@ -181,14 +192,15 @@ impl Service {
         store: Arc<Store>,
         task_tracker: TaskTracker,
         db: impl Database,
+        db_analytics: impl AnalyticsDatabase,
         config: HashMap<ChainId, ConfigSvm>,
     ) -> Self {
-        Self {
+        Self(Arc::new(ServiceInner {
             store,
-            repo: Arc::new(Repository::new(db)),
+            repo: Arc::new(Repository::new(db, db_analytics)),
             config,
             task_tracker,
-        }
+        }))
     }
     pub async fn update_metrics(&self) {
         self.repo.update_metrics().await;
@@ -206,7 +218,10 @@ pub mod tests {
             },
             config,
             kernel::rpc_client_svm_tester::RpcClientSvmTester,
-            opportunity::repository::MockDatabase,
+            opportunity::repository::{
+                MockAnalyticsDatabase,
+                MockDatabase,
+            },
         },
         tokio::sync::{
             broadcast::Receiver,
@@ -243,7 +258,13 @@ pub mod tests {
 
             let ws_receiver = store.ws.broadcast_receiver.resubscribe();
 
-            let service = Service::new(store.clone(), TaskTracker::new(), db, chains_svm);
+            let service = Service::new(
+                store.clone(),
+                TaskTracker::new(),
+                db,
+                MockAnalyticsDatabase::new(),
+                chains_svm,
+            );
 
             (service, ws_receiver)
         }
@@ -260,6 +281,7 @@ mock! {
             store: Arc<Store>,
             task_tracker: TaskTracker,
             db: DB,
+            db_analytics: crate::kernel::db::DBAnalytics,
             config: HashMap<ChainId, ConfigSvm>,
         ) -> Self;
         pub fn get_config(&self, chain_id: &ChainId) -> Result<ConfigSvm, crate::api::RestError>;
