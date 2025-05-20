@@ -62,7 +62,7 @@ impl Service {
                 .repo
                 .add_opportunity(opportunity_create.clone())
                 .await?;
-            tokio::spawn({
+            self.task_tracker.spawn({
                 let (service, opportunity) = (self.clone(), opportunity.clone());
                 async move {
                     if let Err(err) = service

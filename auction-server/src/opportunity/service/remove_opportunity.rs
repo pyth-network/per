@@ -27,7 +27,7 @@ impl Service {
                 RestError::TemporarilyUnavailable
             })?
         {
-            tokio::spawn({
+            self.task_tracker.spawn({
                 let (service, opportunity) = (self.clone(), input.opportunity.clone());
                 async move {
                     service

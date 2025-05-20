@@ -51,7 +51,7 @@ impl Service {
 
         if !opportunities.is_empty() {
             opportunities.iter().for_each(|opportunity| {
-                tokio::spawn({
+                self.task_tracker.spawn({
                     let (service, opportunity, reason) =
                         (self.clone(), opportunity.clone(), reason.clone());
                     async move {
