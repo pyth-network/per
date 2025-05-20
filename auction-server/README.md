@@ -144,3 +144,5 @@ To run ClickHouse migrations, use the migrate-clickhouse command with the actual
 ```bash
 cargo run -- migrate-clickhouse --clickhouse-url <clickhouse-url> --clickhouse-name <clickhouse-name> --clickhouse-user <clickhouse-user> --clickhouse-password <clickhouse-password>
 ```
+
+- Auction server source code is licensed under the [BUSL-1.1](./license.txt).

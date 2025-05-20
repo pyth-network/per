@@ -295,16 +295,16 @@ pub async fn run_migrations_clichouse(config: ClickhouseConfig) -> Result<()> {
         match applied.get(&filename) {
             Some(existing_checksum) => {
                 if seen_missing {
-                    panic!(
+                    return Err(anyhow!(
                         "Migration '{}' was already applied, but an earlier migration was missing. Migrations must be applied in order.",
                         filename
-                    );
+                    ));
                 }
                 if existing_checksum != &checksum {
-                    panic!(
+                    return Err(anyhow!(
                         "Migration '{}' has already been applied but its contents have changed.",
-                        filename,
-                    );
+                        filename
+                    ));
                 }
                 tracing::info!("Already applied: {}", filename);
             }
