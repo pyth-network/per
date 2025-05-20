@@ -392,10 +392,14 @@ impl Subscriber {
 
     #[instrument(
         target = "metrics",
-        fields(category = "ws_update", result = "success", name),
+        fields(category = "ws_update", result = "success", profile, name),
         skip_all
     )]
     async fn handle_update(&mut self, event: UpdateEvent) -> Result<()> {
+        if let Auth::Authorized(_, profile) = self.auth.clone() {
+            tracing::Span::current().record("profile", profile.name);
+        }
+
         let result = match event.clone() {
             UpdateEvent::NewOpportunity(opportunity) => {
                 tracing::Span::current().record("name", "new_opportunity");
@@ -543,10 +547,14 @@ impl Subscriber {
 
     #[instrument(
         target = "metrics",
-        fields(category = "ws_client_message", result = "success", name),
+        fields(category = "ws_client_message", result = "success", profile, name),
         skip_all
     )]
     async fn handle_client_message(&mut self, message: Message) -> Result<()> {
+        if let Auth::Authorized(_, profile) = self.auth.clone() {
+            tracing::Span::current().record("profile", profile.name);
+        }
+
         let maybe_client_message = match message {
             Message::Close(_) => {
                 // Closing the connection. We don't remove it from the subscribers
