@@ -223,6 +223,13 @@ fn get_analytics_client(config: ClickhouseConfig) -> clickhouse::Client {
         .with_option("wait_for_async_insert", "1") // https://clickhouse.com/docs/optimize/asynchronous-inserts
 }
 
+async fn check_anaytlics_client_connection(
+    client: &clickhouse::Client,
+) -> Result<(), clickhouse::error::Error> {
+    let _: Vec<u8> = client.query("SELECT 1").fetch_all().await?;
+    Ok(())
+}
+
 // TODO move to kernel repo
 async fn create_pg_pool(
     database_url: &str,
@@ -401,6 +408,9 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
     )
     .await?;
     let analytics_db = get_analytics_client(run_options.server.clickhouse_config.clone());
+    check_anaytlics_client_connection(&analytics_db)
+        .await
+        .map_err(|err| anyhow!("Failed to connect to analytics database: {:?}", err))?;
 
     let task_tracker = TaskTracker::new();
 
