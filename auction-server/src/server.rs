@@ -287,6 +287,7 @@ pub async fn run_migrations_clichouse(config: ClickhouseConfig) -> Result<()> {
         }
     }
 
+    let mut to_apply = Vec::new();
     let mut seen_missing = false;
     // 4. Apply each file if not already applied
     for (filename, sql) in files {
@@ -309,16 +310,20 @@ pub async fn run_migrations_clichouse(config: ClickhouseConfig) -> Result<()> {
             }
             None => {
                 seen_missing = true;
-                tracing::info!("Applying: {}", filename);
-                client.query(&sql).execute().await?;
-                client
-                    .query("INSERT INTO migration_history (name, checksum) VALUES (?, ?)")
-                    .bind(filename)
-                    .bind(checksum)
-                    .execute()
-                    .await?;
+                to_apply.push((filename, sql, checksum));
             }
         };
+    }
+
+    for (filename, sql, checksum) in to_apply {
+        tracing::info!("Applying: {}", filename);
+        client.query(&sql).execute().await?;
+        client
+            .query("INSERT INTO migration_history (name, checksum) VALUES (?, ?)")
+            .bind(filename)
+            .bind(checksum)
+            .execute()
+            .await?;
     }
 
     tracing::info!("All ClickHouse migrations complete.");
