@@ -26,6 +26,10 @@ use {
     },
     ::uuid::Uuid,
     axum::async_trait,
+    base64::engine::{
+        general_purpose,
+        Engine,
+    },
     clickhouse::Row,
     serde::{
         de::DeserializeOwned,
@@ -199,15 +203,13 @@ pub trait Database: Debug + Send + Sync + 'static {
 }
 
 #[derive(Row, Serialize, Deserialize, Debug)]
-pub struct OpportunityAnalytics {
+pub struct OpportunityAnalyticsLimo {
     #[serde(with = "clickhouse::serde::uuid")]
     pub id:             Uuid,
     #[serde(with = "clickhouse::serde::time::datetime64::micros")]
     pub creation_time:  OffsetDateTime,
     pub permission_key: String,
     pub chain_id:       String,
-
-    pub program: String,
 
     pub sell_token_mint:      String,
     pub sell_token_amount:    u64,
@@ -221,23 +223,48 @@ pub struct OpportunityAnalytics {
     pub removal_time:   Option<OffsetDateTime>,
     pub removal_reason: Option<String>,
 
-    pub limo_order:         Option<String>,
-    pub limo_order_address: Option<String>,
-    pub limo_slot:          Option<u64>,
+    pub order:         String,
+    pub order_address: String,
+    pub slot:          u64,
 
-    pub swap_user_wallet_address:                  Option<String>,
-    pub swap_fee_token:                            Option<String>,
-    pub swap_referral_fee_bps:                     Option<u16>,
-    pub swap_referral_fee_ppm:                     Option<u64>,
-    pub swap_platform_fee_bps:                     Option<u64>,
-    pub swap_platform_fee_ppm:                     Option<u64>,
-    pub swap_token_program_user:                   Option<String>,
-    pub swap_token_program_searcher:               Option<String>,
-    pub swap_token_account_initialization_configs: Option<String>,
-    pub swap_user_mint_user_balance:               Option<u64>,
-    pub swap_memo:                                 Option<String>,
-    pub swap_cancellable:                          Option<bool>,
-    pub swap_minimum_lifetime:                     Option<u32>,
+    #[serde(with = "clickhouse::serde::uuid::option")]
+    pub profile_id: Option<Uuid>,
+}
+
+#[derive(Row, Serialize, Deserialize, Debug)]
+pub struct OpportunityAnalyticsSwap {
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub id:             Uuid,
+    #[serde(with = "clickhouse::serde::time::datetime64::micros")]
+    pub creation_time:  OffsetDateTime,
+    pub permission_key: String,
+    pub chain_id:       String,
+
+    pub sell_token_mint:      String,
+    pub sell_token_amount:    u64,
+    pub sell_token_usd_price: Option<f64>,
+
+    pub buy_token_mint:      String,
+    pub buy_token_amount:    u64,
+    pub buy_token_usd_price: Option<f64>,
+
+    #[serde(with = "clickhouse::serde::time::datetime64::micros::option")]
+    pub removal_time:   Option<OffsetDateTime>,
+    pub removal_reason: Option<String>,
+
+    pub user_wallet_address:                  String,
+    pub fee_token:                            String,
+    pub referral_fee_bps:                     u16,
+    pub referral_fee_ppm:                     u64,
+    pub platform_fee_bps:                     u64,
+    pub platform_fee_ppm:                     u64,
+    pub token_program_user:                   String,
+    pub token_program_searcher:               String,
+    pub token_account_initialization_configs: String,
+    pub user_mint_user_balance:               u64,
+    pub memo:                                 Option<String>,
+    pub cancellable:                          bool,
+    pub minimum_lifetime:                     Option<u32>,
 
     #[serde(with = "clickhouse::serde::uuid::option")]
     pub profile_id: Option<Uuid>,
@@ -262,6 +289,8 @@ impl AnalyticsDatabase for clickhouse::Client {
         removal_time: Option<OffsetDateTime>,
         removal_reason: Option<OpportunityRemovalReason>,
     ) -> anyhow::Result<()> {
+        // TODO Add USD price for tokens
+
         let sell_token = opportunity
             .sell_tokens
             .first()
@@ -272,89 +301,100 @@ impl AnalyticsDatabase for clickhouse::Client {
             .first()
             .ok_or(anyhow::anyhow!("Opportunity has no buy tokens"))?;
 
-        let opportunity_analytics: OpportunityAnalytics = match opportunity.program.clone() {
-            entities::OpportunitySvmProgram::Limo(params) => OpportunityAnalytics {
-                id: opportunity.id,
-                creation_time: opportunity.creation_time,
-                permission_key: format!("{}", opportunity.permission_key),
-                chain_id: opportunity.chain_id.clone(),
-                program: "limo".to_string(),
-                removal_time,
-                removal_reason: removal_reason.map(|reason| {
-                    serde_json::to_string(&reason).expect("Failed to serialize removal reason")
-                }),
-                sell_token_mint: sell_token.token.to_string(),
-                sell_token_amount: sell_token.amount,
-                sell_token_usd_price: None,
-                buy_token_mint: buy_token.token.to_string(),
-                buy_token_amount: buy_token.amount,
-                buy_token_usd_price: None,
-                limo_order: Some(params.order_address.to_string()),
-                limo_order_address: Some(params.order_address.to_string()),
-                limo_slot: Some(params.slot),
+        // NOTE: It's very easy to forget setting some field in one variant or the other.
+        // We enforced this by destructing the params and make sure all the fields are used or explicitly discarded.
+        // This way if we add a field to Limo or Swap variants later on, the code will not compile until we decide what we want to do with that field here.
+        match opportunity.program.clone() {
+            entities::OpportunitySvmProgram::Limo(entities::OpportunitySvmProgramLimo {
+                order,
+                order_address,
+                slot,
+            }) => {
+                let opportunity_analytics = OpportunityAnalyticsLimo {
+                    id: opportunity.id,
+                    creation_time: opportunity.creation_time,
+                    permission_key: format!("{}", opportunity.permission_key),
+                    chain_id: opportunity.chain_id.clone(),
+                    removal_time,
+                    removal_reason: removal_reason.map(|reason| {
+                        serde_json::to_string(&reason).expect("Failed to serialize removal reason")
+                    }),
+                    sell_token_mint: sell_token.token.to_string(),
+                    sell_token_amount: sell_token.amount,
+                    sell_token_usd_price: None,
+                    buy_token_mint: buy_token.token.to_string(),
+                    buy_token_amount: buy_token.amount,
+                    buy_token_usd_price: None,
 
-                swap_user_wallet_address: None,
-                swap_fee_token: None,
-                swap_referral_fee_bps: None,
-                swap_referral_fee_ppm: None,
-                swap_platform_fee_bps: None,
-                swap_platform_fee_ppm: None,
-                swap_token_program_user: None,
-                swap_token_program_searcher: None,
-                swap_user_mint_user_balance: None,
-                swap_token_account_initialization_configs: None,
-                swap_memo: None,
-                swap_cancellable: None,
-                swap_minimum_lifetime: None,
+                    order: general_purpose::STANDARD.encode(&order),
+                    order_address: order_address.to_string(),
+                    slot,
 
-                profile_id: opportunity.profile_id,
-            },
-            entities::OpportunitySvmProgram::Swap(params) => OpportunityAnalytics {
-                id: opportunity.id,
-                creation_time: opportunity.creation_time,
-                permission_key: format!("{}", opportunity.permission_key),
-                chain_id: opportunity.chain_id.clone(),
-                program: "swap".to_string(),
-                removal_time,
-                removal_reason: removal_reason.map(|reason| {
-                    serde_json::to_string(&reason).expect("Failed to serialize removal reason")
-                }),
-                sell_token_mint: sell_token.token.to_string(),
-                sell_token_amount: sell_token.amount,
-                sell_token_usd_price: None,
-                buy_token_mint: buy_token.token.to_string(),
-                buy_token_amount: buy_token.amount,
-                buy_token_usd_price: None,
-                limo_order: None,
-                limo_order_address: None,
-                limo_slot: None,
-                swap_user_wallet_address: Some(params.user_wallet_address.to_string()),
-                swap_fee_token: Some(
-                    serde_json::to_string(&params.fee_token)
+                    profile_id: opportunity.profile_id,
+                };
+                let mut insert = self.insert("opportunity_limo")?;
+                insert.write(&opportunity_analytics).await?;
+                insert.end().await?;
+                Ok(())
+            }
+            entities::OpportunitySvmProgram::Swap(entities::OpportunitySvmProgramSwap {
+                user_wallet_address,
+                user_mint_user_balance,
+                fee_token,
+                referral_fee_bps,
+                referral_fee_ppm,
+                platform_fee_bps,
+                platform_fee_ppm,
+                token_program_user,
+                token_program_searcher,
+                token_account_initialization_configs,
+                memo,
+                cancellable,
+                minimum_lifetime,
+                minimum_deadline: _,
+            }) => {
+                let opportunity_analytics = OpportunityAnalyticsSwap {
+                    id: opportunity.id,
+                    creation_time: opportunity.creation_time,
+                    permission_key: format!("{}", opportunity.permission_key),
+                    chain_id: opportunity.chain_id.clone(),
+                    removal_time,
+                    removal_reason: removal_reason.map(|reason| {
+                        serde_json::to_string(&reason).expect("Failed to serialize removal reason")
+                    }),
+                    sell_token_mint: sell_token.token.to_string(),
+                    sell_token_amount: sell_token.amount,
+                    sell_token_usd_price: None,
+                    buy_token_mint: buy_token.token.to_string(),
+                    buy_token_amount: buy_token.amount,
+                    buy_token_usd_price: None,
+
+                    user_wallet_address: user_wallet_address.to_string(),
+                    fee_token: serde_json::to_string(&fee_token)
                         .expect("Failed to serialize fee token"),
-                ),
-                swap_referral_fee_bps: Some(params.referral_fee_bps),
-                swap_referral_fee_ppm: Some(params.referral_fee_ppm),
-                swap_platform_fee_bps: Some(params.platform_fee_bps),
-                swap_platform_fee_ppm: Some(params.platform_fee_ppm),
-                swap_token_program_user: Some(params.token_program_user.to_string()),
-                swap_token_program_searcher: Some(params.token_program_searcher.to_string()),
-                swap_user_mint_user_balance: Some(params.user_mint_user_balance),
-                swap_token_account_initialization_configs: Some(
-                    serde_json::to_string(&params.token_account_initialization_configs)
-                        .expect("Failed to serialize token account initialization configs"),
-                ),
-                swap_memo: params.memo,
-                swap_cancellable: Some(params.cancellable),
-                swap_minimum_lifetime: params.minimum_lifetime,
+                    referral_fee_bps,
+                    referral_fee_ppm,
+                    platform_fee_bps,
+                    platform_fee_ppm,
+                    token_program_user: token_program_user.to_string(),
+                    token_program_searcher: token_program_searcher.to_string(),
+                    user_mint_user_balance,
+                    token_account_initialization_configs: serde_json::to_string(
+                        &token_account_initialization_configs,
+                    )
+                    .expect("Failed to serialize token account initialization configs"),
+                    memo,
+                    cancellable,
+                    minimum_lifetime,
 
-                profile_id: opportunity.profile_id,
-            },
-        };
-        let mut insert = self.insert("opportunity")?;
-        insert.write(&opportunity_analytics).await?;
-        insert.end().await?;
-        Ok(())
+                    profile_id: opportunity.profile_id,
+                };
+                let mut insert = self.insert("opportunity_swap")?;
+                insert.write(&opportunity_analytics).await?;
+                insert.end().await?;
+                Ok(())
+            }
+        }
     }
 }
 
