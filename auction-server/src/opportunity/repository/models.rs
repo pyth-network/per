@@ -1,7 +1,10 @@
 #[cfg(test)]
 use mockall::automock;
 use {
-    super::models,
+    super::{
+        models,
+        AnalyticsDatabaseInserter,
+    },
     crate::{
         api::RestError,
         kernel::{
@@ -271,7 +274,7 @@ pub struct OpportunityAnalyticsSwap {
 }
 
 #[async_trait]
-impl AnalyticsDatabase for clickhouse::Client {
+impl AnalyticsDatabase for AnalyticsDatabaseInserter {
     #[instrument(
         target = "metrics",
         name = "db_analytics_add_opportunity",
@@ -332,10 +335,13 @@ impl AnalyticsDatabase for clickhouse::Client {
 
                     profile_id: opportunity.profile_id,
                 };
-                let mut insert = self.insert("opportunity_limo")?;
-                insert.write(&opportunity_analytics).await?;
-                insert.end().await?;
-                Ok(())
+                self.inserter_opportunity_limo
+                    .sender
+                    .send(opportunity_analytics)
+                    .await
+                    .map_err(|e| {
+                        anyhow::anyhow!("Failed to send limo opportunity analytics {:?}", e)
+                    })
             }
             entities::OpportunitySvmProgram::Swap(entities::OpportunitySvmProgramSwap {
                 user_wallet_address,
@@ -389,10 +395,13 @@ impl AnalyticsDatabase for clickhouse::Client {
 
                     profile_id: opportunity.profile_id,
                 };
-                let mut insert = self.insert("opportunity_swap")?;
-                insert.write(&opportunity_analytics).await?;
-                insert.end().await?;
-                Ok(())
+                self.inserter_opportunity_swap
+                    .sender
+                    .send(opportunity_analytics)
+                    .await
+                    .map_err(|e| {
+                        anyhow::anyhow!("Failed to send swap opportunity analytics {:?}", e)
+                    })
             }
         }
     }

@@ -15,6 +15,7 @@ use {
             entities::ChainId,
             traced_sender_svm::TracedSenderSvm,
         },
+        opportunity::repository::AnalyticsDatabaseInserter,
         state::{
             ChainStoreSvm,
             Store,
@@ -187,6 +188,10 @@ pub struct ServiceInner {
     task_tracker: TaskTracker,
 }
 
+pub fn create_analytics_db_inserter(client: clickhouse::Client) -> AnalyticsDatabaseInserter {
+    AnalyticsDatabaseInserter::new(client)
+}
+
 impl Service {
     pub fn new(
         store: Arc<Store>,
@@ -281,7 +286,7 @@ mock! {
             store: Arc<Store>,
             task_tracker: TaskTracker,
             db: DB,
-            db_analytics: crate::kernel::db::DBAnalytics,
+            db_analytics: AnalyticsDatabaseInserter,
             config: HashMap<ChainId, ConfigSvm>,
         ) -> Self;
         pub fn get_config(&self, chain_id: &ChainId) -> Result<ConfigSvm, crate::api::RestError>;
