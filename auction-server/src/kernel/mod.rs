@@ -1,3 +1,4 @@
+pub mod analytics_db;
 pub mod db;
 pub mod entities;
 #[cfg(test)]

@@ -24,6 +24,7 @@ use {
         models,
         opportunity::{
             service as opportunity_service,
+            service::get_analytics_db,
             workers::run_verification_loop,
         },
         per_metrics,
@@ -448,7 +449,7 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
         store.clone(),
         task_tracker.clone(),
         pool.clone(),
-        analytics_db.clone(),
+        get_analytics_db(analytics_db),
         config_opportunity_service_svm,
     ));
     #[allow(clippy::iter_kv_map)]

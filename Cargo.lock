@@ -653,7 +653,7 @@ dependencies = [
 
 [[package]]
 name = "auction-server"
-version = "0.28.0"
+version = "0.28.1"
 dependencies = [
  "anchor-lang",
  "anchor-lang-idl",
@@ -1315,6 +1315,7 @@ dependencies = [
  "hyper-tls 0.6.0",
  "hyper-util",
  "lz4_flex",
+ "quanta",
  "replace_with",
  "sealed",
  "serde",

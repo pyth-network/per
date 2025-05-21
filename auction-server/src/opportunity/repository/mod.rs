@@ -1,5 +1,8 @@
+#[cfg(test)]
+use mockall::mock;
 use {
     super::entities,
+    crate::kernel::analytics_db::ClickhouseInserter,
     axum_prometheus::metrics,
     express_relay::state::ExpressRelayMetadata,
     solana_sdk::pubkey::Pubkey,
@@ -71,6 +74,24 @@ impl Deref for InMemoryStoreSvm {
     }
 }
 
+pub struct AnalyticsDatabaseInserter {
+    inserter_opportunity_limo: ClickhouseInserter<OpportunityAnalyticsLimo>,
+    inserter_opportunity_swap: ClickhouseInserter<OpportunityAnalyticsSwap>,
+}
+
+impl AnalyticsDatabaseInserter {
+    pub fn new(client: clickhouse::Client) -> Self {
+        let inserter_opportunity_limo =
+            ClickhouseInserter::new(client.clone(), "opportunity_limo".to_string());
+        let inserter_opportunity_swap =
+            ClickhouseInserter::new(client, "opportunity_swap".to_string());
+        Self {
+            inserter_opportunity_limo,
+            inserter_opportunity_swap,
+        }
+    }
+}
+
 impl Repository {
     pub fn new(db: impl Database, db_analytics: impl AnalyticsDatabase) -> Self {
         Self {
@@ -83,5 +104,12 @@ impl Repository {
         let store = &self.in_memory_store;
         metrics::gauge!("in_memory_opportunities")
             .set(store.opportunities.read().await.len() as f64);
+    }
+}
+
+#[cfg(test)]
+mock! {
+    pub AnalyticsDatabaseInserter {
+        pub fn new(client: clickhouse::Client) -> Self;
     }
 }
