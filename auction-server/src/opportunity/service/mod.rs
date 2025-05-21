@@ -188,7 +188,7 @@ pub struct ServiceInner {
     task_tracker: TaskTracker,
 }
 
-pub fn get_analytics_db(client: clickhouse::Client) -> AnalyticsDatabaseInserter {
+pub fn create_analytics_db_inserter(client: clickhouse::Client) -> AnalyticsDatabaseInserter {
     AnalyticsDatabaseInserter::new(client)
 }
 
