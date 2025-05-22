@@ -1,5 +1,8 @@
 use {
-    super::Service,
+    super::{
+        get_bid_transaction_data::GetBidTransactionDataInput,
+        Service,
+    },
     crate::{
         api::{
             ws::UpdateEvent,
@@ -37,6 +40,30 @@ impl Service {
         // Or the new block is mined faster than the bid status is updated.
         // To ensure we do not broadcast the update more than once, we need to check the below "if"
         if is_updated {
+            self.task_tracker.spawn({
+                let (service, mut bid) = (self.clone(), input.bid.clone());
+                bid.status = input.new_status.clone();
+                async move {
+                    match service
+                        .get_bid_transaction_data(GetBidTransactionDataInput { bid: bid.clone() })
+                        .await
+                    {
+                        Ok(transaction_data) => {
+                            if let Err(e) = service
+                                .repo
+                                .add_bid_analytics(bid.clone(), transaction_data)
+                                .await
+                            {
+                                tracing::error!(error = ?e, "Failed to add bid analytics");
+                            }
+                        }
+                        Err(e) => {
+                            tracing::error!(error = ?e, "Failed to get bid transaction data");
+                        }
+                    }
+                }
+            });
+
             // TODO remove this line and move BidStatusWithId somewhere else
             if let Err(e) = self
                 .event_sender

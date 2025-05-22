@@ -3,6 +3,8 @@ use crate::opportunity::service::Service as OpportunityService;
 use {
     super::repository::{
         self,
+        AnalyticsDatabase,
+        AnalyticsDatabaseInserter,
         Repository,
     },
     crate::{
@@ -40,6 +42,7 @@ pub mod cancel_bid;
 pub mod conclude_auction;
 pub mod get_auction_by_id;
 pub mod get_bid;
+pub mod get_bid_transaction_data;
 pub mod get_bids;
 pub mod get_express_relay_program_id;
 pub mod get_pending_bids;
@@ -111,10 +114,15 @@ impl std::ops::Deref for Service {
     }
 }
 
+pub fn create_analytics_db_inserter(client: clickhouse::Client) -> AnalyticsDatabaseInserter {
+    AnalyticsDatabaseInserter::new(client)
+}
+
 impl Service {
     pub fn new(
         store: Arc<Store>,
         db: DB,
+        db_analytics: impl AnalyticsDatabase,
         config: Config,
         opportunity_service: Arc<OpportunityService>,
         task_tracker: TaskTracker,
@@ -122,7 +130,11 @@ impl Service {
     ) -> Self {
         Self(Arc::new(ServiceInner {
             store,
-            repo: Arc::new(repository::Repository::new(db, config.chain_id.clone())),
+            repo: Arc::new(repository::Repository::new(
+                db,
+                db_analytics,
+                config.chain_id.clone(),
+            )),
             config,
             opportunity_service,
             task_tracker,
@@ -151,10 +163,7 @@ mod mock_service {
             auction::entities,
         },
         mockall::mock,
-        solana_sdk::{
-            instruction::CompiledInstruction,
-            transaction::VersionedTransaction,
-        },
+        solana_sdk::transaction::VersionedTransaction,
     };
 
     #[derive(Clone)]
@@ -206,12 +215,6 @@ mod mock_service {
                 input: get_pending_bids::GetLiveBidsInput,
             ) -> Vec<entities::Bid>;
 
-            pub fn extract_express_relay_instruction(
-                &self,
-                transaction: VersionedTransaction,
-                instruction_type: entities::BidPaymentInstructionType,
-            ) -> Result<(usize, CompiledInstruction), RestError> ;
-
             pub async fn update_bid_status(
                 &self,
                 input: update_bid_status::UpdateBidStatusInput,
@@ -228,16 +231,16 @@ mod mock_service {
                 auction: entities::Auction,
             ) -> Result<VersionedTransaction, RestError>;
 
-            pub async fn extract_swap_data(
-                &self,
-                instruction: &CompiledInstruction,
-            ) -> Result<express_relay::SwapV2Args, RestError>;
-
             pub fn get_new_status(
                 bid: &entities::Bid,
                 submitted_bids: &[entities::Bid],
                 bid_status_auction: entities::BidStatusAuction,
             ) -> entities::BidStatusSvm;
+
+            pub async fn get_bid_transaction_data_swap(
+                &self,
+                input: get_bid_transaction_data::GetBidTransactionDataSwapInput
+            ) -> Result<entities::BidTransactionDataSwap, RestError>;
         }
 
         impl Clone for ServiceInner {
@@ -261,6 +264,7 @@ pub mod tests {
             api::ws,
             auction::repository::{
                 Database,
+                MockAnalyticsDatabase,
                 Repository,
             },
             kernel::{
@@ -344,7 +348,11 @@ pub mod tests {
                         prioritization_fee_percentile: None,
                     },
                 },
-                repo: Arc::new(Repository::new(db, chain_id.clone())),
+                repo: Arc::new(Repository::new(
+                    db,
+                    MockAnalyticsDatabase::new(),
+                    chain_id.clone(),
+                )),
                 task_tracker: TaskTracker::new(),
                 event_sender: broadcast::channel(1).0,
             }))

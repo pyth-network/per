@@ -1,9 +1,12 @@
 #[cfg(test)]
 use mockall::automock;
 use {
-    super::entities::{
-        self,
-        BidStatus as _,
+    super::{
+        entities::{
+            self,
+            BidStatus as _,
+        },
+        AnalyticsDatabaseInserter,
     },
     crate::{
         api::RestError,
@@ -49,6 +52,7 @@ use {
         UtcOffset,
     },
     tracing::instrument,
+    uuid::Uuid,
 };
 
 #[derive(Clone, Debug, PartialEq, PartialOrd, sqlx::Type)]
@@ -72,7 +76,8 @@ pub struct Auction {
     pub submission_time:     Option<PrimitiveDateTime>,
 }
 
-#[derive(Clone, Debug, PartialEq, PartialOrd, sqlx::Type)]
+#[derive(Clone, Debug, PartialEq, PartialOrd, sqlx::Type, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 #[sqlx(type_name = "bid_status", rename_all = "snake_case")]
 pub enum BidStatus {
     Pending,
@@ -88,7 +93,8 @@ pub enum BidStatus {
     SubmissionFailedDeadlinePassed,
 }
 
-#[derive(Clone, Debug, PartialEq, PartialOrd, sqlx::Type)]
+#[derive(Clone, Debug, PartialEq, PartialOrd, sqlx::Type, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 #[sqlx(type_name = "status_reason", rename_all = "snake_case")]
 pub enum BidStatusReason {
     InsufficientUserFunds,
@@ -130,6 +136,23 @@ impl From<entities::BidFailedReason> for BidStatusReason {
                 BidStatusReason::InsufficientFundsSolTransfer
             }
             entities::BidFailedReason::Other => BidStatusReason::Other,
+        }
+    }
+}
+
+impl From<entities::BidStatusSvm> for Option<BidStatusReason> {
+    fn from(status: entities::BidStatusSvm) -> Self {
+        match status {
+            entities::BidStatusSvm::Pending => None,
+            entities::BidStatusSvm::AwaitingSignature { .. } => None,
+            entities::BidStatusSvm::SentToUserForSubmission { .. } => None,
+            entities::BidStatusSvm::Submitted { .. } => None,
+            entities::BidStatusSvm::Lost { .. } => None,
+            entities::BidStatusSvm::Won { .. } => None,
+            entities::BidStatusSvm::Failed { reason, .. } => reason.map(|r| r.into()),
+            entities::BidStatusSvm::Expired { .. } => None,
+            entities::BidStatusSvm::Cancelled { .. } => None,
+            entities::BidStatusSvm::SubmissionFailed { .. } => None,
         }
     }
 }
@@ -268,7 +291,7 @@ impl Svm {
         }
     }
 
-    fn convert_bid_status(status: &entities::BidStatusSvm) -> BidStatus {
+    pub fn convert_bid_status(status: &entities::BidStatusSvm) -> BidStatus {
         match status {
             entities::BidStatusSvm::Pending => BidStatus::Pending,
             entities::BidStatusSvm::AwaitingSignature { .. } => BidStatus::AwaitingSignature,
@@ -505,6 +528,10 @@ impl Bid {
             id:              self.id,
             chain_id:        self.chain_id.clone(),
             initiation_time: self.initiation_time.assume_offset(UtcOffset::UTC),
+            creation_time:   self.creation_time.assume_offset(UtcOffset::UTC),
+            conclusion_time: self
+                .conclusion_time
+                .map(|t| t.assume_offset(UtcOffset::UTC)),
             profile_id:      self.profile_id,
 
             amount:     Svm::get_bid_amount_entity(self)?,
@@ -801,5 +828,120 @@ impl Database for DB {
             tracing::Span::current().record("result", "error");
         })?;
         Ok(result.rows_affected() > 0)
+    }
+}
+
+#[derive(clickhouse::Row, Serialize, Deserialize, Debug)]
+pub struct BidAnalyticsSwap {
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub id:              Uuid,
+    #[serde(with = "clickhouse::serde::time::datetime64::micros")]
+    pub creation_time:   OffsetDateTime,
+    #[serde(with = "clickhouse::serde::time::datetime64::micros")]
+    pub initiation_time: OffsetDateTime,
+    pub permission_key:  String,
+    pub chain_id:        String,
+    pub transaction:     String,
+    pub bid_amount:      u64,
+
+    #[serde(with = "clickhouse::serde::uuid::option")]
+    pub auction_id:      Option<Uuid>,
+    #[serde(with = "clickhouse::serde::uuid::option")]
+    pub opportunity_id:  Option<Uuid>,
+    #[serde(with = "clickhouse::serde::time::datetime64::micros::option")]
+    pub conclusion_time: Option<OffsetDateTime>,
+
+    pub searcher_token_mint:      String,
+    pub searcher_token_amount:    u64,
+    pub searcher_token_usd_price: Option<f64>,
+
+    pub user_token_mint:      String,
+    pub user_token_amount:    u64,
+    pub user_token_usd_price: Option<f64>,
+
+    pub status:        String,
+    pub status_reason: Option<String>,
+
+    pub user_wallet_address:     String,
+    pub searcher_wallet_address: String,
+    pub fee_token:               String,
+    pub referral_fee_ppm:        u64,
+    pub platform_fee_ppm:        u64,
+    pub deadline:                i64,
+    pub token_program_user:      String,
+    pub token_program_searcher:  String,
+
+    #[serde(with = "clickhouse::serde::uuid::option")]
+    pub profile_id: Option<Uuid>,
+}
+
+#[derive(clickhouse::Row, Serialize, Deserialize, Debug)]
+pub struct BidAnalyticsLimo {
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub id:              Uuid,
+    #[serde(with = "clickhouse::serde::time::datetime64::micros")]
+    pub creation_time:   OffsetDateTime,
+    #[serde(with = "clickhouse::serde::time::datetime64::micros")]
+    pub initiation_time: OffsetDateTime,
+    pub permission_key:  String,
+    pub chain_id:        String,
+    pub transaction:     String,
+    pub bid_amount:      u64,
+
+    #[serde(with = "clickhouse::serde::uuid::option")]
+    pub auction_id:      Option<Uuid>,
+    #[serde(with = "clickhouse::serde::time::datetime64::micros::option")]
+    pub conclusion_time: Option<OffsetDateTime>,
+
+    pub status: String,
+
+    pub router:             String,
+    pub permission_account: String,
+    pub deadline:           i64,
+
+    #[serde(with = "clickhouse::serde::uuid::option")]
+    pub profile_id: Option<Uuid>,
+}
+
+#[allow(clippy::large_enum_variant)]
+pub enum BidAnalytics {
+    Swap(BidAnalyticsSwap),
+    Limo(BidAnalyticsLimo),
+}
+
+#[cfg_attr(test, automock)]
+#[async_trait]
+pub trait AnalyticsDatabase: Debug + Send + Sync + 'static {
+    async fn add_bid(&self, bid: BidAnalytics) -> Result<(), anyhow::Error>;
+}
+
+#[async_trait]
+impl AnalyticsDatabase for AnalyticsDatabaseInserter {
+    #[instrument(
+        target = "metrics",
+        name = "db_analytics_add_bid",
+        fields(
+            category = "db_analytics_queries",
+            result = "success",
+            name = "add_bid",
+            tracing_enabled
+        ),
+        skip_all
+    )]
+    async fn add_bid(&self, bid: BidAnalytics) -> Result<(), anyhow::Error> {
+        match bid {
+            BidAnalytics::Swap(bid) => self
+                .inserter_bid_swap
+                .sender
+                .send(bid)
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to send swap bid analytics {:?}", e)),
+            BidAnalytics::Limo(bid) => self
+                .inserter_bid_limo
+                .sender
+                .send(bid)
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to send limo bid analytics {:?}", e)),
+        }
     }
 }
