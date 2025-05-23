@@ -2,7 +2,6 @@ use {
     super::{
         get_auction_by_id::GetAuctionByIdInput,
         update_bid_status::UpdateBidStatusInput,
-        verification::SwapAccounts,
         Service,
     },
     crate::{
@@ -199,17 +198,13 @@ impl Service {
 
         let mut bid = winner_bid.clone();
         tracing::Span::current().record("bid_id", bid.id.to_string());
-        let (_, swap_instruction) = self
-            .extract_express_relay_instruction(
-                bid.chain_data.transaction.clone(),
-                entities::BidPaymentInstructionType::Swap,
-            )
-            .map_err(|_| RestError::BadParameters("Invalid quote.".to_string()))?;
-        let SwapAccounts { user_wallet, .. } = self
-            .extract_swap_accounts(&bid.chain_data.transaction, &swap_instruction)
+
+        let transaction_data = self
+            .get_bid_transaction_data_swap(bid.chain_data.transaction.clone())
             .await
             .map_err(|_| RestError::BadParameters("Invalid quote.".to_string()))?;
 
+        let user_wallet = transaction_data.accounts.user_wallet;
         if !input.user_signature.verify(
             &user_wallet.to_bytes(),
             &bid.chain_data.transaction.message.serialize(),
@@ -230,23 +225,13 @@ impl Service {
         bid.chain_data.transaction.signatures[user_signature_pos] = input.user_signature;
         self.add_relayer_signature(&mut bid);
 
-        if bid.chain_data.bid_payment_instruction_type != entities::BidPaymentInstructionType::Swap
-        {
-            return Err(RestError::BadParameters("Invalid quote.".to_string()));
-        }
-
-        let swap_args = self
-            .extract_swap_data(&swap_instruction)
-            .await
-            .map_err(|_| RestError::BadParameters("Invalid quote.".to_string()))?;
-
         let bid_lock = self
             .repo
             .get_or_create_in_memory_bid_lock(winner_bid.id)
             .await;
         // NOTE: Don't use ? here to make sure we are going to call the remove_in_memory_bid_lock function
         let result = self
-            .submit_auction_bid_for_lock(bid.clone(), auction, swap_args, bid_lock)
+            .submit_auction_bid_for_lock(bid.clone(), auction, transaction_data.data, bid_lock)
             .await;
         self.repo.remove_in_memory_bid_lock(&winner_bid.id).await;
         match result {

@@ -1,6 +1,9 @@
 use {
     super::entities,
-    crate::kernel::entities::ChainId,
+    crate::kernel::{
+        analytics_db::ClickhouseInserter,
+        entities::ChainId,
+    },
     axum_prometheus::metrics,
     solana_sdk::pubkey::Pubkey,
     std::collections::{
@@ -16,6 +19,7 @@ use {
 
 mod add_auction;
 mod add_bid;
+mod add_bid_analytics;
 mod add_lookup_table;
 mod add_recent_prioritization_fee;
 mod conclude_auction;
@@ -86,14 +90,20 @@ impl Default for InMemoryStore {
 pub struct Repository {
     pub in_memory_store: InMemoryStore,
     pub db:              Box<dyn models::Database>,
+    pub db_analytics:    Box<dyn AnalyticsDatabase>,
     pub chain_id:        ChainId,
 }
 
 impl Repository {
-    pub fn new(db: impl models::Database, chain_id: ChainId) -> Self {
+    pub fn new(
+        db: impl models::Database,
+        db_analytics: impl models::AnalyticsDatabase,
+        chain_id: ChainId,
+    ) -> Self {
         Self {
             in_memory_store: InMemoryStore::default(),
             db: Box::new(db),
+            db_analytics: Box::new(db_analytics),
             chain_id,
         }
     }
@@ -107,5 +117,22 @@ impl Repository {
             .set(store.auction_lock.lock().await.len() as f64);
         metrics::gauge!("in_memory_bid_locks", &label)
             .set(store.bid_lock.lock().await.len() as f64);
+    }
+}
+
+#[derive(Debug)]
+pub struct AnalyticsDatabaseInserter {
+    inserter_bid_swap: ClickhouseInserter<BidAnalyticsSwap>,
+    inserter_bid_limo: ClickhouseInserter<BidAnalyticsLimo>,
+}
+
+impl AnalyticsDatabaseInserter {
+    pub fn new(client: clickhouse::Client) -> Self {
+        let inserter_bid_swap = ClickhouseInserter::new(client.clone(), "bid_swap".to_string());
+        let inserter_bid_limo = ClickhouseInserter::new(client.clone(), "bid_limo".to_string());
+        Self {
+            inserter_bid_swap,
+            inserter_bid_limo,
+        }
     }
 }

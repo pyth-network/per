@@ -11,7 +11,11 @@ use {
         },
         opportunity::entities::OpportunityId,
     },
-    express_relay::error::ErrorCode,
+    express_relay::{
+        error::ErrorCode,
+        SubmitBidArgs,
+        SwapV2Args,
+    },
     express_relay_api_types::bid as api,
     solana_sdk::{
         clock::Slot,
@@ -204,6 +208,9 @@ pub struct Bid {
     pub initiation_time: OffsetDateTime,
     pub profile_id:      Option<ProfileId>,
 
+    pub creation_time:   OffsetDateTime,
+    pub conclusion_time: Option<OffsetDateTime>,
+
     pub amount:     BidAmountSvm,
     pub status:     BidStatusSvm,
     pub chain_data: BidChainDataSvm,
@@ -302,6 +309,43 @@ impl BidChainDataCreateSvm {
 }
 
 pub type BidAmountSvm = u64;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SwapAccounts {
+    pub searcher:               Pubkey,
+    pub user_wallet:            Pubkey,
+    pub mint_searcher:          Pubkey,
+    pub mint_user:              Pubkey,
+    pub router_token_account:   Pubkey,
+    pub token_program_searcher: Pubkey,
+    pub token_program_user:     Pubkey,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct SubmitBidAccounts {
+    pub router:             Pubkey,
+    pub permission_account: Pubkey,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct BidTransactionDataSwap {
+    pub data:                            SwapV2Args,
+    pub accounts:                        SwapAccounts,
+    pub express_relay_instruction_index: usize,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum BidTransactionData {
+    SubmitBid(BidTransactionDataSubmitBid),
+    Swap(BidTransactionDataSwap),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct BidTransactionDataSubmitBid {
+    pub express_relay_instruction_index: usize,
+    pub data:                            SubmitBidArgs,
+    pub accounts:                        SubmitBidAccounts,
+}
 
 impl PartialEq<Bid> for BidCreate {
     fn eq(&self, other: &Bid) -> bool {

@@ -316,7 +316,7 @@ impl AnalyticsDatabase for AnalyticsDatabaseInserter {
                 let opportunity_analytics = OpportunityAnalyticsLimo {
                     id: opportunity.id,
                     creation_time: opportunity.creation_time,
-                    permission_key: format!("{}", opportunity.permission_key),
+                    permission_key: opportunity.permission_key.to_string(),
                     chain_id: opportunity.chain_id.clone(),
                     removal_time,
                     removal_reason: removal_reason.map(|reason| {
@@ -362,7 +362,7 @@ impl AnalyticsDatabase for AnalyticsDatabaseInserter {
                 let opportunity_analytics = OpportunityAnalyticsSwap {
                     id: opportunity.id,
                     creation_time: opportunity.creation_time,
-                    permission_key: format!("{}", opportunity.permission_key),
+                    permission_key: opportunity.permission_key.to_string(),
                     chain_id: opportunity.chain_id.clone(),
                     removal_time,
                     removal_reason: removal_reason.map(|reason| {

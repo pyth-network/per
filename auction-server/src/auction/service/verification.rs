@@ -28,7 +28,6 @@ use {
                 TokenAccountInitializationConfigs,
             },
             service::{
-                get_express_relay_metadata::GetExpressRelayMetadataInput,
                 get_live_opportunities::GetLiveOpportunitiesInput,
                 get_opportunities::GetLiveOpportunityByIdInput,
                 get_quote::{
@@ -37,14 +36,6 @@ use {
                 },
             },
         },
-    },
-    ::express_relay::{
-        self as express_relay_svm,
-        FeeToken,
-    },
-    anchor_lang::{
-        AnchorDeserialize,
-        Discriminator,
     },
     axum::async_trait,
     borsh::de::BorshDeserialize,
@@ -93,17 +84,6 @@ pub type VerificationResult = (entities::BidChainDataSvm, entities::BidAmountSvm
 pub trait Verification {
     /// Verify the bid, and extract the chain data from the bid.
     async fn verify_bid(&self, input: VerifyBidInput) -> Result<VerificationResult, RestError>;
-}
-
-#[derive(Debug, Clone)]
-pub struct SwapAccounts {
-    pub searcher:               Pubkey,
-    pub user_wallet:            Pubkey,
-    pub mint_searcher:          Pubkey,
-    pub mint_user:              Pubkey,
-    pub router_token_account:   Pubkey,
-    pub token_program_searcher: Pubkey,
-    pub token_program_user:     Pubkey,
 }
 
 #[derive(Debug, Clone)]
@@ -222,7 +202,7 @@ impl Service {
             .await
     }
 
-    async fn extract_account(
+    pub async fn extract_account(
         &self,
         tx: &VersionedTransaction,
         instruction: &CompiledInstruction,
@@ -266,91 +246,6 @@ impl Service {
                 "No lookup tables found".to_string(),
             )),
         }
-    }
-
-    pub fn extract_submit_bid_data(
-        instruction: &CompiledInstruction,
-    ) -> Result<express_relay_svm::SubmitBidArgs, RestError> {
-        let discriminator = express_relay_svm::instruction::SubmitBid::DISCRIMINATOR;
-        express_relay_svm::SubmitBidArgs::try_from_slice(
-            &instruction.data.as_slice()[discriminator.len()..],
-        )
-        .map_err(|e| {
-            RestError::BadParameters(format!("Invalid submit_bid instruction data: {}", e))
-        })
-    }
-
-    pub async fn extract_swap_data(
-        &self,
-        instruction: &CompiledInstruction,
-    ) -> Result<express_relay_svm::SwapV2Args, RestError> {
-        if instruction
-            .data
-            .starts_with(express_relay_svm::instruction::Swap::DISCRIMINATOR)
-        {
-            let discriminator = express_relay_svm::instruction::Swap::DISCRIMINATOR;
-            let express_relay_metadata = self
-                .opportunity_service
-                .get_express_relay_metadata(GetExpressRelayMetadataInput {
-                    chain_id: self.config.chain_id.clone(),
-                })
-                .await?;
-            let swap_args = express_relay_svm::SwapArgs::try_from_slice(
-                &instruction.data.as_slice()[discriminator.len()..],
-            )
-            .map_err(|e| {
-                RestError::BadParameters(format!("Invalid swap instruction data: {}", e))
-            })?;
-            Ok(swap_args.convert_to_v2(express_relay_metadata.swap_platform_fee_bps))
-        } else {
-            let discriminator = express_relay_svm::instruction::SwapV2::DISCRIMINATOR;
-            express_relay_svm::SwapV2Args::try_from_slice(
-                &instruction.data.as_slice()[discriminator.len()..],
-            )
-            .map_err(|e| RestError::BadParameters(format!("Invalid swap instruction data: {}", e)))
-        }
-    }
-
-    pub fn extract_express_relay_instruction(
-        &self,
-        transaction: VersionedTransaction,
-        instruction_type: BidPaymentInstructionType,
-    ) -> Result<(usize, CompiledInstruction), RestError> {
-        let valid_discriminators = match instruction_type {
-            BidPaymentInstructionType::SubmitBid => {
-                vec![express_relay_svm::instruction::SubmitBid::DISCRIMINATOR]
-            }
-            BidPaymentInstructionType::Swap => vec![
-                express_relay_svm::instruction::Swap::DISCRIMINATOR,
-                express_relay_svm::instruction::SwapV2::DISCRIMINATOR,
-            ],
-        };
-        let instructions = Self::extract_program_instructions(
-            &transaction,
-            &self.config.chain_config.express_relay.program_id,
-        )
-        .into_iter()
-        .map(|(index, instruction)| (index, instruction.clone()))
-        .collect::<Vec<(usize, CompiledInstruction)>>();
-
-        let (instruction_index, instruction) = match instructions.len() {
-            1 => Ok(instructions
-                .into_iter()
-                .next()
-                .expect("This can't happen because we just only go here if the length is 1")),
-            _ => Err(RestError::InvalidExpressRelayInstructionCount(
-                instructions.len(),
-            )),
-        }?;
-        if valid_discriminators
-            .iter()
-            .all(|discriminator| !instruction.data.starts_with(discriminator))
-        {
-            return Err(RestError::BadParameters(
-                "Wrong instruction type for Express Relay Program".to_string(),
-            ));
-        }
-        Ok((instruction_index, instruction))
     }
 
     fn validate_swap_transaction_instructions(
@@ -423,21 +318,17 @@ impl Service {
         opportunity_swap_data: &OpportunitySvmProgramSwap,
         quote_tokens: &QuoteTokens,
     ) -> Result<(), RestError> {
-        let (_, swap_instruction) = self.extract_express_relay_instruction(
-            bid_data.transaction.clone(),
-            BidPaymentInstructionType::Swap,
-        )?;
-        let swap_data = self.extract_swap_data(&swap_instruction).await?;
-        let SwapAccounts {
+        let transaction_data = self
+            .get_bid_transaction_data_swap(bid_data.transaction.clone())
+            .await?;
+        let entities::SwapAccounts {
             user_wallet,
             mint_searcher,
             mint_user,
             token_program_searcher,
             token_program_user,
             ..
-        } = self
-            .extract_swap_accounts(&bid_data.transaction, &swap_instruction)
-            .await?;
+        } = transaction_data.accounts;
         let (
             expected_mint_user,
             expected_amount_user,
@@ -508,6 +399,7 @@ impl Service {
             ));
         }
 
+        let swap_data = transaction_data.data;
         if let Some(expected_amount_searcher) = expected_amount_searcher {
             if expected_amount_searcher != swap_data.amount_searcher {
                 return Err(RestError::InvalidSwapInstruction(
@@ -557,50 +449,6 @@ impl Service {
         Ok(())
     }
 
-    pub async fn extract_swap_accounts(
-        &self,
-        tx: &VersionedTransaction,
-        swap_instruction: &CompiledInstruction,
-    ) -> Result<SwapAccounts, RestError> {
-        let positions = &self
-            .config
-            .chain_config
-            .express_relay
-            .swap_instruction_account_positions;
-
-        let searcher = self
-            .extract_account(tx, swap_instruction, positions.searcher_account)
-            .await?;
-        let user_wallet = self
-            .extract_account(tx, swap_instruction, positions.user_wallet_account)
-            .await?;
-        let mint_searcher = self
-            .extract_account(tx, swap_instruction, positions.mint_searcher_account)
-            .await?;
-        let mint_user = self
-            .extract_account(tx, swap_instruction, positions.mint_user_account)
-            .await?;
-        let router_token_account = self
-            .extract_account(tx, swap_instruction, positions.router_token_account)
-            .await?;
-        let token_program_searcher = self
-            .extract_account(tx, swap_instruction, positions.token_program_searcher)
-            .await?;
-        let token_program_user = self
-            .extract_account(tx, swap_instruction, positions.token_program_user)
-            .await?;
-
-        Ok(SwapAccounts {
-            searcher,
-            user_wallet,
-            mint_searcher,
-            mint_user,
-            router_token_account,
-            token_program_searcher,
-            token_program_user,
-        })
-    }
-
     async fn extract_transfer_instructions(
         &self,
         tx: &VersionedTransaction,
@@ -642,8 +490,7 @@ impl Service {
     async fn check_transfer_instruction(
         &self,
         tx: &VersionedTransaction,
-        swap_data: &express_relay_svm::SwapV2Args,
-        swap_accounts: &SwapAccounts,
+        transaction_data: &entities::BidTransactionDataSwap,
         opportunity_swap_data: &OpportunitySvmProgramSwap,
     ) -> Result<(), RestError> {
         let transfer_instructions = self.extract_transfer_instructions(tx).await?;
@@ -657,11 +504,11 @@ impl Service {
         }
 
         // User have to wrap Sol
-        if swap_accounts.mint_user == spl_token::native_mint::id() {
+        if transaction_data.accounts.mint_user == spl_token::native_mint::id() {
             // Sometimes the user doesn't have enough SOL, but we want the transaction to fail in the Express Relay program with InsufficientUserFunds
             // Therefore we allow the user to wrap less SOL than needed so it doesn't fail in the transfer instruction
             let amount_user_to_wrap =
-                opportunity_swap_data.get_user_amount_to_wrap(swap_data.amount_user);
+                opportunity_swap_data.get_user_amount_to_wrap(transaction_data.data.amount_user);
 
             if transfer_instructions.len() != 1 {
                 return Err(RestError::InvalidInstruction(
@@ -671,14 +518,14 @@ impl Service {
             }
             let transfer_instruction = transfer_instructions[0].clone();
             let user_ata = get_associated_token_address(
-                &swap_accounts.user_wallet,
+                &transaction_data.accounts.user_wallet,
                 &spl_token::native_mint::id(),
             );
-            if transfer_instruction.from != swap_accounts.user_wallet {
+            if transfer_instruction.from != transaction_data.accounts.user_wallet {
                 return Err(RestError::InvalidInstruction(
                     Some(transfer_instruction.index),
                     InstructionError::InvalidFromAccountTransferInstruction {
-                        expected: swap_accounts.user_wallet,
+                        expected: transaction_data.accounts.user_wallet,
                         found:    transfer_instruction.from,
                     },
                 ));
@@ -693,7 +540,7 @@ impl Service {
                 ));
             }
             // todo: remove swap_data.amount_user != transfer_instruction.lamports once searchers have updated their sdk
-            if swap_data.amount_user != transfer_instruction.lamports
+            if transaction_data.data.amount_user != transfer_instruction.lamports
                 && amount_user_to_wrap != transfer_instruction.lamports
             {
                 return Err(RestError::InvalidInstruction(
@@ -707,19 +554,19 @@ impl Service {
         }
         // Searcher may want to wrap Sol
         // We dont care about the amount here
-        else if swap_accounts.mint_searcher == spl_token::native_mint::id()
+        else if transaction_data.accounts.mint_searcher == spl_token::native_mint::id()
             && transfer_instructions.len() == 1
         {
             let transfer_instruction = transfer_instructions[0].clone();
             let searcher_ata = get_associated_token_address(
-                &swap_accounts.searcher,
+                &transaction_data.accounts.searcher,
                 &spl_token::native_mint::id(),
             );
-            if transfer_instruction.from != swap_accounts.searcher {
+            if transfer_instruction.from != transaction_data.accounts.searcher {
                 return Err(RestError::InvalidInstruction(
                     Some(transfer_instruction.index),
                     InstructionError::InvalidFromAccountTransferInstruction {
-                        expected: swap_accounts.searcher,
+                        expected: transaction_data.accounts.searcher,
                         found:    transfer_instruction.from,
                     },
                 ));
@@ -747,7 +594,7 @@ impl Service {
         Ok(())
     }
 
-    fn extract_program_instructions<'a>(
+    pub fn extract_program_instructions<'a>(
         tx: &'a VersionedTransaction,
         program_id: &Pubkey,
     ) -> Vec<(usize, &'a CompiledInstruction)> {
@@ -760,7 +607,6 @@ impl Service {
             })
             .collect()
     }
-
 
     fn extract_sync_native_instructions(tx: &VersionedTransaction) -> Vec<&CompiledInstruction> {
         let token_instructions = Self::extract_program_instructions(tx, &spl_token::id());
@@ -876,7 +722,7 @@ impl Service {
     async fn check_close_account_instruction(
         &self,
         tx: &VersionedTransaction,
-        swap_accounts: &SwapAccounts,
+        swap_accounts: &entities::SwapAccounts,
     ) -> Result<(), RestError> {
         let close_account_instructions = self.extract_close_account_instructions(tx).await?;
 
@@ -1015,7 +861,7 @@ impl Service {
     async fn check_create_ata_instructions(
         &self,
         tx: &VersionedTransaction,
-        swap_accounts: &SwapAccounts,
+        swap_accounts: &entities::SwapAccounts,
         token_account_initialization_configs: &TokenAccountInitializationConfigs,
     ) -> Result<(), RestError> {
         let mut create_ata_instructions = self.extract_create_ata_instructions(tx).await?;
@@ -1119,19 +965,18 @@ impl Service {
     async fn check_wrap_unwrap_native_token_instructions(
         &self,
         tx: &VersionedTransaction,
-        swap_data: &express_relay_svm::SwapV2Args,
-        swap_accounts: &SwapAccounts,
+        transaction_data: &entities::BidTransactionDataSwap,
         opportunity_swap_data: &OpportunitySvmProgramSwap,
     ) -> Result<(), RestError> {
-        self.check_transfer_instruction(tx, swap_data, swap_accounts, opportunity_swap_data)
+        self.check_transfer_instruction(tx, transaction_data, opportunity_swap_data)
             .await?;
-        if swap_accounts.mint_user == spl_token::native_mint::id() {
+        if transaction_data.accounts.mint_user == spl_token::native_mint::id() {
             // User has to wrap Sol
             // So we need to check if there is a sync native instruction
-            self.check_sync_native_instruction_exists(tx, &swap_accounts.user_wallet)
+            self.check_sync_native_instruction_exists(tx, &transaction_data.accounts.user_wallet)
                 .await?;
         }
-        self.check_close_account_instruction(tx, swap_accounts)
+        self.check_close_account_instruction(tx, &transaction_data.accounts)
             .await?;
         Ok(())
     }
@@ -1140,49 +985,29 @@ impl Service {
         &self,
         bid_chain_data_create_svm: &BidChainDataCreateSvm,
     ) -> Result<BidDataSvm, RestError> {
-        let svm_config = &self.config.chain_config.express_relay;
         match bid_chain_data_create_svm {
             BidChainDataCreateSvm::OnChain(bid_data) => {
-                let (express_relay_instruction_index, submit_bid_instruction) = self
-                    .extract_express_relay_instruction(
-                        bid_data.transaction.clone(),
-                        BidPaymentInstructionType::SubmitBid,
-                    )?;
-                let submit_bid_data = Self::extract_submit_bid_data(&submit_bid_instruction)?;
-
-                let permission_account = self
-                    .extract_account(
-                        &bid_data.transaction,
-                        &submit_bid_instruction,
-                        svm_config
-                            .submit_bid_instruction_account_positions
-                            .permission_account,
-                    )
-                    .await?;
-                let router = self
-                    .extract_account(
-                        &bid_data.transaction,
-                        &submit_bid_instruction,
-                        svm_config
-                            .submit_bid_instruction_account_positions
-                            .router_account,
-                    )
+                let transaction_data = self
+                    .get_bid_transaction_data_submit_bid(bid_data.transaction.clone())
                     .await?;
                 Ok(BidDataSvm {
-                    express_relay_instruction_index,
-                    amount: submit_bid_data.bid_amount,
-                    permission_account,
-                    router,
-                    deadline: OffsetDateTime::from_unix_timestamp(submit_bid_data.deadline)
-                        .map_err(|e| {
-                            RestError::BadParameters(format!(
-                                "Invalid deadline: {:?} {:?}",
-                                submit_bid_data.deadline, e
-                            ))
-                        })?,
-                    submit_type: SubmitType::ByServer,
-                    user_wallet_address: None,
-                    minimum_deadline: get_current_time_rounded_with_offset(
+                    express_relay_instruction_index: transaction_data
+                        .express_relay_instruction_index,
+                    amount:                          transaction_data.data.bid_amount,
+                    permission_account:              transaction_data.accounts.permission_account,
+                    router:                          transaction_data.accounts.router,
+                    deadline:                        OffsetDateTime::from_unix_timestamp(
+                        transaction_data.data.deadline,
+                    )
+                    .map_err(|e| {
+                        RestError::BadParameters(format!(
+                            "Invalid deadline: {:?} {:?}",
+                            transaction_data.data.deadline, e
+                        ))
+                    })?,
+                    submit_type:                     SubmitType::ByServer,
+                    user_wallet_address:             None,
+                    minimum_deadline:                get_current_time_rounded_with_offset(
                         BID_MINIMUM_LIFE_TIME_SVM_SERVER,
                     ),
                 })
@@ -1203,16 +1028,11 @@ impl Service {
                 self.check_svm_swap_bid_fields(bid_data, opportunity_swap_data, &quote_tokens)
                     .await?;
 
-                let (express_relay_instruction_index, swap_instruction) = self
-                    .extract_express_relay_instruction(
-                        bid_data.transaction.clone(),
-                        BidPaymentInstructionType::Swap,
-                    )?;
-                let swap_data = self.extract_swap_data(&swap_instruction).await?;
-                let swap_accounts = self
-                    .extract_swap_accounts(&bid_data.transaction, &swap_instruction)
+                let transaction_data = self
+                    .get_bid_transaction_data_swap(bid_data.transaction.clone())
                     .await?;
-                let SwapAccounts {
+
+                let entities::SwapAccounts {
                     user_wallet,
                     mint_searcher,
                     mint_user,
@@ -1220,33 +1040,32 @@ impl Service {
                     token_program_searcher,
                     token_program_user,
                     ..
-                } = swap_accounts.clone();
+                } = transaction_data.accounts;
 
                 Self::check_memo_instructions(&bid_data.transaction, &opportunity_swap_data.memo)
                     .await?;
 
                 self.check_create_ata_instructions(
                     &bid_data.transaction,
-                    &swap_accounts,
+                    &transaction_data.accounts,
                     &opportunity_swap_data.token_account_initialization_configs,
                 )
                 .await?;
                 self.check_wrap_unwrap_native_token_instructions(
                     &bid_data.transaction,
-                    &swap_data,
-                    &swap_accounts,
+                    &transaction_data,
                     opportunity_swap_data,
                 )
                 .await?;
 
                 let bid_amount = match quote_tokens.clone() {
                     // bid is in the unspecified token
-                    QuoteTokens::UserTokenSpecified { .. } => swap_data.amount_searcher,
-                    QuoteTokens::SearcherTokenSpecified { .. } => swap_data.amount_user,
+                    QuoteTokens::UserTokenSpecified { .. } => transaction_data.data.amount_searcher,
+                    QuoteTokens::SearcherTokenSpecified { .. } => transaction_data.data.amount_user,
                 };
-                let (fee_token, fee_token_program) = match swap_data.fee_token {
-                    FeeToken::Searcher => (mint_searcher, token_program_searcher),
-                    FeeToken::User => (mint_user, token_program_user),
+                let (fee_token, fee_token_program) = match transaction_data.data.fee_token {
+                    ::express_relay::FeeToken::Searcher => (mint_searcher, token_program_searcher),
+                    ::express_relay::FeeToken::User => (mint_user, token_program_user),
                 };
                 let expected_router_token_account = get_associated_token_address_with_program_id(
                     &opp.router,
@@ -1267,22 +1086,22 @@ impl Service {
                     &quote_tokens,
                     &user_wallet,
                     &router_token_account,
-                    swap_data.referral_fee_ppm,
+                    transaction_data.data.referral_fee_ppm,
                 );
 
                 Ok(BidDataSvm {
-                    express_relay_instruction_index,
+                    express_relay_instruction_index: transaction_data
+                        .express_relay_instruction_index,
                     amount: bid_amount,
                     permission_account,
                     router: opp.router,
-                    deadline: OffsetDateTime::from_unix_timestamp(swap_data.deadline).map_err(
-                        |e| {
-                            RestError::BadParameters(format!(
-                                "Invalid deadline: {:?} {:?}",
-                                swap_data.deadline, e
-                            ))
-                        },
-                    )?,
+                    deadline: OffsetDateTime::from_unix_timestamp(transaction_data.data.deadline)
+                        .map_err(|e| {
+                        RestError::BadParameters(format!(
+                            "Invalid deadline: {:?} {:?}",
+                            transaction_data.data.deadline, e
+                        ))
+                    })?,
                     submit_type: SubmitType::ByOther,
                     user_wallet_address: Some(user_wallet),
                     minimum_deadline: opportunity_swap_data.minimum_deadline,
@@ -1616,6 +1435,7 @@ mod tests {
                     BidPaymentInstructionType,
                 },
                 repository::{
+                    MockAnalyticsDatabase,
                     MockDatabase,
                     Repository,
                 },
@@ -4006,7 +3826,11 @@ mod tests {
         let mut db = MockDatabase::default();
         db.expect_add_bid().returning(|_| Ok(()));
         let service_inner = Arc::get_mut(&mut service.0).unwrap();
-        service_inner.repo = Arc::new(Repository::new(db, service_inner.config.chain_id.clone()));
+        service_inner.repo = Arc::new(Repository::new(
+            db,
+            MockAnalyticsDatabase::new(),
+            service_inner.config.chain_id.clone(),
+        ));
 
         let bid_amount = 1;
         let searcher = Keypair::new();

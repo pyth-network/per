@@ -539,22 +539,14 @@ impl Service {
         let winner_bid = bids.first().expect("failed to get first bid");
         tracing::Span::current().record("winner_bid_id", winner_bid.id.to_string());
 
-        let (_, swap_instruction) = auction_service
-            .extract_express_relay_instruction(
-                winner_bid.chain_data.transaction.clone(),
-                BidPaymentInstructionType::Swap,
-            )
-            .map_err(|e| {
-                tracing::error!("Failed to verify swap instruction: {:?}", e);
-                RestError::TemporarilyUnavailable
-            })?;
-        let swap_data = auction_service
-            .extract_swap_data(&swap_instruction)
+        let transaction_data = auction_service
+            .get_bid_transaction_data_swap(winner_bid.chain_data.transaction.clone())
             .await
             .map_err(|e| {
-                tracing::error!("Failed to extract swap data: {:?}", e);
+                tracing::error!(error = ?e, "Failed to extract swap transaction data");
                 RestError::TemporarilyUnavailable
             })?;
+        let swap_data = transaction_data.data;
         let deadline = swap_data.deadline;
 
         // Bids are not empty
@@ -742,6 +734,8 @@ mod tests {
                 entities::{
                     BidChainDataSvm,
                     BidStatusSvm,
+                    BidTransactionDataSwap,
+                    SwapAccounts,
                 },
                 service::{
                     MockService as MockAuctionService,
@@ -766,16 +760,11 @@ mod tests {
                 service::TokenWhitelist,
             },
         },
-        anchor_lang::{
-            AnchorSerialize,
-            Discriminator,
-        },
         express_relay::{
             state::ExpressRelayMetadata,
             SwapV2Args,
         },
         solana_sdk::{
-            instruction::CompiledInstruction,
             signature::Signature,
             transaction::VersionedTransaction,
         },
@@ -811,6 +800,8 @@ mod tests {
             id:              id.unwrap_or(Uuid::from_u128(1)),
             chain_id:        DEFAULT_CHAIN_ID.to_string(),
             initiation_time: OffsetDateTime::from_unix_timestamp(1200).unwrap(),
+            creation_time:   OffsetDateTime::from_unix_timestamp(1199).unwrap(),
+            conclusion_time: None,
             profile_id:      None,
             amount:          amount.unwrap_or(100),
             status:          BidStatusSvm::Pending,
@@ -869,24 +860,26 @@ mod tests {
             fee_token:             FeeToken::User,
             swap_platform_fee_ppm: 0,
         });
-        auction_service
-            .expect_extract_express_relay_instruction()
-            .return_once(move |_, _| {
-                let mut data = express_relay::instruction::SwapV2::DISCRIMINATOR.to_vec();
-                data.append(&mut swap_args.try_to_vec().unwrap());
-                Ok((
-                    1,
-                    CompiledInstruction {
-                        program_id_index: 0,
-                        accounts: vec![],
-                        data,
-                    },
-                ))
-            });
+
+        let swap_accounts = SwapAccounts {
+            searcher:               Pubkey::new_unique(),
+            user_wallet:            Pubkey::new_unique(),
+            mint_searcher:          Pubkey::new_unique(),
+            mint_user:              Pubkey::new_unique(),
+            router_token_account:   Pubkey::new_unique(),
+            token_program_searcher: Pubkey::new_unique(),
+            token_program_user:     Pubkey::new_unique(),
+        };
 
         auction_service
-            .expect_extract_swap_data()
-            .return_once(move |_| Ok(swap_args));
+            .expect_get_bid_transaction_data_swap()
+            .return_once(move |_| {
+                Ok(BidTransactionDataSwap {
+                    data:                            swap_args,
+                    express_relay_instruction_index: 0,
+                    accounts:                        swap_accounts,
+                })
+            });
 
         auction_service.expect_add_auction().returning(move |_| {
             Ok(Auction {

@@ -8,6 +8,7 @@ use {
         },
         auction::service::{
             self as auction_service,
+            create_analytics_db_inserter as auction_create_analytics_db_inserter,
             simulator::Simulator,
             SubmitBidInstructionAccountPositions,
             SwapInstructionAccountPositions,
@@ -24,7 +25,7 @@ use {
         models,
         opportunity::{
             service as opportunity_service,
-            service::create_analytics_db_inserter,
+            service::create_analytics_db_inserter as opportunity_create_analytics_db_inserter,
             workers::run_verification_loop,
         },
         per_metrics,
@@ -449,7 +450,7 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
         store.clone(),
         task_tracker.clone(),
         pool.clone(),
-        create_analytics_db_inserter(analytics_db),
+        opportunity_create_analytics_db_inserter(analytics_db.clone()),
         config_opportunity_service_svm,
     ));
     #[allow(clippy::iter_kv_map)]
@@ -477,6 +478,7 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
                 auction_service::ServiceEnum::Svm(auction_service::Service::new(
                     store.clone(),
                     pool.clone(),
+                    auction_create_analytics_db_inserter(analytics_db.clone()),
                     auction_service::Config {
                         chain_id:     chain_id.clone(),
                         chain_config: auction_service::ConfigSvm {

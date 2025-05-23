@@ -5,6 +5,7 @@ use {
     tokio::sync::mpsc,
 };
 
+#[derive(Debug)]
 pub struct ClickhouseInserter<T> {
     pub sender: mpsc::Sender<T>,
 }
