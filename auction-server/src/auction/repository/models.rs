@@ -140,23 +140,6 @@ impl From<entities::BidFailedReason> for BidStatusReason {
     }
 }
 
-impl From<entities::BidStatusSvm> for Option<BidStatusReason> {
-    fn from(status: entities::BidStatusSvm) -> Self {
-        match status {
-            entities::BidStatusSvm::Pending => None,
-            entities::BidStatusSvm::AwaitingSignature { .. } => None,
-            entities::BidStatusSvm::SentToUserForSubmission { .. } => None,
-            entities::BidStatusSvm::Submitted { .. } => None,
-            entities::BidStatusSvm::Lost { .. } => None,
-            entities::BidStatusSvm::Won { .. } => None,
-            entities::BidStatusSvm::Failed { reason, .. } => reason.map(|r| r.into()),
-            entities::BidStatusSvm::Expired { .. } => None,
-            entities::BidStatusSvm::Cancelled { .. } => None,
-            entities::BidStatusSvm::SubmissionFailed { .. } => None,
-        }
-    }
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BundleIndex(pub Option<u32>);
 impl Deref for BundleIndex {
@@ -200,6 +183,21 @@ impl Svm {
             .to_string()
             .parse()
             .map_err(|e: ParseIntError| anyhow::anyhow!(e))
+    }
+
+    pub fn get_bid_status_reason(status: &entities::BidStatusSvm) -> Option<BidStatusReason> {
+        match status {
+            entities::BidStatusSvm::Pending => None,
+            entities::BidStatusSvm::AwaitingSignature { .. } => None,
+            entities::BidStatusSvm::SentToUserForSubmission { .. } => None,
+            entities::BidStatusSvm::Submitted { .. } => None,
+            entities::BidStatusSvm::Lost { .. } => None,
+            entities::BidStatusSvm::Won { .. } => None,
+            entities::BidStatusSvm::Failed { reason, .. } => reason.clone().map(|r| r.into()),
+            entities::BidStatusSvm::Expired { .. } => None,
+            entities::BidStatusSvm::Cancelled { .. } => None,
+            entities::BidStatusSvm::SubmissionFailed { .. } => None,
+        }
     }
 
     /// In SVM, the tx_hash is the signature of the transaction if the bid is submitted
@@ -870,6 +868,7 @@ pub struct BidAnalyticsSwap {
     pub deadline:                i64,
     pub token_program_user:      String,
     pub token_program_searcher:  String,
+    pub router_token_account:    String,
 
     #[serde(with = "clickhouse::serde::uuid::option")]
     pub profile_id: Option<Uuid>,

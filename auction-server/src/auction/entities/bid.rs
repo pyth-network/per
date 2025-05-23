@@ -322,7 +322,7 @@ pub struct SwapAccounts {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct OnChainAccounts {
+pub struct SubmitBidAccounts {
     pub router:             Pubkey,
     pub permission_account: Pubkey,
 }
@@ -344,7 +344,7 @@ pub enum BidTransactionData {
 pub struct BidTransactionDataSubmitBid {
     pub express_relay_instruction_index: usize,
     pub data:                            SubmitBidArgs,
-    pub accounts:                        OnChainAccounts,
+    pub accounts:                        SubmitBidAccounts,
 }
 
 impl PartialEq<Bid> for BidCreate {

@@ -34,5 +34,6 @@ CREATE TABLE IF NOT EXISTS bid_swap (
     deadline                Int64,
     token_program_user      String,
     token_program_searcher  String,
+    router_token_account    String,
 ) ENGINE = ReplacingMergeTree
 ORDER BY (creation_time, id);

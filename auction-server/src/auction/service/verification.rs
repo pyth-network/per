@@ -1,11 +1,5 @@
 use {
-    super::{
-        get_bid_transaction_data::{
-            GetBidTransactionDataSubmitBidInput,
-            GetBidTransactionDataSwapInput,
-        },
-        Service,
-    },
+    super::Service,
     crate::{
         api::{
             InstructionError,
@@ -325,9 +319,7 @@ impl Service {
         quote_tokens: &QuoteTokens,
     ) -> Result<(), RestError> {
         let transaction_data = self
-            .get_bid_transaction_data_swap(GetBidTransactionDataSwapInput {
-                transaction: bid_data.transaction.clone(),
-            })
+            .get_bid_transaction_data_swap(bid_data.transaction.clone())
             .await?;
         let entities::SwapAccounts {
             user_wallet,
@@ -498,8 +490,6 @@ impl Service {
     async fn check_transfer_instruction(
         &self,
         tx: &VersionedTransaction,
-        // swap_data: &express_relay_svm::SwapV2Args,
-        // swap_accounts: &entities::SwapAccounts,
         transaction_data: &entities::BidTransactionDataSwap,
         opportunity_swap_data: &OpportunitySvmProgramSwap,
     ) -> Result<(), RestError> {
@@ -998,10 +988,7 @@ impl Service {
         match bid_chain_data_create_svm {
             BidChainDataCreateSvm::OnChain(bid_data) => {
                 let transaction_data = self
-                    .get_bid_transaction_data_submit_bid(GetBidTransactionDataSubmitBidInput {
-                        transaction: bid_data.transaction.clone(),
-                        bid:         None,
-                    })
+                    .get_bid_transaction_data_submit_bid(bid_data.transaction.clone())
                     .await?;
                 Ok(BidDataSvm {
                     express_relay_instruction_index: transaction_data
@@ -1042,9 +1029,7 @@ impl Service {
                     .await?;
 
                 let transaction_data = self
-                    .get_bid_transaction_data_swap(GetBidTransactionDataSwapInput {
-                        transaction: bid_data.transaction.clone(),
-                    })
+                    .get_bid_transaction_data_swap(bid_data.transaction.clone())
                     .await?;
 
                 let entities::SwapAccounts {

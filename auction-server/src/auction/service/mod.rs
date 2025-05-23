@@ -239,7 +239,7 @@ mod mock_service {
 
             pub async fn get_bid_transaction_data_swap(
                 &self,
-                input: get_bid_transaction_data::GetBidTransactionDataSwapInput
+                transaction: VersionedTransaction,
             ) -> Result<entities::BidTransactionDataSwap, RestError>;
         }
 

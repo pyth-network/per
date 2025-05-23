@@ -18,7 +18,6 @@ use {
             service::{
                 add_auction::AddAuctionInput,
                 auction_manager::AuctionManager,
-                get_bid_transaction_data::GetBidTransactionDataSwapInput,
                 get_pending_bids::GetLiveBidsInput,
                 update_bid_status::UpdateBidStatusInput,
                 verification::{
@@ -541,9 +540,7 @@ impl Service {
         tracing::Span::current().record("winner_bid_id", winner_bid.id.to_string());
 
         let transaction_data = auction_service
-            .get_bid_transaction_data_swap(GetBidTransactionDataSwapInput {
-                transaction: winner_bid.chain_data.transaction.clone(),
-            })
+            .get_bid_transaction_data_swap(winner_bid.chain_data.transaction.clone())
             .await
             .map_err(|e| {
                 tracing::error!(error = ?e, "Failed to extract swap transaction data");

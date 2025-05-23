@@ -16,15 +16,6 @@ use {
     },
 };
 
-pub struct GetBidTransactionDataSwapInput {
-    pub transaction: VersionedTransaction,
-}
-
-pub struct GetBidTransactionDataSubmitBidInput {
-    pub transaction: VersionedTransaction,
-    pub bid:         Option<entities::Bid>,
-}
-
 pub struct GetBidTransactionDataInput {
     pub bid: entities::Bid,
 }
@@ -86,47 +77,40 @@ impl Service {
 
     pub async fn get_bid_transaction_data_submit_bid(
         &self,
-        input: GetBidTransactionDataSubmitBidInput,
+        transaction: VersionedTransaction,
     ) -> Result<entities::BidTransactionDataSubmitBid, RestError> {
         let (index, instruction) = self.extract_express_relay_instruction(
-            input.transaction.clone(),
+            transaction.clone(),
             entities::BidPaymentInstructionType::SubmitBid,
         )?;
         let data = Self::extract_submit_bid_data(&instruction)?;
-        let accounts = match input.bid {
-            Some(bid) => entities::OnChainAccounts {
-                router:             bid.chain_data.router,
-                permission_account: bid.chain_data.permission_account,
-            },
-            None => {
-                let express_relay_config = &self.config.chain_config.express_relay;
-                let permission_account = self
-                    .extract_account(
-                        &input.transaction,
-                        &instruction,
-                        express_relay_config
-                            .submit_bid_instruction_account_positions
-                            .permission_account,
-                    )
-                    .await?;
-                let router = self
-                    .extract_account(
-                        &input.transaction,
-                        &instruction,
-                        express_relay_config
-                            .submit_bid_instruction_account_positions
-                            .router_account,
-                    )
-                    .await?;
-                entities::OnChainAccounts {
-                    router,
-                    permission_account,
-                }
-            }
-        };
+
+        let express_relay_config = &self.config.chain_config.express_relay;
+        let permission_account = self
+            .extract_account(
+                &transaction,
+                &instruction,
+                express_relay_config
+                    .submit_bid_instruction_account_positions
+                    .permission_account,
+            )
+            .await?;
+        let router = self
+            .extract_account(
+                &transaction,
+                &instruction,
+                express_relay_config
+                    .submit_bid_instruction_account_positions
+                    .router_account,
+            )
+            .await?;
+
         Ok(entities::BidTransactionDataSubmitBid {
             data,
-            accounts,
+            accounts: entities::SubmitBidAccounts {
+                router,
+                permission_account,
+            },
             express_relay_instruction_index: index,
         })
     }
@@ -208,16 +192,16 @@ impl Service {
 
     pub async fn get_bid_transaction_data_swap(
         &self,
-        input: GetBidTransactionDataSwapInput,
+        transaction: VersionedTransaction,
     ) -> Result<entities::BidTransactionDataSwap, RestError> {
         let (index, instruction) = self.extract_express_relay_instruction(
-            input.transaction.clone(),
+            transaction.clone(),
             entities::BidPaymentInstructionType::Swap,
         )?;
         Ok(entities::BidTransactionDataSwap {
             data:                            self.extract_swap_data(&instruction).await?,
             accounts:                        self
-                .extract_swap_accounts(&input.transaction, &instruction)
+                .extract_swap_accounts(&transaction, &instruction)
                 .await?,
             express_relay_instruction_index: index,
         })
@@ -229,19 +213,25 @@ impl Service {
     ) -> Result<entities::BidTransactionData, RestError> {
         match input.bid.chain_data.bid_payment_instruction_type {
             entities::BidPaymentInstructionType::SubmitBid => {
-                let transaction_data = self
-                    .get_bid_transaction_data_submit_bid(GetBidTransactionDataSubmitBidInput {
-                        transaction: input.bid.chain_data.transaction.clone(),
-                        bid:         Some(input.bid.clone()),
-                    })
-                    .await?;
-                Ok(entities::BidTransactionData::SubmitBid(transaction_data))
+                let (index, instruction) = self.extract_express_relay_instruction(
+                    input.bid.chain_data.transaction,
+                    entities::BidPaymentInstructionType::SubmitBid,
+                )?;
+                let data = Self::extract_submit_bid_data(&instruction)?;
+                Ok(entities::BidTransactionData::SubmitBid(
+                    entities::BidTransactionDataSubmitBid {
+                        express_relay_instruction_index: index,
+                        data,
+                        accounts: entities::SubmitBidAccounts {
+                            router:             input.bid.chain_data.router,
+                            permission_account: input.bid.chain_data.permission_account,
+                        },
+                    },
+                ))
             }
             entities::BidPaymentInstructionType::Swap => {
                 let transaction_data = self
-                    .get_bid_transaction_data_swap(GetBidTransactionDataSwapInput {
-                        transaction: input.bid.chain_data.transaction.clone(),
-                    })
+                    .get_bid_transaction_data_swap(input.bid.chain_data.transaction)
                     .await?;
                 Ok(entities::BidTransactionData::Swap(transaction_data))
             }

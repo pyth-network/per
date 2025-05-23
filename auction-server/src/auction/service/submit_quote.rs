@@ -1,7 +1,6 @@
 use {
     super::{
         get_auction_by_id::GetAuctionByIdInput,
-        get_bid_transaction_data::GetBidTransactionDataSwapInput,
         update_bid_status::UpdateBidStatusInput,
         Service,
     },
@@ -201,9 +200,7 @@ impl Service {
         tracing::Span::current().record("bid_id", bid.id.to_string());
 
         let transaction_data = self
-            .get_bid_transaction_data_swap(GetBidTransactionDataSwapInput {
-                transaction: bid.chain_data.transaction.clone(),
-            })
+            .get_bid_transaction_data_swap(bid.chain_data.transaction.clone())
             .await
             .map_err(|_| RestError::BadParameters("Invalid quote.".to_string()))?;
 
