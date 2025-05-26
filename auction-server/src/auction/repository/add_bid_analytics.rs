@@ -11,7 +11,7 @@ use {
         },
         kernel::{
             entities::Svm,
-            pyth_lazer::calculate_final_amount,
+            pyth_lazer::calculate_notional_value,
         },
         state::Price,
     },
@@ -68,13 +68,13 @@ impl Repository {
             entities::BidTransactionData::Swap(transaction_data) => {
                 let status_reason = Svm::get_bid_status_reason(&bid.status);
                 let mint_user = transaction_data.accounts.mint_user;
-                let user_token_usd_price = calculate_final_amount(
+                let user_token_usd_price = calculate_notional_value(
                     prices.get(&mint_user).cloned(),
                     transaction_data.data.amount_user,
                     decimals.get(&mint_user).cloned(),
                 );
                 let mint_searcher = transaction_data.accounts.mint_searcher;
-                let searcher_token_usd_price = calculate_final_amount(
+                let searcher_token_usd_price = calculate_notional_value(
                     prices.get(&mint_searcher).cloned(),
                     transaction_data.data.amount_searcher,
                     decimals.get(&mint_searcher).cloned(),
@@ -117,12 +117,10 @@ impl Repository {
 
                     searcher_token_mint: mint_searcher.to_string(),
                     searcher_token_amount: amount_searcher,
-                    // TODO Fill this in
                     searcher_token_usd_price,
 
                     user_token_mint: mint_user.to_string(),
                     user_token_amount: amount_user,
-                    // TODO Fill this in
                     user_token_usd_price,
 
                     status: serde_json::to_string(&Svm::convert_bid_status(&bid.status))?,

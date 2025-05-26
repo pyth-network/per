@@ -254,7 +254,7 @@ impl Service {
                 tracing::error!("Failed to get searcher token program: {:?}", err);
                 RestError::BadParameters("Searcher token program not found".to_string())
             })?
-            .owner;
+            .token_program;
         let token_program_user = self
             .get_token_mint(GetTokenMintInput {
                 chain_id: quote_create.chain_id.clone(),
@@ -265,7 +265,7 @@ impl Service {
                 tracing::error!("Failed to get user token program: {:?}", err);
                 RestError::BadParameters("User token program not found".to_string())
             })?
-            .owner;
+            .token_program;
 
         let router_token_account = match fee_token {
             entities::FeeToken::SearcherToken => get_associated_token_address_with_program_id(
@@ -1072,9 +1072,9 @@ mod tests {
             .cache_token_mint(
                 searcher_token,
                 entities::TokenMint {
-                    mint:     searcher_token,
-                    decimals: 6,
-                    owner:    token_program_searcher,
+                    mint:          searcher_token,
+                    decimals:      6,
+                    token_program: token_program_searcher,
                 },
             )
             .await;
@@ -1083,9 +1083,9 @@ mod tests {
             .cache_token_mint(
                 user_token,
                 entities::TokenMint {
-                    mint:     user_token,
-                    decimals: 6,
-                    owner:    token_program_user,
+                    mint:          user_token,
+                    decimals:      6,
+                    token_program: token_program_user,
                 },
             )
             .await;
@@ -1210,9 +1210,9 @@ mod tests {
             .cache_token_mint(
                 searcher_token,
                 entities::TokenMint {
-                    mint:     searcher_token,
-                    decimals: 6,
-                    owner:    token_program_searcher,
+                    mint:          searcher_token,
+                    decimals:      6,
+                    token_program: token_program_searcher,
                 },
             )
             .await;
@@ -1221,9 +1221,9 @@ mod tests {
             .cache_token_mint(
                 user_token,
                 entities::TokenMint {
-                    mint:     user_token,
-                    decimals: 6,
-                    owner:    token_program_user,
+                    mint:          user_token,
+                    decimals:      6,
+                    token_program: token_program_user,
                 },
             )
             .await;
@@ -1326,9 +1326,9 @@ mod tests {
             .cache_token_mint(
                 searcher_token,
                 entities::TokenMint {
-                    mint:     searcher_token,
-                    decimals: 6,
-                    owner:    token_program_searcher,
+                    mint:          searcher_token,
+                    decimals:      6,
+                    token_program: token_program_searcher,
                 },
             )
             .await;
@@ -1337,9 +1337,9 @@ mod tests {
             .cache_token_mint(
                 user_token,
                 entities::TokenMint {
-                    mint:     user_token,
-                    decimals: 6,
-                    owner:    token_program_user,
+                    mint:          user_token,
+                    decimals:      6,
+                    token_program: token_program_user,
                 },
             )
             .await;
@@ -1408,9 +1408,9 @@ mod tests {
             .cache_token_mint(
                 searcher_token,
                 entities::TokenMint {
-                    mint:     searcher_token,
-                    decimals: 6,
-                    owner:    token_program_searcher,
+                    mint:          searcher_token,
+                    decimals:      6,
+                    token_program: token_program_searcher,
                 },
             )
             .await;
@@ -1419,9 +1419,9 @@ mod tests {
             .cache_token_mint(
                 user_token,
                 entities::TokenMint {
-                    mint:     user_token,
-                    decimals: 6,
-                    owner:    token_program_user,
+                    mint:          user_token,
+                    decimals:      6,
+                    token_program: token_program_user,
                 },
             )
             .await;
@@ -1497,9 +1497,9 @@ mod tests {
             .cache_token_mint(
                 searcher_token,
                 entities::TokenMint {
-                    mint:     searcher_token,
-                    decimals: 6,
-                    owner:    token_program_searcher,
+                    mint:          searcher_token,
+                    decimals:      6,
+                    token_program: token_program_searcher,
                 },
             )
             .await;
@@ -1508,9 +1508,9 @@ mod tests {
             .cache_token_mint(
                 user_token,
                 entities::TokenMint {
-                    mint:     user_token,
-                    decimals: 6,
-                    owner:    token_program_user,
+                    mint:          user_token,
+                    decimals:      6,
+                    token_program: token_program_user,
                 },
             )
             .await;
@@ -1596,9 +1596,9 @@ mod tests {
             .cache_token_mint(
                 searcher_token,
                 entities::TokenMint {
-                    mint:     searcher_token,
-                    decimals: 6,
-                    owner:    token_program_searcher,
+                    mint:          searcher_token,
+                    decimals:      6,
+                    token_program: token_program_searcher,
                 },
             )
             .await;
@@ -1607,9 +1607,9 @@ mod tests {
             .cache_token_mint(
                 user_token,
                 entities::TokenMint {
-                    mint:     user_token,
-                    decimals: 6,
-                    owner:    token_program_user,
+                    mint:          user_token,
+                    decimals:      6,
+                    token_program: token_program_user,
                 },
             )
             .await;
@@ -1762,9 +1762,9 @@ mod tests {
             .cache_token_mint(
                 searcher_token,
                 entities::TokenMint {
-                    mint:     searcher_token,
-                    decimals: 6,
-                    owner:    token_program_searcher,
+                    mint:          searcher_token,
+                    decimals:      6,
+                    token_program: token_program_searcher,
                 },
             )
             .await;
@@ -1773,9 +1773,9 @@ mod tests {
             .cache_token_mint(
                 user_token,
                 entities::TokenMint {
-                    mint:     user_token,
-                    decimals: 6,
-                    owner:    token_program_user,
+                    mint:          user_token,
+                    decimals:      6,
+                    token_program: token_program_user,
                 },
             )
             .await;

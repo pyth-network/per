@@ -71,7 +71,7 @@ impl Service {
                 let token_mint = entities::TokenMint {
                     mint: input.mint,
                     decimals,
-                    owner,
+                    token_program: owner,
                 };
                 self.repo
                     .cache_token_mint(input.mint, token_mint.clone())

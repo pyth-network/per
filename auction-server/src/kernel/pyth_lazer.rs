@@ -265,7 +265,7 @@ impl PythLazer {
     }
 }
 
-pub fn calculate_final_amount(
+pub fn calculate_notional_value(
     price: Option<Price>,
     amount: u64,
     decimal: Option<u8>,
