@@ -50,12 +50,12 @@ pub mod get_express_relay_metadata;
 pub mod get_live_opportunities;
 pub mod get_opportunities;
 pub mod get_quote;
+pub mod get_token_mint;
 pub mod remove_invalid_or_expired_opportunities;
 pub mod remove_opportunities;
 pub mod remove_opportunity;
 
 mod get_quote_request_account_balances;
-mod get_token_program;
 mod unwrap_referral_fee_info;
 
 /// Store for the injectable auction service
@@ -259,6 +259,7 @@ pub mod tests {
                 secret_key:    "test".to_string(),
                 access_tokens: RwLock::new(HashMap::new()),
                 privileges:    RwLock::new(HashMap::new()),
+                prices:        RwLock::new(HashMap::new()),
             });
 
             let ws_receiver = store.ws.broadcast_receiver.resubscribe();
@@ -308,5 +309,9 @@ mock! {
         ) -> Result<Vec<OpportunitySvm>, crate::api::RestError>;
         pub async fn get_quote(&self, input: get_quote::GetQuoteInput) -> Result<crate::opportunity::entities::Quote, crate::api::RestError>;
         pub async fn get_express_relay_metadata(&self, input: get_express_relay_metadata::GetExpressRelayMetadataInput) -> Result<express_relay::state::ExpressRelayMetadata, crate::api::RestError>;
+        pub async fn get_token_mint(
+            &self,
+            input: crate::opportunity::service::get_token_mint::GetTokenMintInput,
+        ) -> Result<crate::opportunity::entities::TokenMint, crate::api::RestError>;
     }
 }

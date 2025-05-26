@@ -36,3 +36,10 @@ impl From<api::TokenAmountSvm> for TokenAmountSvm {
         }
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct TokenMint {
+    pub mint:     Pubkey,
+    pub decimals: u8,
+    pub owner:    Pubkey,
+}

@@ -1,5 +1,5 @@
 use {
-    super::token_amount::TokenAmountSvm,
+    super::token::TokenAmountSvm,
     crate::{
         kernel::entities::ChainId,
         models,

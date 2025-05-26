@@ -61,4 +61,12 @@ pub struct Options {
     /// Clickhouse database config to run the migrations for.
     #[command(flatten)]
     pub clickhouse_config:        ClickhouseConfig,
+    /// The Url for the pyth lazer websocket.
+    #[arg(long = "lazer-url")]
+    #[arg(env = "LAZER_URL")]
+    pub lazer_url:                String,
+    /// The API key for the lazer websocket.
+    #[arg(long = "lazer-api-key")]
+    #[arg(env = "LAZER_API_KEY")]
+    pub lazer_api_key:            String,
 }

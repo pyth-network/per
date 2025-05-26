@@ -43,6 +43,7 @@ spl-associated-token-account = "6.0.0"
 spl-token = "7.0.0"
 spl-memo-client = "0.1.0"
 spl-token-2022 = "7.0.0"
+tokio-tungstenite = "0.24.0"
 
 # This patch disables debugging features in litesvm runtime_environments
 # which allows more programs to be loaded in the runtime

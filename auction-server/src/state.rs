@@ -24,6 +24,7 @@ use {
         Response,
         RpcLogsResponse,
     },
+    solana_sdk::pubkey::Pubkey,
     std::{
         collections::HashMap,
         sync::Arc,
@@ -71,6 +72,12 @@ pub struct ServerState {
 
 pub type PrivilegeKey = (models::ProfileId, models::PrivilegeFeature);
 
+#[derive(Clone, Debug)]
+pub struct Price {
+    pub exponent: i32,
+    pub price:    u64,
+}
+
 pub struct Store {
     pub chains_svm:    HashMap<ChainId, Arc<ChainStoreSvm>>,
     pub ws:            WsState,
@@ -78,6 +85,7 @@ pub struct Store {
     pub secret_key:    String,
     pub access_tokens: RwLock<HashMap<models::AccessTokenToken, models::Profile>>,
     pub privileges:    RwLock<HashMap<PrivilegeKey, models::Privilege>>,
+    pub prices:        RwLock<HashMap<Pubkey, Price>>, // exponent and price
 }
 
 pub struct StoreNew {

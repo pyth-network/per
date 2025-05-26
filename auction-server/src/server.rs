@@ -21,7 +21,10 @@ use {
             MigrateOptions,
             RunOptions,
         },
-        kernel::traced_sender_svm::TracedSenderSvm,
+        kernel::{
+            traced_sender_svm::TracedSenderSvm,
+            workers::run_price_subscription,
+        },
         models,
         opportunity::{
             service as opportunity_service,
@@ -406,7 +409,7 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
         )
     })?;
 
-    let chains_svm = setup_chain_store_svm(config_map)?;
+    let chains_svm = setup_chain_store_svm(config_map.clone())?;
 
     let pool = create_pg_pool(
         &run_options.server.database_url,
@@ -441,6 +444,7 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
         secret_key:    run_options.secret_key.clone(),
         access_tokens: RwLock::new(access_tokens),
         privileges:    RwLock::new(privileges),
+        prices:        RwLock::new(HashMap::new()),
     });
     let server_state = Arc::new(ServerState {
         metrics_recorder: setup_metrics_recorder()?,
@@ -547,7 +551,14 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
         task_tracker.clone(),
     ));
 
+    let price_feeds = config_map.lazer.price_feeds.clone();
     tokio::join!(
+        fault_tolerant_handler("price subscription".to_string(), || run_price_subscription(
+            store.clone(),
+            run_options.server.lazer_url.clone(),
+            run_options.server.lazer_api_key.clone(),
+            price_feeds.clone(),
+        )),
         async {
             let submission_loops = auction_services.iter().map(|(chain_id, service)| {
                 let auction_service::ServiceEnum::Svm(service) = service;

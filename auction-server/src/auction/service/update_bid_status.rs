@@ -9,8 +9,10 @@ use {
             RestError,
         },
         auction::entities,
+        opportunity::service::get_token_mint::GetTokenMintInput,
     },
     express_relay_api_types::bid::BidStatusWithId,
+    std::collections::HashMap,
 };
 
 pub struct UpdateBidStatusInput {
@@ -19,6 +21,49 @@ pub struct UpdateBidStatusInput {
 }
 
 impl Service {
+    async fn add_bid_analytics(&self, bid: entities::Bid) -> Result<(), RestError> {
+        let transaction_data = self
+            .get_bid_transaction_data(GetBidTransactionDataInput { bid: bid.clone() })
+            .await?;
+        let decimals = match transaction_data.clone() {
+            entities::BidTransactionData::SubmitBid(_) => HashMap::new(),
+            entities::BidTransactionData::Swap(data) => {
+                let searcher_mint = self
+                    .opportunity_service
+                    .get_token_mint(GetTokenMintInput {
+                        chain_id: self.config.chain_id.clone(),
+                        mint:     data.accounts.mint_searcher,
+                    })
+                    .await?;
+
+                let user_mint = self
+                    .opportunity_service
+                    .get_token_mint(GetTokenMintInput {
+                        chain_id: self.config.chain_id.clone(),
+                        mint:     data.accounts.mint_user,
+                    })
+                    .await?;
+
+                HashMap::from([
+                    (data.accounts.mint_searcher, searcher_mint.decimals),
+                    (data.accounts.mint_user, user_mint.decimals),
+                ])
+            }
+        };
+        self.repo
+            .add_bid_analytics(
+                bid.clone(),
+                transaction_data,
+                self.store.prices.read().await.clone(),
+                decimals,
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!(error = ?e, "Failed to add bid analytics");
+                RestError::TemporarilyUnavailable
+            })
+    }
+
     #[tracing::instrument(skip_all, fields(bid_id, status), err(level = tracing::Level::TRACE))]
     pub async fn update_bid_status(&self, input: UpdateBidStatusInput) -> Result<bool, RestError> {
         tracing::Span::current().record("bid_id", input.bid.id.to_string());
@@ -44,22 +89,8 @@ impl Service {
                 let (service, mut bid) = (self.clone(), input.bid.clone());
                 bid.status = input.new_status.clone();
                 async move {
-                    match service
-                        .get_bid_transaction_data(GetBidTransactionDataInput { bid: bid.clone() })
-                        .await
-                    {
-                        Ok(transaction_data) => {
-                            if let Err(e) = service
-                                .repo
-                                .add_bid_analytics(bid.clone(), transaction_data)
-                                .await
-                            {
-                                tracing::error!(error = ?e, "Failed to add bid analytics");
-                            }
-                        }
-                        Err(e) => {
-                            tracing::error!(error = ?e, "Failed to get bid transaction data");
-                        }
+                    if let Err(e) = service.add_bid_analytics(bid.clone()).await {
+                        tracing::error!(bid = ?bid, error = ?e, "Failed to add bid analytics");
                     }
                 }
             });

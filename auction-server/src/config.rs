@@ -91,8 +91,16 @@ pub struct ConfigOptions {
 pub type ChainId = String;
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct LazerConfig {
+    /// The list of price feeds to subscribe to.
+    pub price_feeds: Vec<crate::kernel::pyth_lazer::PriceFeed>,
+}
+
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct ConfigMap {
     pub chains: HashMap<ChainId, Config>,
+    pub lazer:  LazerConfig,
 }
 
 impl ConfigMap {

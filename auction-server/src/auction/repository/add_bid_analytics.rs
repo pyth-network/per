@@ -9,7 +9,11 @@ use {
             self,
             BidStatus,
         },
-        kernel::entities::Svm,
+        kernel::{
+            entities::Svm,
+            pyth_lazer::calculate_final_amount,
+        },
+        state::Price,
     },
     base64::{
         engine::general_purpose::STANDARD,
@@ -19,6 +23,8 @@ use {
         SubmitBidArgs,
         SwapV2Args,
     },
+    solana_sdk::pubkey::Pubkey,
+    std::collections::HashMap,
 };
 
 impl Repository {
@@ -27,6 +33,8 @@ impl Repository {
         &self,
         bid: entities::Bid,
         data: entities::BidTransactionData,
+        prices: HashMap<Pubkey, Price>,
+        decimals: HashMap<Pubkey, u8>,
     ) -> anyhow::Result<()> {
         let transaction = STANDARD.encode(bincode::serialize(&bid.chain_data.transaction.clone())?);
         let bid_analytics = match data {
@@ -59,6 +67,19 @@ impl Repository {
             }
             entities::BidTransactionData::Swap(transaction_data) => {
                 let status_reason = Svm::get_bid_status_reason(&bid.status);
+                let mint_user = transaction_data.accounts.mint_user;
+                let user_token_usd_price = calculate_final_amount(
+                    prices.get(&mint_user).cloned(),
+                    transaction_data.data.amount_user,
+                    decimals.get(&mint_user).cloned(),
+                );
+                let mint_searcher = transaction_data.accounts.mint_searcher;
+                let searcher_token_usd_price = calculate_final_amount(
+                    prices.get(&mint_searcher).cloned(),
+                    transaction_data.data.amount_searcher,
+                    decimals.get(&mint_searcher).cloned(),
+                );
+
                 let SwapV2Args {
                     fee_token,
                     amount_searcher,
@@ -97,12 +118,12 @@ impl Repository {
                     searcher_token_mint: mint_searcher.to_string(),
                     searcher_token_amount: amount_searcher,
                     // TODO Fill this in
-                    searcher_token_usd_price: None,
+                    searcher_token_usd_price,
 
                     user_token_mint: mint_user.to_string(),
                     user_token_amount: amount_user,
                     // TODO Fill this in
-                    user_token_usd_price: None,
+                    user_token_usd_price,
 
                     status: serde_json::to_string(&Svm::convert_bid_status(&bid.status))?,
                     status_reason: status_reason

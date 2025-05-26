@@ -1,7 +1,7 @@
 use {
     super::{
         get_quote_request_account_balances::QuoteRequestAccountBalancesInput,
-        get_token_program::GetTokenProgramInput,
+        get_token_mint::GetTokenMintInput,
         remove_opportunity::RemoveOpportunityInput,
         Service,
     },
@@ -245,7 +245,7 @@ impl Service {
             }
         };
         let token_program_searcher = self
-            .get_token_program(GetTokenProgramInput {
+            .get_token_mint(GetTokenMintInput {
                 chain_id: quote_create.chain_id.clone(),
                 mint:     mint_searcher,
             })
@@ -253,9 +253,10 @@ impl Service {
             .map_err(|err| {
                 tracing::error!("Failed to get searcher token program: {:?}", err);
                 RestError::BadParameters("Searcher token program not found".to_string())
-            })?;
+            })?
+            .owner;
         let token_program_user = self
-            .get_token_program(GetTokenProgramInput {
+            .get_token_mint(GetTokenMintInput {
                 chain_id: quote_create.chain_id.clone(),
                 mint:     mint_user,
             })
@@ -263,7 +264,8 @@ impl Service {
             .map_err(|err| {
                 tracing::error!("Failed to get user token program: {:?}", err);
                 RestError::BadParameters("User token program not found".to_string())
-            })?;
+            })?
+            .owner;
 
         let router_token_account = match fee_token {
             entities::FeeToken::SearcherToken => get_associated_token_address_with_program_id(
@@ -1067,11 +1069,25 @@ mod tests {
         let searcher_token = allowed_token_mint_2;
         service
             .repo
-            .cache_token_program(searcher_token, token_program_user)
+            .cache_token_mint(
+                searcher_token,
+                entities::TokenMint {
+                    mint:     searcher_token,
+                    decimals: 6,
+                    owner:    token_program_searcher,
+                },
+            )
             .await;
         service
             .repo
-            .cache_token_program(user_token, token_program_searcher)
+            .cache_token_mint(
+                user_token,
+                entities::TokenMint {
+                    mint:     user_token,
+                    decimals: 6,
+                    owner:    token_program_user,
+                },
+            )
             .await;
 
         let quote = service
@@ -1191,11 +1207,25 @@ mod tests {
         let searcher_token = Pubkey::new_unique();
         service
             .repo
-            .cache_token_program(searcher_token, token_program_user)
+            .cache_token_mint(
+                searcher_token,
+                entities::TokenMint {
+                    mint:     searcher_token,
+                    decimals: 6,
+                    owner:    token_program_searcher,
+                },
+            )
             .await;
         service
             .repo
-            .cache_token_program(user_token, token_program_searcher)
+            .cache_token_mint(
+                user_token,
+                entities::TokenMint {
+                    mint:     user_token,
+                    decimals: 6,
+                    owner:    token_program_user,
+                },
+            )
             .await;
 
         let result = service
@@ -1293,11 +1323,25 @@ mod tests {
         let searcher_token = Pubkey::new_unique();
         service
             .repo
-            .cache_token_program(searcher_token, token_program_user)
+            .cache_token_mint(
+                searcher_token,
+                entities::TokenMint {
+                    mint:     searcher_token,
+                    decimals: 6,
+                    owner:    token_program_searcher,
+                },
+            )
             .await;
         service
             .repo
-            .cache_token_program(user_token, token_program_searcher)
+            .cache_token_mint(
+                user_token,
+                entities::TokenMint {
+                    mint:     user_token,
+                    decimals: 6,
+                    owner:    token_program_user,
+                },
+            )
             .await;
 
         service
@@ -1361,11 +1405,25 @@ mod tests {
         let searcher_token = Pubkey::new_unique();
         service
             .repo
-            .cache_token_program(searcher_token, token_program_user)
+            .cache_token_mint(
+                searcher_token,
+                entities::TokenMint {
+                    mint:     searcher_token,
+                    decimals: 6,
+                    owner:    token_program_searcher,
+                },
+            )
             .await;
         service
             .repo
-            .cache_token_program(user_token, token_program_searcher)
+            .cache_token_mint(
+                user_token,
+                entities::TokenMint {
+                    mint:     user_token,
+                    decimals: 6,
+                    owner:    token_program_user,
+                },
+            )
             .await;
 
         let quote = service
@@ -1436,11 +1494,25 @@ mod tests {
         let searcher_token = Pubkey::new_unique();
         service
             .repo
-            .cache_token_program(searcher_token, token_program_user)
+            .cache_token_mint(
+                searcher_token,
+                entities::TokenMint {
+                    mint:     searcher_token,
+                    decimals: 6,
+                    owner:    token_program_searcher,
+                },
+            )
             .await;
         service
             .repo
-            .cache_token_program(user_token, token_program_searcher)
+            .cache_token_mint(
+                user_token,
+                entities::TokenMint {
+                    mint:     user_token,
+                    decimals: 6,
+                    owner:    token_program_user,
+                },
+            )
             .await;
 
         rpc_client
@@ -1521,11 +1593,25 @@ mod tests {
         let searcher_token = Pubkey::new_unique();
         service
             .repo
-            .cache_token_program(searcher_token, token_program_user)
+            .cache_token_mint(
+                searcher_token,
+                entities::TokenMint {
+                    mint:     searcher_token,
+                    decimals: 6,
+                    owner:    token_program_searcher,
+                },
+            )
             .await;
         service
             .repo
-            .cache_token_program(user_token, token_program_searcher)
+            .cache_token_mint(
+                user_token,
+                entities::TokenMint {
+                    mint:     user_token,
+                    decimals: 6,
+                    owner:    token_program_user,
+                },
+            )
             .await;
 
         rpc_client
@@ -1673,11 +1759,25 @@ mod tests {
         let searcher_token = Pubkey::new_unique();
         service
             .repo
-            .cache_token_program(searcher_token, token_program_user)
+            .cache_token_mint(
+                searcher_token,
+                entities::TokenMint {
+                    mint:     searcher_token,
+                    decimals: 6,
+                    owner:    token_program_searcher,
+                },
+            )
             .await;
         service
             .repo
-            .cache_token_program(user_token, token_program_searcher)
+            .cache_token_mint(
+                user_token,
+                entities::TokenMint {
+                    mint:     user_token,
+                    decimals: 6,
+                    owner:    token_program_user,
+                },
+            )
             .await;
 
         let service_inner =

@@ -313,6 +313,7 @@ pub mod tests {
                 secret_key:    "test".to_string(),
                 access_tokens: RwLock::new(HashMap::new()),
                 privileges:    RwLock::new(HashMap::new()),
+                prices:        RwLock::new(HashMap::new()),
             });
             Service(Arc::new(ServiceInner {
                 store,

@@ -29,3 +29,12 @@ chains:
         - Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB
         - So11111111111111111111111111111111111111112
         - EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+
+lazer:
+  price_feeds:
+    - id: 7
+      mint: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+      exponent: -8
+    - id: 397
+      mint: cbbtcf3aa214zXHbiAZQwf4122FBYbraNdFqgw4iMij
+      exponent: -8
