@@ -49,9 +49,9 @@ impl Service {
                     Mint::unpack(&account.data)
                         .map_err(|err| {
                             tracing::error!(
-                                "Failed to unpack mint account {mint}: {:?}",
-                                err,
-                                mint = input.mint
+                                mint = ?input.mint,
+                                error = ?err,
+                                "Failed to unpack mint account",
                             );
                             RestError::TemporarilyUnavailable
                         })?
@@ -60,9 +60,9 @@ impl Service {
                     Mint2022::unpack(&account.data)
                         .map_err(|err| {
                             tracing::error!(
-                                "Failed to unpack mint account {mint}: {:?}",
-                                err,
-                                mint = input.mint
+                                mint = ?input.mint,
+                                error = ?err,
+                                "Failed to unpack mint account token 2022",
                             );
                             RestError::TemporarilyUnavailable
                         })?
