@@ -291,12 +291,16 @@ pub fn calculate_notional_value(
                     return None;
                 }
             };
+
+            let precision = 1e2;
             let value = (amount as u128)
                 .checked_mul(price as u128)? // scale up price
+                .checked_mul(precision as u128)? // round to nearest cent
                 .checked_div(unit_divisor)?
                 .checked_div(exponent_divisor)?;
 
-            let value_f64 = value as f64; // scale back down to original price
+
+            let value_f64 = value as f64 / precision; // scale back down to original price
             if value_f64.is_infinite() {
                 tracing::error!(value_f64 = ?value_f64, "Final amount is too large to convert to f64");
                 return None;
