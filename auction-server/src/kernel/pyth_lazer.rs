@@ -14,8 +14,14 @@ use {
         DisplayFromStr,
     },
     solana_sdk::pubkey::Pubkey,
-    std::collections::HashMap,
-    tokio::net::TcpStream,
+    std::{
+        collections::HashMap,
+        time::Duration,
+    },
+    tokio::{
+        net::TcpStream,
+        sync::broadcast,
+    },
     tokio_tungstenite::{
         connect_async,
         tungstenite::{
@@ -114,12 +120,112 @@ pub struct SubscriptionUpdateParsed {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StreamUpdatedMessage {
+    #[serde(rename = "subscriptionId")]
+    id:         u32,
+    pub parsed: SubscriptionUpdateParsed,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubscribedMessage {
+    #[serde(rename = "subscriptionId")]
+    id: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SubscriptionUpdate {
     #[serde(rename = "type")]
     update_type: String,
     #[serde(rename = "subscriptionId")]
     id:          u32,
     pub parsed:  SubscriptionUpdateParsed,
+}
+
+pub struct WsClient {
+    #[allow(dead_code)]
+    ws:              tokio::task::JoinHandle<anyhow::Result<()>>,
+    update_receiver: broadcast::Receiver<StreamUpdatedMessage>,
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+enum MessageType {
+    Subscribed(SubscribedMessage),
+    StreamUpdated(StreamUpdatedMessage),
+}
+
+
+impl WsClient {
+    pub async fn run(
+        mut ws_stream: WebSocketStream<MaybeTlsStream<TcpStream>>,
+        update_sender: broadcast::Sender<StreamUpdatedMessage>,
+    ) {
+        let mut connection_check = tokio::time::interval(Duration::from_secs(1));
+        let maximum_inactivity = Duration::from_secs(5);
+        let mut latest_update = tokio::time::Instant::now();
+        loop {
+            tokio::select! {
+                message = ws_stream.next() => {
+                    let message = match message {
+                        Some(message) => {
+                            match message {
+                                Ok(message) => message,
+                                Err(_) => continue,
+                            }
+                        }
+                        None => break,
+                    };
+
+                    latest_update = tokio::time::Instant::now();
+                    let message = match message {
+                        Message::Text(text) => {
+                            let response: Result<MessageType, serde_json::Error> = serde_json::from_str(&text);
+                            match response {
+                                Ok(response) => response,
+                                Err(err) => {
+                                    tracing::warn!(text = ?text, error = ?err, "Failed to parse lazer text message");
+                                    continue;
+                                },
+                            }
+                        }
+                        Message::Binary(binary) => {
+                            let response: Result<MessageType, serde_json::Error> = serde_json::from_slice(binary.as_slice());
+                            match response {
+                                Ok(response) => response,
+                                Err(err) => {
+                                    tracing::warn!(binary = ?binary, error = ?err, "Failed to parse lazer binary message");
+                                    continue;
+                                }
+                            }
+                        }
+                        Message::Close(_) => break,
+                        Message::Pong(_) => continue,
+                        Message::Ping(data) => {
+                            let _ = ws_stream.send(Message::Pong(data)).await;
+                            continue;
+                        },
+                        Message::Frame(_) => continue,
+                    };
+
+                    match message {
+                        MessageType::Subscribed(_) => continue,
+                        MessageType::StreamUpdated(update) => {
+                            if let Err(err) = update_sender.send(update) {
+                                tracing::warn!(error = ?err, "Failed to broadcast lazer update message");
+                            }
+                            continue;
+                        }
+                    }
+                }
+                _  = connection_check.tick() => {
+                    if latest_update.elapsed() > maximum_inactivity {
+                        tracing::warn!("Lazer connection inactive for too long, closing connection");
+                        break;
+                    }
+                },
+            }
+        }
+    }
 }
 
 impl PythLazer {
@@ -135,14 +241,14 @@ impl PythLazer {
         }
     }
 
-    pub async fn subscribe(&self) -> anyhow::Result<WebSocketStream<MaybeTlsStream<TcpStream>>> {
+    pub async fn subscribe(&self) -> anyhow::Result<broadcast::Receiver<StreamUpdatedMessage>> {
         let mut request = self.url.as_str().into_client_request()?;
         let bearer_token = format!("Bearer {}", self.api_key);
         request
             .headers_mut()
             .insert("Authorization", bearer_token.parse()?);
-        let (mut ws_stream, _) = connect_async(request).await?;
 
+        let (mut ws_stream, _) = connect_async(request).await?;
         let message = serde_json::to_string(&SubscribeRequest {
             id:             1,
             request_type:   SubscribeRequestType::Subscribe,
@@ -151,11 +257,11 @@ impl PythLazer {
             channel:        SubscribeRequestChannel::FixedRate200Ms,
             chains:         vec![SubscribeRequestChain::Solana],
         })?;
-        println!("Sending message: {}", message);
         ws_stream.send(Message::Text(message)).await?;
-        let response = ws_stream.next().await;
-        println!("Response: {:?}", response);
-        Ok(ws_stream)
+        let (update_sender, update_receiver) = broadcast::channel(1000);
+
+        tokio::spawn(WsClient::run(ws_stream, update_sender));
+        Ok(update_receiver)
     }
 }
 
