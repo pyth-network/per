@@ -40,7 +40,6 @@ pub async fn run_price_subscription(
                     tracing::error!(error = ?err, "Failed to receive price update from Pyth Lazer receiver");
                     err
                 })?;
-                println!("Received update: {:?}", update.parsed);
                 let updates = update.parsed.clone().price_feeds.into_iter().filter_map(|price| {
                     match pyth_lazer.price_feeds.get(&price.id) {
                         Some(price_feed) => {
