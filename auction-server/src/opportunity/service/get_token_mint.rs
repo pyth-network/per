@@ -10,7 +10,10 @@ use {
         pubkey::Pubkey,
     },
     spl_token::state::Mint,
-    spl_token_2022::state::Mint as Mint2022,
+    spl_token_2022::{
+        extension::StateWithExtensionsOwned,
+        state::Mint as Mint2022,
+    },
 };
 
 pub struct GetTokenMintInput {
@@ -57,7 +60,7 @@ impl Service {
                         })?
                         .decimals
                 } else {
-                    Mint2022::unpack(&account.data)
+                    StateWithExtensionsOwned::<Mint2022>::unpack(account.data)
                         .map_err(|err| {
                             tracing::error!(
                                 mint = ?input.mint,
@@ -66,6 +69,7 @@ impl Service {
                             );
                             RestError::TemporarilyUnavailable
                         })?
+                        .base
                         .decimals
                 };
                 let token_mint = entities::TokenMint {
