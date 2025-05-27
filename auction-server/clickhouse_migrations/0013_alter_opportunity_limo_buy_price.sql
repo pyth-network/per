@@ -1,0 +1,1 @@
+ALTER TABLE opportunity_limo RENAME COLUMN buy_token_usd_price TO buy_token_notional_usd_value;

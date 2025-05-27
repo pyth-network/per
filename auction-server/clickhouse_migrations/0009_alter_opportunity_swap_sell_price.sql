@@ -1,0 +1,1 @@
+ALTER TABLE opportunity_swap RENAME COLUMN sell_token_usd_price TO searcher_token_notional_usd_value;

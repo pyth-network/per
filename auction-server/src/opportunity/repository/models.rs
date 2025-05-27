@@ -214,13 +214,12 @@ pub struct OpportunityAnalyticsLimo {
     pub permission_key: String,
     pub chain_id:       String,
 
-    pub sell_token_mint:      String,
-    pub sell_token_amount:    u64,
-    pub sell_token_usd_price: Option<f64>,
-
-    pub buy_token_mint:      String,
-    pub buy_token_amount:    u64,
-    pub buy_token_usd_price: Option<f64>,
+    pub sell_token_mint:               String,
+    pub sell_token_amount:             u64,
+    pub sell_token_notional_usd_value: Option<f64>,
+    pub buy_token_mint:                String,
+    pub buy_token_amount:              u64,
+    pub buy_token_notional_usd_value:  Option<f64>,
 
     #[serde(with = "clickhouse::serde::time::datetime64::micros::option")]
     pub removal_time:   Option<OffsetDateTime>,
@@ -243,13 +242,13 @@ pub struct OpportunityAnalyticsSwap {
     pub permission_key: String,
     pub chain_id:       String,
 
-    pub sell_token_mint:      String,
-    pub sell_token_amount:    u64,
-    pub sell_token_usd_price: Option<f64>,
+    pub searcher_token_mint:               String,
+    pub searcher_token_amount:             u64,
+    pub searcher_token_notional_usd_value: Option<f64>,
 
-    pub buy_token_mint:      String,
-    pub buy_token_amount:    u64,
-    pub buy_token_usd_price: Option<f64>,
+    pub user_token_mint:               String,
+    pub user_token_amount:             u64,
+    pub user_token_notional_usd_value: Option<f64>,
 
     #[serde(with = "clickhouse::serde::time::datetime64::micros::option")]
     pub removal_time:   Option<OffsetDateTime>,
@@ -324,10 +323,10 @@ impl AnalyticsDatabase for AnalyticsDatabaseInserter {
                     }),
                     sell_token_mint: sell_token.token.to_string(),
                     sell_token_amount: sell_token.amount,
-                    sell_token_usd_price: None,
+                    sell_token_notional_usd_value: None,
                     buy_token_mint: buy_token.token.to_string(),
                     buy_token_amount: buy_token.amount,
-                    buy_token_usd_price: None,
+                    buy_token_notional_usd_value: None,
 
                     order: general_purpose::STANDARD.encode(&order),
                     order_address: order_address.to_string(),
@@ -368,12 +367,12 @@ impl AnalyticsDatabase for AnalyticsDatabaseInserter {
                     removal_reason: removal_reason.map(|reason| {
                         serde_json::to_string(&reason).expect("Failed to serialize removal reason")
                     }),
-                    sell_token_mint: sell_token.token.to_string(),
-                    sell_token_amount: sell_token.amount,
-                    sell_token_usd_price: None,
-                    buy_token_mint: buy_token.token.to_string(),
-                    buy_token_amount: buy_token.amount,
-                    buy_token_usd_price: None,
+                    searcher_token_mint: sell_token.token.to_string(),
+                    searcher_token_amount: sell_token.amount,
+                    searcher_token_notional_usd_value: None,
+                    user_token_mint: buy_token.token.to_string(),
+                    user_token_amount: buy_token.amount,
+                    user_token_notional_usd_value: None,
 
                     user_wallet_address: user_wallet_address.to_string(),
                     fee_token: serde_json::to_string(&fee_token)

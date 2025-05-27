@@ -68,13 +68,13 @@ impl Repository {
             entities::BidTransactionData::Swap(transaction_data) => {
                 let status_reason = Svm::get_bid_status_reason(&bid.status);
                 let mint_user = transaction_data.accounts.mint_user;
-                let user_token_usd_price = calculate_notional_value(
+                let user_token_notional_usd_value = calculate_notional_value(
                     prices.get(&mint_user).cloned(),
                     transaction_data.data.amount_user,
                     decimals.get(&mint_user).cloned(),
                 );
                 let mint_searcher = transaction_data.accounts.mint_searcher;
-                let searcher_token_usd_price = calculate_notional_value(
+                let searcher_token_notional_usd_value = calculate_notional_value(
                     prices.get(&mint_searcher).cloned(),
                     transaction_data.data.amount_searcher,
                     decimals.get(&mint_searcher).cloned(),
@@ -117,11 +117,11 @@ impl Repository {
 
                     searcher_token_mint: mint_searcher.to_string(),
                     searcher_token_amount: amount_searcher,
-                    searcher_token_usd_price,
+                    searcher_token_notional_usd_value,
 
                     user_token_mint: mint_user.to_string(),
                     user_token_amount: amount_user,
-                    user_token_usd_price,
+                    user_token_notional_usd_value,
 
                     status: serde_json::to_string(&Svm::convert_bid_status(&bid.status))?,
                     status_reason: status_reason
