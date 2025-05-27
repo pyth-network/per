@@ -183,7 +183,7 @@ impl WsClient {
                             match response {
                                 Ok(response) => response,
                                 Err(err) => {
-                                    tracing::warn!(text = ?text, error = ?err, "Failed to parse lazer text message");
+                                    tracing::error!(text = ?text, error = ?err, "Failed to parse lazer text message");
                                     continue;
                                 },
                             }
@@ -193,7 +193,7 @@ impl WsClient {
                             match response {
                                 Ok(response) => response,
                                 Err(err) => {
-                                    tracing::warn!(binary = ?binary, error = ?err, "Failed to parse lazer binary message");
+                                    tracing::error!(binary = ?binary, error = ?err, "Failed to parse lazer binary message");
                                     continue;
                                 }
                             }
@@ -211,7 +211,7 @@ impl WsClient {
                         MessageType::Subscribed(_) => continue,
                         MessageType::StreamUpdated(update) => {
                             if let Err(err) = update_sender.send(update) {
-                                tracing::warn!(error = ?err, "Failed to broadcast lazer update message");
+                                tracing::error!(error = ?err, "Failed to broadcast lazer update message");
                             }
                             continue;
                         }
@@ -219,7 +219,7 @@ impl WsClient {
                 }
                 _  = connection_check.tick() => {
                     if latest_update.elapsed() > maximum_inactivity {
-                        tracing::warn!("Lazer connection inactive for too long, closing connection");
+                        tracing::error!("Lazer connection inactive for too long, closing connection");
                         break;
                     }
                 },
