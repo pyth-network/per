@@ -1,6 +1,9 @@
 pub mod analytics_db;
 pub mod db;
 pub mod entities;
+pub mod pyth_lazer;
+pub mod workers;
+
 #[cfg(test)]
 pub mod rpc_client_svm_tester;
 pub mod traced_sender_svm;

@@ -1,0 +1,74 @@
+use {
+    crate::{
+        kernel::pyth_lazer::{
+            PriceFeed,
+            PythLazer,
+        },
+        server::{
+            EXIT_CHECK_INTERVAL,
+            SHOULD_EXIT,
+        },
+        state::{
+            Price,
+            Store,
+        },
+    },
+    reqwest::Url,
+    std::sync::{
+        atomic::Ordering,
+        Arc,
+    },
+};
+
+
+pub async fn run_price_subscription(
+    store: Arc<Store>,
+    url: String,
+    api_key: String,
+    price_feeds: Vec<PriceFeed>,
+) -> anyhow::Result<()> {
+    tracing::info!("Starting price subcription...");
+    let mut exit_check_interval = tokio::time::interval(EXIT_CHECK_INTERVAL);
+
+    let pyth_lazer = PythLazer::new(Url::parse(&url)?, api_key, price_feeds);
+    let mut receiver = pyth_lazer.subscribe().await?;
+
+    while !SHOULD_EXIT.load(Ordering::Acquire) {
+        tokio::select! {
+            update = receiver.recv() => {
+                let update = update.map_err(|err| {
+                    tracing::error!(error = ?err, "Failed to receive price update from Pyth Lazer receiver");
+                    err
+                })?;
+                let updates = update.parsed.clone().price_feeds.into_iter().filter_map(|price| {
+                    match pyth_lazer.price_feeds.get(&price.id) {
+                        Some(price_feed) => {
+                            match price.price.parse::<u64>() {
+                                Ok(value) => Some((price_feed.mint, Price {
+                                    exponent: price_feed.exponent,
+                                    price: value,
+                                })),
+                                Err(err) => {
+                                    tracing::error!(error = ?err, parsed_update = ?update.parsed, "Failed to parse price for lazer message");
+                                    None
+                                }
+                            }
+                        }
+                        None => {
+                            tracing::warn!(id=?price.id, "Lazer price feed not found");
+                            None
+                        }
+                    }
+                });
+                let mut prices = store.prices.write().await;
+                updates.for_each(|(mint, price)| {
+                    prices.insert(mint, price);
+                });
+                drop(prices);
+            }
+            _ = exit_check_interval.tick() => {}
+        }
+    }
+    tracing::info!("Shutting down transaction submitter...");
+    Ok(())
+}

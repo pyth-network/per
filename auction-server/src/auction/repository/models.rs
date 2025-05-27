@@ -849,13 +849,13 @@ pub struct BidAnalyticsSwap {
     #[serde(with = "clickhouse::serde::time::datetime64::micros::option")]
     pub conclusion_time: Option<OffsetDateTime>,
 
-    pub searcher_token_mint:      String,
-    pub searcher_token_amount:    u64,
-    pub searcher_token_usd_price: Option<f64>,
+    pub searcher_token_mint:               String,
+    pub searcher_token_amount:             u64,
+    pub searcher_token_notional_usd_value: Option<f64>,
 
-    pub user_token_mint:      String,
-    pub user_token_amount:    u64,
-    pub user_token_usd_price: Option<f64>,
+    pub user_token_mint:               String,
+    pub user_token_amount:             u64,
+    pub user_token_notional_usd_value: Option<f64>,
 
     pub status:        String,
     pub status_reason: Option<String>,

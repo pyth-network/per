@@ -1,0 +1,1 @@
+ALTER TABLE bid_swap RENAME COLUMN searcher_token_usd_price TO searcher_token_notional_usd_value;

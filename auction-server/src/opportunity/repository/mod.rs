@@ -20,7 +20,7 @@ mod get_in_memory_opportunities;
 mod get_in_memory_opportunities_by_key;
 mod get_in_memory_opportunity_by_id;
 mod get_opportunities;
-mod get_token_program;
+mod get_token_mint;
 mod models;
 mod refresh_in_memory_opportunity;
 mod remove_opportunities;
@@ -51,7 +51,7 @@ impl InMemoryStoreCoreFields {
 
 pub struct InMemoryStoreSvm {
     pub core_fields:            InMemoryStoreCoreFields,
-    pub token_program_cache:    RwLock<HashMap<Pubkey, Pubkey>>,
+    pub token_mint_cache:       RwLock<HashMap<Pubkey, entities::TokenMint>>,
     pub express_relay_metadata: RwLock<Option<ExpressRelayMetadata>>,
 }
 
@@ -59,7 +59,7 @@ impl InMemoryStoreSvm {
     fn new() -> Self {
         Self {
             core_fields:            InMemoryStoreCoreFields::new(),
-            token_program_cache:    RwLock::new(HashMap::new()),
+            token_mint_cache:       RwLock::new(HashMap::new()),
             express_relay_metadata: RwLock::new(None),
         }
     }

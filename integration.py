@@ -38,7 +38,14 @@ chains:
         - {mint_buy}
         - {mint_sell}
         - So11111111111111111111111111111111111111112
-
+lazer:
+  price_feeds:
+    - id: 1
+      mint: {mint_buy}
+      exponent: -8
+    - id: 2
+      mint: {mint_sell}
+      exponent: -8
 '''
     with open('auction-server/config.yaml', 'w') as f:
         f.write(template)

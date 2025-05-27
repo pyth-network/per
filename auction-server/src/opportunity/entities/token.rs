@@ -36,3 +36,11 @@ impl From<api::TokenAmountSvm> for TokenAmountSvm {
         }
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct TokenMint {
+    #[allow(dead_code)]
+    pub mint:          Pubkey,
+    pub decimals:      u8,
+    pub token_program: Pubkey,
+}
