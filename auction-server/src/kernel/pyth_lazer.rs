@@ -143,13 +143,13 @@ pub struct SubscriptionUpdate {
 
 pub struct WsClient {
     #[allow(dead_code)]
-    ws:              tokio::task::JoinHandle<anyhow::Result<()>>,
-    update_receiver: broadcast::Receiver<StreamUpdatedMessage>,
+    ws: tokio::task::JoinHandle<anyhow::Result<()>>,
 }
 
 #[derive(Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 enum MessageType {
+    #[allow(dead_code)]
     Subscribed(SubscribedMessage),
     StreamUpdated(StreamUpdatedMessage),
 }

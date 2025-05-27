@@ -25,10 +25,10 @@ impl Service {
         &self,
         input: GetTokenMintInput,
     ) -> Result<entities::TokenMint, RestError> {
-        match self.repo.query_token_mint_cache(input.mint).await {
-            Some(data) => Ok(data),
+        let config = self.get_config(&input.chain_id)?;
+        let token_mint = match self.repo.query_token_mint_cache(input.mint).await {
+            Some(data) => data,
             None => {
-                let config = self.get_config(&input.chain_id)?;
                 let account = config
                     .rpc_client
                     .get_account(&input.mint)
@@ -76,8 +76,23 @@ impl Service {
                 self.repo
                     .cache_token_mint(input.mint, token_mint.clone())
                     .await;
-                Ok(token_mint)
+                token_mint
             }
+        };
+        if !config
+            .accepted_token_programs
+            .contains(&token_mint.token_program)
+        {
+            tracing::error!(
+                program = ?token_mint.token_program,
+                mint = ?input.mint,
+                "Token program for mint account is not an approved token program",
+            );
+            return Err(RestError::BadParameters(format!(
+                "Provided mint belongs to unapproved token program {}",
+                token_mint.token_program
+            )));
         }
+        Ok(token_mint)
     }
 }
