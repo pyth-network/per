@@ -21,6 +21,7 @@ use {
         signature::Signature,
         transaction::VersionedTransaction,
     },
+    std::vec,
     time::OffsetDateTime,
 };
 
@@ -69,7 +70,11 @@ impl Service {
             RestError::TemporarilyUnavailable
         })?;
         self.repo
-            .submit_auction(auction, bid.chain_data.transaction.signatures[0])
+            .submit_auction(
+                auction,
+                bid.chain_data.transaction.signatures[0],
+                vec![bid.id],
+            )
             .await
             .map_err(|e| {
                 tracing::error!(error = ?e, "Error repo submitting auction");
@@ -134,7 +139,7 @@ impl Service {
         let tx_hash = signed_bid.chain_data.transaction.signatures[0];
         let auction = self
             .repo
-            .submit_auction(auction, tx_hash)
+            .submit_auction(auction, tx_hash, vec![signed_bid.id])
             .await
             .map_err(|e| {
                 tracing::error!(error = ?e, "Error repo submitting auction");

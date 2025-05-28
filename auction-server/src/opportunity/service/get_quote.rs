@@ -804,7 +804,9 @@ mod tests {
             initiation_time: OffsetDateTime::from_unix_timestamp(1200).unwrap(),
             creation_time:   OffsetDateTime::from_unix_timestamp(1199).unwrap(),
             conclusion_time: None,
+            submission_time: None,
             profile_id:      None,
+            opportunity_id:  None,
             amount:          amount.unwrap_or(100),
             status:          BidStatusSvm::Pending,
             chain_data:      BidChainDataSvm {

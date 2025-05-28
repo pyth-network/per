@@ -206,10 +206,13 @@ pub struct Bid {
     pub id:              BidId,
     pub chain_id:        ChainId,
     pub initiation_time: OffsetDateTime,
-    pub profile_id:      Option<ProfileId>,
+
+    pub profile_id:     Option<ProfileId>,
+    pub opportunity_id: Option<OpportunityId>,
 
     pub creation_time:   OffsetDateTime,
     pub conclusion_time: Option<OffsetDateTime>,
+    pub submission_time: Option<OffsetDateTime>,
 
     pub amount:     BidAmountSvm,
     pub status:     BidStatusSvm,
@@ -304,6 +307,13 @@ impl BidChainDataCreateSvm {
         match self {
             BidChainDataCreateSvm::OnChain(data) => &data.transaction,
             BidChainDataCreateSvm::Swap(data) => &data.transaction,
+        }
+    }
+
+    pub fn get_opportunity_id(&self) -> Option<OpportunityId> {
+        match self {
+            BidChainDataCreateSvm::OnChain(_) => None,
+            BidChainDataCreateSvm::Swap(data) => Some(data.opportunity_id),
         }
     }
 }

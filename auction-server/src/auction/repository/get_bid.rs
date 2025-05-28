@@ -14,7 +14,7 @@ impl Repository {
             None => None,
         };
 
-        bid.get_bid_entity(auction).map_err(|e| {
+        bid.get_bid_entity(auction, None).map_err(|e| {
             tracing::error!(error = e.to_string(), bid = ?bid, "Failed to convert bid to entity");
             RestError::TemporarilyUnavailable
         })
