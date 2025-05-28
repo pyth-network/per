@@ -1,5 +1,8 @@
 use {
-    super::Service,
+    super::{
+        add_opportunity_analytics::AddOpportunityAnalyticsInput,
+        Service,
+    },
     crate::{
         api::RestError,
         opportunity::entities,
@@ -28,23 +31,15 @@ impl Service {
             })?
         {
             self.task_tracker.spawn({
-                let (service, opportunity) = (self.clone(), input.opportunity.clone());
+                let service = self.clone();
                 async move {
                     service
-                        .repo
-                        .add_opportunity_analytics(
-                            opportunity.clone(),
-                            Some(removal_time),
-                            Some(input.reason),
-                        )
-                        .await
-                        .map_err(|err| {
-                            tracing::error!(
-                                error = ?err,
-                                opportunity = ?opportunity,
-                                "Failed to add opportunity analytics",
-                            );
+                        .add_opportunity_analytics(AddOpportunityAnalyticsInput {
+                            opportunity:    input.opportunity,
+                            removal_time:   Some(removal_time),
+                            removal_reason: Some(input.reason),
                         })
+                        .await
                 }
             });
         }

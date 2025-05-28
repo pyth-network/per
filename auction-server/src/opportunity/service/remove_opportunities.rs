@@ -1,5 +1,8 @@
 use {
-    super::Service,
+    super::{
+        add_opportunity_analytics::AddOpportunityAnalyticsInput,
+        Service,
+    },
     crate::{
         api::{
             ws::UpdateEvent,
@@ -56,20 +59,12 @@ impl Service {
                         (self.clone(), opportunity.clone(), reason.clone());
                     async move {
                         service
-                            .repo
-                            .add_opportunity_analytics(
-                                opportunity.clone(),
-                                Some(removal_time),
-                                Some(reason.clone()),
-                            )
-                            .await
-                            .map_err(|err| {
-                                tracing::error!(
-                                    error = ?err,
-                                    opportunity = ?opportunity,
-                                    "Failed to add opportunity analytics",
-                                );
+                            .add_opportunity_analytics(AddOpportunityAnalyticsInput {
+                                opportunity,
+                                removal_time: Some(removal_time),
+                                removal_reason: Some(reason),
                             })
+                            .await
                     }
                 });
             });
