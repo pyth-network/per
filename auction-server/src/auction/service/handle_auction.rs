@@ -84,7 +84,10 @@ impl Service {
         {
             Ok(tx_hash) => {
                 tracing::debug!(tx_hash = ?tx_hash, "Submitted transaction");
-                let auction = self.repo.submit_auction(auction, tx_hash).await?;
+                let auction = self
+                    .repo
+                    .submit_auction(auction, tx_hash, winner_bids.iter().map(|b| b.id).collect())
+                    .await?;
                 join_all(auction.bids.iter().map(|bid| {
                     self.update_bid_status(UpdateBidStatusInput {
                         new_status: Service::get_new_status(

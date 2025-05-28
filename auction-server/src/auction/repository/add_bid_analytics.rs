@@ -53,6 +53,7 @@ impl Repository {
                     bid_amount: bid.amount,
 
                     auction_id: bid.status.get_auction_id(),
+                    submission_time: bid.submission_time,
                     conclusion_time: bid.conclusion_time,
 
                     status: serde_json::to_string(&Svm::convert_bid_status(&bid.status))?,
@@ -105,6 +106,7 @@ impl Repository {
                     id: bid.id,
                     creation_time: bid.creation_time,
                     initiation_time: bid.initiation_time,
+                    submission_time: bid.submission_time,
                     permission_key: bid.chain_data.get_permission_key().to_string(),
                     chain_id: bid.chain_id,
                     transaction,
@@ -112,7 +114,7 @@ impl Repository {
 
                     auction_id: bid.status.get_auction_id(),
                     // TODO Fill this in
-                    opportunity_id: None,
+                    opportunity_id: bid.opportunity_id,
                     conclusion_time: bid.conclusion_time,
 
                     searcher_token_mint: mint_searcher.to_string(),

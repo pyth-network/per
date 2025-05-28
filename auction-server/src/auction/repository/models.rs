@@ -521,19 +521,32 @@ impl Bid {
         }
     }
 
-    pub fn get_bid_entity(&self, auction: Option<Auction>) -> anyhow::Result<entities::Bid> {
+    pub fn get_bid_entity(
+        &self,
+        auction: Option<Auction>,
+        opportunity_id: Option<crate::opportunity::entities::OpportunityId>,
+    ) -> anyhow::Result<entities::Bid> {
+        let submission_time = auction
+            .as_ref()
+            .and_then(|a| a.submission_time)
+            .map(|t| t.assume_offset(UtcOffset::UTC));
+
         Ok(entities::Bid {
-            id:              self.id,
-            chain_id:        self.chain_id.clone(),
+            id: self.id,
+            chain_id: self.chain_id.clone(),
+
             initiation_time: self.initiation_time.assume_offset(UtcOffset::UTC),
-            creation_time:   self.creation_time.assume_offset(UtcOffset::UTC),
+            creation_time: self.creation_time.assume_offset(UtcOffset::UTC),
             conclusion_time: self
                 .conclusion_time
                 .map(|t| t.assume_offset(UtcOffset::UTC)),
-            profile_id:      self.profile_id,
+            submission_time,
 
-            amount:     Svm::get_bid_amount_entity(self)?,
-            status:     Svm::get_bid_status_entity(self, auction)?,
+            profile_id: self.profile_id,
+            opportunity_id,
+
+            amount: Svm::get_bid_amount_entity(self)?,
+            status: Svm::get_bid_status_entity(self, auction)?,
             chain_data: Svm::get_chain_data_entity(self)?,
         })
     }
@@ -844,6 +857,8 @@ pub struct BidAnalyticsSwap {
 
     #[serde(with = "clickhouse::serde::uuid::option")]
     pub auction_id:      Option<Uuid>,
+    #[serde(with = "clickhouse::serde::time::datetime64::micros::option")]
+    pub submission_time: Option<OffsetDateTime>,
     #[serde(with = "clickhouse::serde::uuid::option")]
     pub opportunity_id:  Option<Uuid>,
     #[serde(with = "clickhouse::serde::time::datetime64::micros::option")]
@@ -889,6 +904,8 @@ pub struct BidAnalyticsLimo {
 
     #[serde(with = "clickhouse::serde::uuid::option")]
     pub auction_id:      Option<Uuid>,
+    #[serde(with = "clickhouse::serde::time::datetime64::micros::option")]
+    pub submission_time: Option<OffsetDateTime>,
     #[serde(with = "clickhouse::serde::time::datetime64::micros::option")]
     pub conclusion_time: Option<OffsetDateTime>,
 

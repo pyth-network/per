@@ -20,7 +20,7 @@ impl Repository {
         amount: &entities::BidAmountSvm,
     ) -> Result<entities::Bid, RestError> {
         let bid_model = Bid::new(bid_create.clone(), amount, chain_data);
-        let bid = bid_model.get_bid_entity(None).map_err(|e| {
+        let bid = bid_model.get_bid_entity(None, bid_create.chain_data.get_opportunity_id()).map_err(|e| {
             tracing::error!(error = e.to_string(), bid_create = ?bid_create, "Failed to convert bid to entity");
             RestError::TemporarilyUnavailable
         })?;

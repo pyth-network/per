@@ -27,7 +27,7 @@ impl Repository {
                     Some(auction_id) => auctions.clone().into_iter().find(|a| a.id == auction_id),
                     None => None,
                 };
-                b.get_bid_entity(auction.clone())
+                b.get_bid_entity(auction.clone(), None)
                     .map_err(|e| {
                         tracing::error!(
                             error = e.to_string(),
