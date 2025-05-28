@@ -29,8 +29,6 @@ impl Repository {
         prices: HashMap<Pubkey, Price>,
         decimals: HashMap<Pubkey, u8>,
     ) -> anyhow::Result<()> {
-        // TODO Add USD price for tokens
-
         let sell_token = opportunity
             .sell_tokens
             .first()
