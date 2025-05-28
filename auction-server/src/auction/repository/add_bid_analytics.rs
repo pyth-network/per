@@ -113,7 +113,6 @@ impl Repository {
                     bid_amount: bid.amount,
 
                     auction_id: bid.status.get_auction_id(),
-                    // TODO Fill this in
                     opportunity_id: bid.opportunity_id,
                     conclusion_time: bid.conclusion_time,
 
