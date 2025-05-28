@@ -5,10 +5,13 @@ use {
             ws::UpdateEvent::NewOpportunity,
             RestError,
         },
-        opportunity::entities::{
-            self,
-            OpportunityCreateSvm,
-            OpportunitySvm,
+        opportunity::{
+            entities::{
+                self,
+                OpportunityCreateSvm,
+                OpportunitySvm,
+            },
+            service::add_opportunity_analytics::AddOpportunityAnalyticsInput,
         },
     },
 };
@@ -65,17 +68,13 @@ impl Service {
             self.task_tracker.spawn({
                 let (service, opportunity) = (self.clone(), opportunity.clone());
                 async move {
-                    if let Err(err) = service
-                        .repo
-                        .add_opportunity_analytics(opportunity.clone(), None, None)
+                    service
+                        .add_opportunity_analytics(AddOpportunityAnalyticsInput {
+                            opportunity,
+                            removal_time: None,
+                            removal_reason: None,
+                        })
                         .await
-                    {
-                        tracing::error!(
-                            error = ?err,
-                            opportunity = ?opportunity,
-                            "Failed to add opportunity analytics",
-                        );
-                    }
                 }
             });
             opportunity

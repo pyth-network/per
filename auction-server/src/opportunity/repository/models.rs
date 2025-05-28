@@ -18,21 +18,14 @@ use {
             ChainType,
             ProfileId,
         },
-        opportunity::{
-            entities,
-            entities::{
-                FeeToken,
-                OpportunitySvm,
-                TokenAccountInitializationConfigs,
-            },
+        opportunity::entities::{
+            FeeToken,
+            OpportunitySvm,
+            TokenAccountInitializationConfigs,
         },
     },
     ::uuid::Uuid,
     axum::async_trait,
-    base64::engine::{
-        general_purpose,
-        Engine,
-    },
     clickhouse::Row,
     serde::{
         de::DeserializeOwned,
@@ -175,12 +168,8 @@ pub struct Opportunity<T: OpportunityMetadata> {
 #[cfg_attr(test, automock)]
 #[async_trait]
 pub trait AnalyticsDatabase: Send + Sync + 'static {
-    async fn add_opportunity(
-        &self,
-        opportunity: &OpportunitySvm,
-        removal_time: Option<OffsetDateTime>,
-        removal_reason: Option<OpportunityRemovalReason>,
-    ) -> Result<(), anyhow::Error>;
+    async fn add_opportunity(&self, opportunity: OpportunityAnalytics)
+        -> Result<(), anyhow::Error>;
 }
 
 #[cfg_attr(test, automock)]
@@ -203,6 +192,11 @@ pub trait Database: Debug + Send + Sync + 'static {
         opportunity: &OpportunitySvm,
         reason: OpportunityRemovalReason,
     ) -> anyhow::Result<Option<OffsetDateTime>>;
+}
+
+pub enum OpportunityAnalytics {
+    Limo(OpportunityAnalyticsLimo),
+    Swap(OpportunityAnalyticsSwap),
 }
 
 #[derive(Row, Serialize, Deserialize, Debug)]
@@ -285,123 +279,20 @@ impl AnalyticsDatabase for AnalyticsDatabaseInserter {
         ),
         skip_all
     )]
-    async fn add_opportunity(
-        &self,
-        opportunity: &OpportunitySvm,
-        removal_time: Option<OffsetDateTime>,
-        removal_reason: Option<OpportunityRemovalReason>,
-    ) -> anyhow::Result<()> {
-        // TODO Add USD price for tokens
-
-        let sell_token = opportunity
-            .sell_tokens
-            .first()
-            .ok_or(anyhow::anyhow!("Opportunity has no sell tokens"))?;
-
-        let buy_token = opportunity
-            .buy_tokens
-            .first()
-            .ok_or(anyhow::anyhow!("Opportunity has no buy tokens"))?;
-
-        // NOTE: It's very easy to forget setting some field in one variant or the other.
-        // We enforced this by destructing the params and make sure all the fields are used or explicitly discarded.
-        // This way if we add a field to Limo or Swap variants later on, the code will not compile until we decide what we want to do with that field here.
-        match opportunity.program.clone() {
-            entities::OpportunitySvmProgram::Limo(entities::OpportunitySvmProgramLimo {
-                order,
-                order_address,
-                slot,
-            }) => {
-                let opportunity_analytics = OpportunityAnalyticsLimo {
-                    id: opportunity.id,
-                    creation_time: opportunity.creation_time,
-                    permission_key: opportunity.permission_key.to_string(),
-                    chain_id: opportunity.chain_id.clone(),
-                    removal_time,
-                    removal_reason: removal_reason.map(|reason| {
-                        serde_json::to_string(&reason).expect("Failed to serialize removal reason")
-                    }),
-                    sell_token_mint: sell_token.token.to_string(),
-                    sell_token_amount: sell_token.amount,
-                    sell_token_notional_usd_value: None,
-                    buy_token_mint: buy_token.token.to_string(),
-                    buy_token_amount: buy_token.amount,
-                    buy_token_notional_usd_value: None,
-
-                    order: general_purpose::STANDARD.encode(&order),
-                    order_address: order_address.to_string(),
-                    slot,
-
-                    profile_id: opportunity.profile_id,
-                };
-                self.inserter_opportunity_limo
-                    .sender
-                    .send(opportunity_analytics)
-                    .await
-                    .map_err(|e| {
-                        anyhow::anyhow!("Failed to send limo opportunity analytics {:?}", e)
-                    })
-            }
-            entities::OpportunitySvmProgram::Swap(entities::OpportunitySvmProgramSwap {
-                user_wallet_address,
-                user_mint_user_balance,
-                fee_token,
-                referral_fee_bps,
-                referral_fee_ppm,
-                platform_fee_bps,
-                platform_fee_ppm,
-                token_program_user,
-                token_program_searcher,
-                token_account_initialization_configs,
-                memo,
-                cancellable,
-                minimum_lifetime,
-                minimum_deadline: _,
-            }) => {
-                let opportunity_analytics = OpportunityAnalyticsSwap {
-                    id: opportunity.id,
-                    creation_time: opportunity.creation_time,
-                    permission_key: opportunity.permission_key.to_string(),
-                    chain_id: opportunity.chain_id.clone(),
-                    removal_time,
-                    removal_reason: removal_reason.map(|reason| {
-                        serde_json::to_string(&reason).expect("Failed to serialize removal reason")
-                    }),
-                    searcher_token_mint: sell_token.token.to_string(),
-                    searcher_token_amount: sell_token.amount,
-                    searcher_token_notional_usd_value: None,
-                    user_token_mint: buy_token.token.to_string(),
-                    user_token_amount: buy_token.amount,
-                    user_token_notional_usd_value: None,
-
-                    user_wallet_address: user_wallet_address.to_string(),
-                    fee_token: serde_json::to_string(&fee_token)
-                        .expect("Failed to serialize fee token"),
-                    referral_fee_bps,
-                    referral_fee_ppm,
-                    platform_fee_bps,
-                    platform_fee_ppm,
-                    token_program_user: token_program_user.to_string(),
-                    token_program_searcher: token_program_searcher.to_string(),
-                    user_mint_user_balance,
-                    token_account_initialization_configs: serde_json::to_string(
-                        &token_account_initialization_configs,
-                    )
-                    .expect("Failed to serialize token account initialization configs"),
-                    memo,
-                    cancellable,
-                    minimum_lifetime,
-
-                    profile_id: opportunity.profile_id,
-                };
-                self.inserter_opportunity_swap
-                    .sender
-                    .send(opportunity_analytics)
-                    .await
-                    .map_err(|e| {
-                        anyhow::anyhow!("Failed to send swap opportunity analytics {:?}", e)
-                    })
-            }
+    async fn add_opportunity(&self, opportunity: OpportunityAnalytics) -> anyhow::Result<()> {
+        match opportunity {
+            OpportunityAnalytics::Limo(opportunity) => self
+                .inserter_opportunity_limo
+                .sender
+                .send(opportunity)
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to send limo opportunity analytics {:?}", e)),
+            OpportunityAnalytics::Swap(opportunity) => self
+                .inserter_opportunity_swap
+                .sender
+                .send(opportunity)
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to send swap opportunity analytics {:?}", e)),
         }
     }
 }

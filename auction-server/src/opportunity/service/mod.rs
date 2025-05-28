@@ -55,6 +55,7 @@ pub mod remove_invalid_or_expired_opportunities;
 pub mod remove_opportunities;
 pub mod remove_opportunity;
 
+mod add_opportunity_analytics;
 mod get_quote_request_account_balances;
 mod unwrap_referral_fee_info;
 
