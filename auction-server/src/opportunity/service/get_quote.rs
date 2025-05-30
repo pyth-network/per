@@ -229,9 +229,16 @@ impl Service {
             ) => {
                 // This is not exactly accurate and may overestimate the amount needed
                 // because of floor / ceil rounding errors.
-                let denominator: u64 = FEE_SPLIT_PRECISION_PPM
-                    - referral_fee_info.referral_fee_ppm
-                    - (metadata.swap_platform_fee_bps * FEE_BPS_TO_PPM);
+                let referral_fee_ppm = referral_fee_info.referral_fee_ppm;
+                let swap_platform_fee_ppm = metadata.swap_platform_fee_bps * FEE_BPS_TO_PPM;
+                if referral_fee_ppm + swap_platform_fee_ppm >= FEE_SPLIT_PRECISION_PPM {
+                    return Err(RestError::BadParameters(format!(
+                        "Referral fee ppm + platform fee ppm must be less than {}",
+                        FEE_SPLIT_PRECISION_PPM
+                    )));
+                }
+                let denominator: u64 =
+                    FEE_SPLIT_PRECISION_PPM - referral_fee_ppm - swap_platform_fee_ppm;
                 let numerator = searcher_token.amount * FEE_SPLIT_PRECISION_PPM;
                 let amount_including_fees = numerator.div_ceil(denominator);
                 (amount_including_fees, 0u64)
@@ -244,6 +251,13 @@ impl Service {
                 (0, user_token.amount)
             }
         };
+
+        if searcher_amount == 0 && user_amount == 0 {
+            return Err(RestError::BadParameters(
+                "Specified token amount cannot be zero".to_string(),
+            ));
+        }
+
         let token_program_searcher = self
             .get_token_mint(GetTokenMintInput {
                 chain_id: quote_create.chain_id.clone(),
@@ -478,11 +492,6 @@ impl Service {
         let user_token = opportunity.buy_tokens[0].clone();
         tracing::Span::current().record("searcher_token", format!("{:?}", searcher_token));
         tracing::Span::current().record("user_token", format!("{:?}", user_token));
-        if searcher_token.amount == 0 && user_token.amount == 0 {
-            return Err(RestError::BadParameters(
-                "Token amount cannot be zero".to_string(),
-            ));
-        }
 
         // Wait to make sure searchers had enough time to submit bids
         sleep(config.auction_time).await;
