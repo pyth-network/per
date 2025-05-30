@@ -229,9 +229,16 @@ impl Service {
             ) => {
                 // This is not exactly accurate and may overestimate the amount needed
                 // because of floor / ceil rounding errors.
-                let denominator: u64 = FEE_SPLIT_PRECISION_PPM
-                    - referral_fee_info.referral_fee_ppm
-                    - (metadata.swap_platform_fee_bps * FEE_BPS_TO_PPM);
+                let referral_fee_ppm = referral_fee_info.referral_fee_ppm;
+                let swap_platform_fee_ppm = metadata.swap_platform_fee_bps * FEE_BPS_TO_PPM;
+                if referral_fee_ppm + swap_platform_fee_ppm >= FEE_SPLIT_PRECISION_PPM {
+                    return Err(RestError::BadParameters(format!(
+                        "Referral fee ppm + platform fee ppm must be less than {}",
+                        FEE_SPLIT_PRECISION_PPM
+                    )));
+                }
+                let denominator: u64 =
+                    FEE_SPLIT_PRECISION_PPM - referral_fee_ppm - swap_platform_fee_ppm;
                 let numerator = searcher_token.amount * FEE_SPLIT_PRECISION_PPM;
                 let amount_including_fees = numerator.div_ceil(denominator);
                 (amount_including_fees, 0u64)
