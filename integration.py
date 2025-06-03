@@ -13,6 +13,7 @@ def main():
     with open('tilt-resources.env', 'w') as f:
         f.write('export SECRET_KEY=admin\n')
         f.write(f'export PRIVATE_KEY_SVM={str(relayer_key_svm)}\n')
+        f.write(f'export DELETE_ENABLED=true\n')
         f.write(f'export DELETE_INTERVAL_SECONDS={60}\n')
         f.write(f'export DELETE_THRESHOLD_SECONDS={60*60*24*2}\n')
 

@@ -1,6 +1,6 @@
 use {
     crate::{
-        config::DeletePgRowsFlags,
+        config::DeletePgRowsOptions,
         kernel::pyth_lazer::{
             PriceFeed,
             PythLazer,
@@ -87,58 +87,55 @@ const DELETE_BATCH_SIZE: u64 = 1000;
 
 pub async fn run_delete_pg_db_history(
     db: &PgPool,
-    delete_pg_rows_flags: Option<DeletePgRowsFlags>,
+    delete_pg_rows_options: DeletePgRowsOptions,
 ) -> anyhow::Result<()> {
-    match delete_pg_rows_flags {
-        Some(DeletePgRowsFlags {
-            delete_interval_secs,
-            delete_threshold_secs,
-        }) => {
-            tracing::info!("Starting delete PG DB history worker, deleting every {} seconds rows that are {} seconds stale...", delete_interval_secs, delete_threshold_secs);
-            let mut delete_history_interval =
-                tokio::time::interval(Duration::from_secs(delete_interval_secs));
+    if delete_pg_rows_options.delete_enabled {
+        let delete_interval_secs = delete_pg_rows_options.delete_interval_secs;
+        let delete_threshold_secs = delete_pg_rows_options.delete_threshold_secs;
 
-            while !SHOULD_EXIT.load(Ordering::Acquire) {
-                tokio::select! {
-                    _ = delete_history_interval.tick() => {
-                        let mut n_bids_deleted: Option<u64> = None;
-                        let threshold_bid = OffsetDateTime::now_utc() - Duration::from_secs(delete_threshold_secs);
-                        while n_bids_deleted.unwrap_or(DELETE_BATCH_SIZE) >= DELETE_BATCH_SIZE {
-                            n_bids_deleted = Some(sqlx::query!(
-                                "WITH rows_to_delete AS (
-                                    SELECT id FROM bid WHERE creation_time < $1 LIMIT $2
-                                ) DELETE FROM bid WHERE id IN (SELECT id FROM rows_to_delete)",
-                                 PrimitiveDateTime::new(threshold_bid.date(), threshold_bid.time()),
-                                DELETE_BATCH_SIZE as i64,
-                            )
-                            .execute(db)
-                            .await?
-                            .rows_affected());
-                        }
+        tracing::info!("Starting delete PG DB history worker, deleting every {} seconds rows that are {} seconds stale...", delete_interval_secs, delete_threshold_secs);
+        let mut delete_history_interval =
+            tokio::time::interval(Duration::from_secs(delete_interval_secs));
 
-                        let mut n_opportunities_deleted: Option<u64> = None;
-                        let threshold_opportunity = OffsetDateTime::now_utc() - Duration::from_secs(delete_threshold_secs);
-                        while n_opportunities_deleted.unwrap_or(DELETE_BATCH_SIZE) >= DELETE_BATCH_SIZE {
-                            n_opportunities_deleted = Some(sqlx::query!(
-                                "WITH rows_to_delete AS (
-                                    SELECT id FROM opportunity WHERE creation_time < $1 LIMIT $2
-                                ) DELETE FROM opportunity WHERE id IN (SELECT id FROM rows_to_delete)",
-                                PrimitiveDateTime::new(threshold_opportunity.date(), threshold_opportunity.time()),
-                                DELETE_BATCH_SIZE as i64,
-                            )
-                            .execute(db)
-                            .await?
-                            .rows_affected());
-                        }
+        while !SHOULD_EXIT.load(Ordering::Acquire) {
+            tokio::select! {
+                _ = delete_history_interval.tick() => {
+                    let mut n_bids_deleted: Option<u64> = None;
+                    let threshold_bid = OffsetDateTime::now_utc() - Duration::from_secs(delete_threshold_secs);
+                    while n_bids_deleted.unwrap_or(DELETE_BATCH_SIZE) >= DELETE_BATCH_SIZE {
+                        n_bids_deleted = Some(sqlx::query!(
+                            "WITH rows_to_delete AS (
+                                SELECT id FROM bid WHERE creation_time < $1 LIMIT $2
+                            ) DELETE FROM bid WHERE id IN (SELECT id FROM rows_to_delete)",
+                                PrimitiveDateTime::new(threshold_bid.date(), threshold_bid.time()),
+                            DELETE_BATCH_SIZE as i64,
+                        )
+                        .execute(db)
+                        .await?
+                        .rows_affected());
+                    }
+
+                    let mut n_opportunities_deleted: Option<u64> = None;
+                    let threshold_opportunity = OffsetDateTime::now_utc() - Duration::from_secs(delete_threshold_secs);
+                    while n_opportunities_deleted.unwrap_or(DELETE_BATCH_SIZE) >= DELETE_BATCH_SIZE {
+                        n_opportunities_deleted = Some(sqlx::query!(
+                            "WITH rows_to_delete AS (
+                                SELECT id FROM opportunity WHERE creation_time < $1 LIMIT $2
+                            ) DELETE FROM opportunity WHERE id IN (SELECT id FROM rows_to_delete)",
+                            PrimitiveDateTime::new(threshold_opportunity.date(), threshold_opportunity.time()),
+                            DELETE_BATCH_SIZE as i64,
+                        )
+                        .execute(db)
+                        .await?
+                        .rows_affected());
                     }
                 }
             }
-            tracing::info!("Shutting down delete PG DB history worker...");
-            Ok(())
         }
-        _ => {
-            tracing::info!("Skipping PG DB history deletion loop...");
-            Ok(())
-        }
+        tracing::info!("Shutting down delete PG DB history worker...");
+        Ok(())
+    } else {
+        tracing::info!("Skipping PG DB history deletion loop...");
+        Ok(())
     }
 }

@@ -84,37 +84,20 @@ pub struct RunOptions {
 #[command(next_help_heading = "Delete PG Rows Options")]
 #[group(id = "DeletePgRows")]
 pub struct DeletePgRowsOptions {
+    /// Whether to enable the deletion of rows from the database.
+    #[arg(long = "delete-enabled")]
+    #[arg(env = "DELETE_ENABLED")]
+    pub delete_enabled: bool,
+
     /// How often to delete rows from the database.
     #[arg(long = "delete-interval-seconds")]
     #[arg(env = "DELETE_INTERVAL_SECONDS")]
-    pub delete_interval_secs: Option<u64>,
+    pub delete_interval_secs: u64,
 
     /// The threshold staleness for whether a row should be deleted.
     #[arg(long = "delete-threshold-seconds")]
     #[arg(env = "DELETE_THRESHOLD_SECONDS")]
-    pub delete_threshold_secs: Option<u64>,
-}
-
-#[derive(Clone, Debug)]
-pub struct DeletePgRowsFlags {
-    pub delete_interval_secs:  u64,
     pub delete_threshold_secs: u64,
-}
-
-impl DeletePgRowsOptions {
-    pub fn into_option(self) -> Option<DeletePgRowsFlags> {
-        match (self.delete_interval_secs, self.delete_threshold_secs) {
-            (Some(interval), Some(threshold)) => Some(DeletePgRowsFlags {
-                delete_interval_secs:  interval,
-                delete_threshold_secs: threshold,
-            }),
-            (None, None) => None,
-            _ => {
-                tracing::warn!("Both --delete-interval-seconds and --delete-threshold-seconds must be set together.");
-                None
-            }
-        }
-    }
 }
 
 #[derive(Args, Clone, Debug)]

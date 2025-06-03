@@ -660,7 +660,7 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
             move || {
                 let pool = pool.clone();
                 let delete_pg_rows = delete_pg_rows.clone();
-                async move { run_delete_pg_db_history(&pool, delete_pg_rows.into_option()).await }
+                async move { run_delete_pg_db_history(&pool, delete_pg_rows).await }
             }
         }),
     );
