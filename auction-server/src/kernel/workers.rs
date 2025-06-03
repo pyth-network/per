@@ -1,6 +1,6 @@
 use {
     crate::{
-        config::DeletePgRowsOptions,
+        config::DeletePgRowsFlags,
         kernel::pyth_lazer::{
             PriceFeed,
             PythLazer,
@@ -85,13 +85,13 @@ pub async fn run_price_subscription(
 
 pub async fn run_delete_pg_db_history(
     db: &PgPool,
-    delete_pg_rows_options: DeletePgRowsOptions,
+    delete_pg_rows_flags: Option<DeletePgRowsFlags>,
 ) -> anyhow::Result<()> {
-    match (
-        delete_pg_rows_options.delete_interval_secs,
-        delete_pg_rows_options.delete_threshold_secs,
-    ) {
-        (Some(delete_interval_secs), Some(delete_threshold_secs)) => {
+    match delete_pg_rows_flags {
+        Some(DeletePgRowsFlags {
+            delete_interval_secs,
+            delete_threshold_secs,
+        }) => {
             tracing::info!("Starting delete PG DB history worker, deleting every {} seconds rows that are {} seconds stale...", delete_interval_secs, delete_threshold_secs);
             let mut delete_history_interval =
                 tokio::time::interval(Duration::from_secs(delete_interval_secs));

@@ -95,6 +95,28 @@ pub struct DeletePgRowsOptions {
     pub delete_threshold_secs: Option<u64>,
 }
 
+#[derive(Clone, Debug)]
+pub struct DeletePgRowsFlags {
+    pub delete_interval_secs:  u64,
+    pub delete_threshold_secs: u64,
+}
+
+impl DeletePgRowsOptions {
+    pub fn into_option(self) -> Option<DeletePgRowsFlags> {
+        match (self.delete_interval_secs, self.delete_threshold_secs) {
+            (Some(interval), Some(threshold)) => Some(DeletePgRowsFlags {
+                delete_interval_secs:  interval,
+                delete_threshold_secs: threshold,
+            }),
+            (None, None) => None,
+            _ => {
+                tracing::error!("Both --delete-interval-seconds and --delete-threshold-seconds must be set together.");
+                None
+            }
+        }
+    }
+}
+
 #[derive(Args, Clone, Debug)]
 #[command(next_help_heading = "Config Options")]
 #[group(id = "Config")]
