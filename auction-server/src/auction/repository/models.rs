@@ -365,27 +365,27 @@ impl Svm {
     fn get_update_bid_query(
         bid: &entities::Bid,
         new_status: entities::BidStatusSvm,
-    ) -> anyhow::Result<Query<'_, Postgres, PgArguments>> {
+    ) -> anyhow::Result<(Query<'_, Postgres, PgArguments>, Option<OffsetDateTime>)> {
         let now = OffsetDateTime::now_utc();
         match &new_status {
             entities::BidStatusSvm::Pending => {
                 Err(anyhow::anyhow!("Cannot update bid status to pending"))
             }
-            entities::BidStatusSvm::AwaitingSignature { auction } => Ok(sqlx::query!(
+            entities::BidStatusSvm::AwaitingSignature { auction } => Ok((sqlx::query!(
                 "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND status = $4",
                 BidStatus::AwaitingSignature as _,
                 auction.id,
                 bid.id,
                 BidStatus::Pending as _,
-            )),
-            entities::BidStatusSvm::SentToUserForSubmission { auction } => Ok(sqlx::query!(
+            ), None)),
+            entities::BidStatusSvm::SentToUserForSubmission { auction } => Ok((sqlx::query!(
                 "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND status = $4",
                 BidStatus::SentToUserForSubmission as _,
                 auction.id,
                 bid.id,
                 BidStatus::Pending as _,
-            )),
-            entities::BidStatusSvm::Submitted { auction } => Ok(sqlx::query!(
+            ), None)),
+            entities::BidStatusSvm::Submitted { auction } => Ok((sqlx::query!(
                 "UPDATE bid SET status = $1, auction_id = $2 WHERE id = $3 AND status IN ($4, $5, $6)",
                 BidStatus::Submitted as _,
                 auction.id,
@@ -393,31 +393,31 @@ impl Svm {
                 BidStatus::Pending as _,
                 BidStatus::AwaitingSignature as _,
                 BidStatus::SentToUserForSubmission as _,
-            )),
-            entities::BidStatusSvm::Lost { auction: Some(auction) } => Ok(sqlx::query!(
+            ), None)),
+            entities::BidStatusSvm::Lost { auction: Some(auction) } => Ok((sqlx::query!(
                     "UPDATE bid SET status = $1, auction_id = $2, conclusion_time = $3 WHERE id = $4 AND status = $5",
                     BidStatus::Lost as _,
                     auction.id,
                     PrimitiveDateTime::new(now.date(), now.time()),
                     bid.id,
                     BidStatus::Pending as _
-                )),
-            entities::BidStatusSvm::Lost { auction: None } => Ok(sqlx::query!(
+                ), Some(now))),
+            entities::BidStatusSvm::Lost { auction: None } => Ok((sqlx::query!(
                     "UPDATE bid SET status = $1, conclusion_time = $2 WHERE id = $3 AND status = $4",
                     BidStatus::Lost as _,
                     PrimitiveDateTime::new(now.date(), now.time()),
                     bid.id,
                     BidStatus::Pending as _
-                )),
-            entities::BidStatusSvm::Won { .. }  |  entities::BidStatusSvm::Failed { reason: None, .. } => Ok(sqlx::query!(
+                ), Some(now))),
+            entities::BidStatusSvm::Won { .. }  |  entities::BidStatusSvm::Failed { reason: None, .. } => Ok((sqlx::query!(
                 "UPDATE bid SET status = $1, conclusion_time = $2 WHERE id = $3 AND status IN ($4, $5)",
                 Self::convert_bid_status(&new_status) as _,
                 PrimitiveDateTime::new(now.date(), now.time()),
                 bid.id,
                 BidStatus::Submitted as _,
                 BidStatus::SentToUserForSubmission as _,
-            )),
-            entities::BidStatusSvm::Failed { reason : Some(reason), .. } => Ok(sqlx::query!(
+            ), Some(now))),
+            entities::BidStatusSvm::Failed { reason : Some(reason), .. } => Ok((sqlx::query!(
                 "UPDATE bid SET status = $1, conclusion_time = $2, status_reason = $3 WHERE id = $4 AND status IN ($5, $6)",
                 Self::convert_bid_status(&new_status) as _,
                 PrimitiveDateTime::new(now.date(), now.time()),
@@ -425,8 +425,8 @@ impl Svm {
                 bid.id,
                 BidStatus::Submitted as _,
                 BidStatus::SentToUserForSubmission as _,
-            )),
-            entities::BidStatusSvm::Expired { auction } => Ok(sqlx::query!(
+            ), Some(now))),
+            entities::BidStatusSvm::Expired { auction } => Ok((sqlx::query!(
                 "UPDATE bid SET status = $1, conclusion_time = $2, auction_id = $3 WHERE id = $4 AND status IN ($5, $6, $7, $8)",
                 BidStatus::Expired as _,
                 PrimitiveDateTime::new(now.date(), now.time()),
@@ -436,29 +436,29 @@ impl Svm {
                 BidStatus::Submitted as _,
                 BidStatus::AwaitingSignature as _,
                 BidStatus::SentToUserForSubmission as _,
-            )),
-            entities::BidStatusSvm::Cancelled { auction } => Ok(sqlx::query!(
+            ), Some(now))),
+            entities::BidStatusSvm::Cancelled { auction } => Ok((sqlx::query!(
                 "UPDATE bid SET status = $1, conclusion_time = $2, auction_id = $3 WHERE id = $4 AND status = $5",
                 BidStatus::Cancelled as _,
                 PrimitiveDateTime::new(now.date(), now.time()),
                 auction.id,
                 bid.id,
                 BidStatus::AwaitingSignature as _,
-            )),
+            ), Some(now))),
             entities::BidStatusSvm::SubmissionFailed { auction, reason } => {
                 Ok(match reason {
                     entities::BidSubmissionFailedReason::Cancelled => {
-                        sqlx::query!(
+                        (sqlx::query!(
                             "UPDATE bid SET status = $1, conclusion_time = $2, auction_id = $3 WHERE id = $4 AND status = $5",
                             BidStatus::SubmissionFailedCancelled as _,
                             PrimitiveDateTime::new(now.date(), now.time()),
                             auction.id,
                             bid.id,
                             BidStatus::Cancelled as _,
-                        )
+                        ), Some(now))
                     },
                     &entities::BidSubmissionFailedReason::DeadlinePassed => {
-                        sqlx::query!(
+                        (sqlx::query!(
                             "UPDATE bid SET status = $1, conclusion_time = $2, auction_id = $3 WHERE id = $4 AND status IN ($5, $6, $7)",
                             BidStatus::SubmissionFailedDeadlinePassed as _,
                             PrimitiveDateTime::new(now.date(), now.time()),
@@ -467,7 +467,7 @@ impl Svm {
                             BidStatus::AwaitingSignature as _,
                             BidStatus::SentToUserForSubmission as _,
                             BidStatus::Cancelled as _,
-                        )
+                        ), Some(now))
                     }
                 })
 
@@ -577,7 +577,7 @@ pub trait Database: Debug + Send + Sync + 'static {
         &self,
         bid: &entities::Bid,
         new_status: &BidStatusSvm,
-    ) -> anyhow::Result<bool>;
+    ) -> anyhow::Result<(bool, Option<OffsetDateTime>)>;
 }
 
 #[async_trait]
@@ -833,12 +833,13 @@ impl Database for DB {
         &self,
         bid: &entities::Bid,
         new_status: &entities::BidStatusSvm,
-    ) -> anyhow::Result<bool> {
-        let update_query = Svm::get_update_bid_query(bid, new_status.clone())?;
+    ) -> anyhow::Result<(bool, Option<OffsetDateTime>)> {
+        let (update_query, conclusion_time_new) =
+            Svm::get_update_bid_query(bid, new_status.clone())?;
         let result = update_query.execute(self).await.inspect_err(|_| {
             tracing::Span::current().record("result", "error");
         })?;
-        Ok(result.rows_affected() > 0)
+        Ok((result.rows_affected() > 0, conclusion_time_new))
     }
 }
 
