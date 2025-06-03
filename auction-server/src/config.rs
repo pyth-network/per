@@ -99,7 +99,7 @@ pub struct DeletePgRowsOptions {
     /// The threshold staleness for whether a row should be deleted.
     #[arg(long = "delete-threshold-seconds")]
     #[arg(env = "DELETE_THRESHOLD_SECONDS")]
-    #[arg(default_value = "86400")]
+    #[arg(default_value = "172800")] // 2 days in seconds
     pub delete_threshold_secs: u64,
 }
 
