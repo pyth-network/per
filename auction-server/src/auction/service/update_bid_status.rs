@@ -65,11 +65,14 @@ impl Service {
     }
 
     #[tracing::instrument(skip_all, fields(bid_id, status), err(level = tracing::Level::TRACE))]
-    pub async fn update_bid_status(&self, input: UpdateBidStatusInput) -> Result<bool, RestError> {
+    pub async fn update_bid_status(
+        &self,
+        mut input: UpdateBidStatusInput,
+    ) -> Result<bool, RestError> {
         tracing::Span::current().record("bid_id", input.bid.id.to_string());
         tracing::Span::current().record("status", format!("{:?}", input.new_status));
 
-        let is_updated = self
+        let (is_updated, conclusion_time_new) = self
             .repo
             .update_bid_status(input.bid.clone(), input.new_status.clone())
             .await
@@ -77,6 +80,8 @@ impl Service {
                 tracing::error!(error = ?e, "Failed to update bid status");
                 RestError::TemporarilyUnavailable
             })?;
+
+        input.bid.conclusion_time = conclusion_time_new;
 
         // TODO: Do not rely on db to see if the status is changed
         // we can rely on the write guard and our in memory structure

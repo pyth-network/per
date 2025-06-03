@@ -4,6 +4,7 @@ use {
         self,
         BidStatus,
     },
+    time::OffsetDateTime,
 };
 
 impl Repository {
@@ -29,12 +30,13 @@ impl Repository {
         &self,
         bid: entities::Bid,
         new_status: entities::BidStatusSvm,
-    ) -> anyhow::Result<bool> {
-        let is_updated = self.db.update_bid_status(&bid, &new_status).await?;
+    ) -> anyhow::Result<(bool, Option<OffsetDateTime>)> {
+        let (is_updated, conclusion_time_new) =
+            self.db.update_bid_status(&bid, &new_status).await?;
         if is_updated && !new_status.is_pending() {
             self.remove_in_memory_pending_bids(&[bid.clone()]).await;
             self.update_in_memory_auction_bid(&bid, new_status).await;
         }
-        Ok(is_updated)
+        Ok((is_updated, conclusion_time_new))
     }
 }
