@@ -14,6 +14,7 @@ use {
             Store,
         },
     },
+    axum_prometheus::metrics,
     reqwest::Url,
     sqlx::PgPool,
     std::{
@@ -27,6 +28,7 @@ use {
         OffsetDateTime,
         PrimitiveDateTime,
     },
+    tracing::instrument,
 };
 
 
@@ -101,39 +103,21 @@ pub async fn run_delete_pg_db_history(
         while !SHOULD_EXIT.load(Ordering::Acquire) {
             tokio::select! {
                 _ = delete_history_interval.tick() => {
-                    let mut n_bids_deleted: Option<u64> = None;
-                    let threshold_bid = OffsetDateTime::now_utc() - Duration::from_secs(delete_threshold_secs);
-                    while n_bids_deleted.unwrap_or(DELETE_BATCH_SIZE) >= DELETE_BATCH_SIZE {
-                        n_bids_deleted = Some(sqlx::query!(
-                            "WITH rows_to_delete AS (
-                                SELECT id FROM bid WHERE creation_time < $1 LIMIT $2
-                            ) DELETE FROM bid WHERE id IN (SELECT id FROM rows_to_delete)",
-                                PrimitiveDateTime::new(threshold_bid.date(), threshold_bid.time()),
-                            DELETE_BATCH_SIZE as i64,
-                        )
-                        .execute(db)
-                        .await?
-                        .rows_affected());
-                    }
+                    delete_pg_db_bid_history(
+                        db,
+                        delete_threshold_secs,
+                    )
+                    .await?;
 
-                    let threshold_opportunity = OffsetDateTime::now_utc() - Duration::from_secs(delete_threshold_secs);
                     let futures = chain_ids.iter().map(|chain_id| {
                         let db = db.clone();
                         async move {
-                            let mut n_opportunities_deleted: Option<u64> = None;
-                            while n_opportunities_deleted.unwrap_or(DELETE_BATCH_SIZE) >= DELETE_BATCH_SIZE {
-                                n_opportunities_deleted = Some(sqlx::query!(
-                                    "WITH rows_to_delete AS (
-                                        SELECT id FROM opportunity WHERE chain_id = $1 AND creation_time < $2 LIMIT $3
-                                    ) DELETE FROM opportunity WHERE id IN (SELECT id FROM rows_to_delete)",
-                                    chain_id,
-                                    PrimitiveDateTime::new(threshold_opportunity.date(), threshold_opportunity.time()),
-                                    DELETE_BATCH_SIZE as i64,
-                                )
-                                .execute(&db)
-                                .await?
-                                .rows_affected());
-                            }
+                            delete_pg_db_opportunity_history(
+                                &db,
+                                chain_id,
+                                delete_threshold_secs,
+                            )
+                            .await?;
                             Ok::<(), anyhow::Error>(())
                         }
                     });
@@ -147,4 +131,74 @@ pub async fn run_delete_pg_db_history(
         tracing::info!("Skipping PG DB history deletion loop...");
         Ok(())
     }
+}
+
+#[instrument(
+    target = "metrics",
+    name = "db_delete_pg_bid_history"
+    fields(category = "db_queries", result = "success", name = "delete_pg_bid_history", tracing_enabled),
+    skip_all
+)]
+pub async fn delete_pg_db_bid_history(
+    db: &PgPool,
+    delete_threshold_secs: u64,
+) -> anyhow::Result<()> {
+    let threshold = OffsetDateTime::now_utc() - Duration::from_secs(delete_threshold_secs);
+    let n_bids_deleted = sqlx::query!(
+        "WITH rows_to_delete AS (
+            SELECT id FROM bid WHERE creation_time < $1 LIMIT $2
+        ) DELETE FROM bid WHERE id IN (SELECT id FROM rows_to_delete)",
+        PrimitiveDateTime::new(threshold.date(), threshold.time()),
+        DELETE_BATCH_SIZE as i64,
+    )
+    .execute(db)
+    .await
+    .map_err(|e| {
+        tracing::Span::current().record("result", "error");
+        tracing::error!("Failed to delete PG DB bid history: {}", e);
+        e
+    })?
+    .rows_affected();
+
+    metrics::histogram!("db_delete_pg_bid_count").record(n_bids_deleted as f64);
+
+    Ok(())
+}
+
+#[instrument(
+    target = "metrics",
+    name = "db_delete_pg_opportunity_history"
+    fields(category = "db_queries", result = "success", name = "delete_pg_opportunity_history", tracing_enabled),
+    skip_all
+)]
+pub async fn delete_pg_db_opportunity_history(
+    db: &PgPool,
+    chain_id: &str,
+    delete_threshold_secs: u64,
+) -> anyhow::Result<()> {
+    let threshold = OffsetDateTime::now_utc() - Duration::from_secs(delete_threshold_secs);
+    let n_opportunities_deleted = sqlx::query!(
+        "WITH rows_to_delete AS (
+            SELECT id FROM opportunity WHERE chain_id = $1 AND creation_time < $2 LIMIT $3
+        ) DELETE FROM opportunity WHERE id IN (SELECT id FROM rows_to_delete)",
+        chain_id,
+        PrimitiveDateTime::new(threshold.date(), threshold.time()),
+        DELETE_BATCH_SIZE as i64,
+    )
+    .execute(db)
+    .await
+    .map_err(|e| {
+        tracing::Span::current().record("result", "error");
+        tracing::error!("Failed to delete PG DB opportunity history: {}", e);
+        e
+    })?
+    .rows_affected();
+
+    metrics::histogram!(
+        "db_delete_pg_opportunity_count",
+        &[("chain_id", chain_id.to_string())]
+    )
+    .record(n_opportunities_deleted as f64);
+
+    Ok(())
 }
