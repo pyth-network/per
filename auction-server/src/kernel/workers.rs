@@ -87,6 +87,7 @@ const DELETE_BATCH_SIZE: u64 = 1000;
 
 pub async fn run_delete_pg_db_history(
     db: &PgPool,
+    chain_ids: Vec<String>,
     delete_pg_rows_options: DeletePgRowsOptions,
 ) -> anyhow::Result<()> {
     if delete_pg_rows_options.delete_enabled {
@@ -115,20 +116,28 @@ pub async fn run_delete_pg_db_history(
                         .rows_affected());
                     }
 
-                    let mut n_opportunities_deleted: Option<u64> = None;
                     let threshold_opportunity = OffsetDateTime::now_utc() - Duration::from_secs(delete_threshold_secs);
-                    while n_opportunities_deleted.unwrap_or(DELETE_BATCH_SIZE) >= DELETE_BATCH_SIZE {
-                        n_opportunities_deleted = Some(sqlx::query!(
-                            "WITH rows_to_delete AS (
-                                SELECT id FROM opportunity WHERE creation_time < $1 LIMIT $2
-                            ) DELETE FROM opportunity WHERE id IN (SELECT id FROM rows_to_delete)",
-                            PrimitiveDateTime::new(threshold_opportunity.date(), threshold_opportunity.time()),
-                            DELETE_BATCH_SIZE as i64,
-                        )
-                        .execute(db)
-                        .await?
-                        .rows_affected());
-                    }
+                    let futures = chain_ids.iter().map(|chain_id| {
+                        let db = db.clone();
+                        async move {
+                            let mut n_opportunities_deleted: Option<u64> = None;
+                            while n_opportunities_deleted.unwrap_or(DELETE_BATCH_SIZE) >= DELETE_BATCH_SIZE {
+                                n_opportunities_deleted = Some(sqlx::query!(
+                                    "WITH rows_to_delete AS (
+                                        SELECT id FROM opportunity WHERE chain_id = $1 AND creation_time < $2 LIMIT $3
+                                    ) DELETE FROM opportunity WHERE id IN (SELECT id FROM rows_to_delete)",
+                                    chain_id,
+                                    PrimitiveDateTime::new(threshold_opportunity.date(), threshold_opportunity.time()),
+                                    DELETE_BATCH_SIZE as i64,
+                                )
+                                .execute(&db)
+                                .await?
+                                .rows_affected());
+                            }
+                            Ok::<(), anyhow::Error>(())
+                        }
+                    });
+                    futures::future::try_join_all(futures).await?;
                 }
             }
         }
