@@ -110,7 +110,7 @@ impl DeletePgRowsOptions {
             }),
             (None, None) => None,
             _ => {
-                tracing::error!("Both --delete-interval-seconds and --delete-threshold-seconds must be set together.");
+                tracing::warn!("Both --delete-interval-seconds and --delete-threshold-seconds must be set together.");
                 None
             }
         }
