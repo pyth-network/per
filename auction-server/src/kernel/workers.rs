@@ -1,5 +1,6 @@
 use {
     crate::{
+        config::DeletePgRowsOptions,
         kernel::pyth_lazer::{
             PriceFeed,
             PythLazer,
@@ -14,9 +15,17 @@ use {
         },
     },
     reqwest::Url,
-    std::sync::{
-        atomic::Ordering,
-        Arc,
+    sqlx::PgPool,
+    std::{
+        sync::{
+            atomic::Ordering,
+            Arc,
+        },
+        time::Duration,
+    },
+    time::{
+        OffsetDateTime,
+        PrimitiveDateTime,
     },
 };
 
@@ -69,6 +78,41 @@ pub async fn run_price_subscription(
             _ = exit_check_interval.tick() => {}
         }
     }
-    tracing::info!("Shutting down transaction submitter...");
+    tracing::info!("Shutting down price subscription...");
+    Ok(())
+}
+
+
+pub async fn run_delete_pg_db_history(
+    db: &PgPool,
+    delete_pg_rows_options: DeletePgRowsOptions,
+) -> anyhow::Result<()> {
+    tracing::info!("Starting delete PG DB history worker...");
+    let mut delete_history_interval = tokio::time::interval(Duration::from_secs(
+        delete_pg_rows_options.delete_interval_secs,
+    ));
+
+    while !SHOULD_EXIT.load(Ordering::Acquire) {
+        tokio::select! {
+            _ = delete_history_interval.tick() => {
+                let threshold = OffsetDateTime::now_utc() - Duration::from_secs(delete_pg_rows_options.delete_threshold_secs);
+
+                sqlx::query!(
+                    "DELETE FROM opportunity WHERE creation_time < $1",
+                    PrimitiveDateTime::new(threshold.date(), threshold.time())
+                )
+                .execute(db)
+                .await?;
+
+                sqlx::query!(
+                    "DELETE FROM bid WHERE creation_time < $1",
+                    PrimitiveDateTime::new(threshold.date(), threshold.time())
+                )
+                .execute(db)
+                .await?;
+            }
+        }
+    }
+    tracing::info!("Shutting down delete PG DB history worker...");
     Ok(())
 }

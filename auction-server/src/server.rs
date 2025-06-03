@@ -23,7 +23,10 @@ use {
         },
         kernel::{
             traced_sender_svm::TracedSenderSvm,
-            workers::run_price_subscription,
+            workers::{
+                run_delete_pg_db_history,
+                run_price_subscription,
+            },
         },
         models,
         opportunity::{
@@ -651,6 +654,20 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
             run_options.clone(),
             server_state.clone(),
         )),
+        fault_tolerant_handler("pg deletion loop".to_string(), {
+            let pool = pool.clone();
+            let delete_pg_rows = run_options.delete_pg_rows.clone();
+            move || {
+                tracing::info!(
+                    "Running deletion of pg rows that are {} seconds stale, every {} seconds",
+                    delete_pg_rows.delete_threshold_secs,
+                    delete_pg_rows.delete_interval_secs
+                );
+                let pool = pool.clone();
+                let delete_pg_rows = delete_pg_rows.clone();
+                async move { run_delete_pg_db_history(&pool, delete_pg_rows).await }
+            }
+        }),
     );
 
     // To make sure all the spawned tasks will finish their job before shut down
