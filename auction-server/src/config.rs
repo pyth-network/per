@@ -87,12 +87,12 @@ pub struct DeletePgRowsOptions {
     /// How often to delete rows from the database.
     #[arg(long = "delete-interval-seconds")]
     #[arg(env = "DELETE_INTERVAL_SECONDS")]
-    pub delete_interval_secs: u64,
+    pub delete_interval_secs: Option<u64>,
 
     /// The threshold staleness for whether a row should be deleted.
     #[arg(long = "delete-threshold-seconds")]
     #[arg(env = "DELETE_THRESHOLD_SECONDS")]
-    pub delete_threshold_secs: u64,
+    pub delete_threshold_secs: Option<u64>,
 }
 
 #[derive(Args, Clone, Debug)]

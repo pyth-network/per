@@ -658,11 +658,6 @@ pub async fn start_server(run_options: RunOptions) -> Result<()> {
             let pool = pool.clone();
             let delete_pg_rows = run_options.delete_pg_rows.clone();
             move || {
-                tracing::info!(
-                    "Running deletion of pg rows that are {} seconds stale, every {} seconds",
-                    delete_pg_rows.delete_threshold_secs,
-                    delete_pg_rows.delete_interval_secs
-                );
                 let pool = pool.clone();
                 let delete_pg_rows = delete_pg_rows.clone();
                 async move { run_delete_pg_db_history(&pool, delete_pg_rows).await }
