@@ -177,9 +177,12 @@ pub async fn delete_pg_db_opportunity_history(
     delete_threshold_secs: u64,
 ) -> anyhow::Result<()> {
     let threshold = OffsetDateTime::now_utc() - Duration::from_secs(delete_threshold_secs);
+    // TODO: we filter based on removal_time being not null because some Limo opportunities may be valid longer than the delete threshold.
+    // However, this makes it so that we don't delete opportunities that are not removed yet, including unremoved ones due to server restarts
+    // and bugs in the code. As this leads to a low memory leak, we should consider a better way to handle this in the future.
     let n_opportunities_deleted = sqlx::query!(
         "WITH rows_to_delete AS (
-            SELECT id FROM opportunity WHERE chain_id = $1 AND creation_time < $2 LIMIT $3
+            SELECT id FROM opportunity WHERE chain_id = $1 AND creation_time < $2 AND removal_time IS NOT NULL LIMIT $3
         ) DELETE FROM opportunity WHERE id IN (SELECT id FROM rows_to_delete)",
         chain_id,
         PrimitiveDateTime::new(threshold.date(), threshold.time()),

@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH rows_to_delete AS (\n            SELECT id FROM opportunity WHERE chain_id = $1 AND creation_time < $2 AND removal_time IS NOT NULL LIMIT $3\n        ) DELETE FROM opportunity WHERE id IN (SELECT id FROM rows_to_delete)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Timestamp",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1a19c166fe39589f0e0ec63e0279f9d057ee24ffe6e4ff10552d4650dd2a4cbc"
+}
