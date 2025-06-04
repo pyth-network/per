@@ -85,7 +85,7 @@ pub async fn run_price_subscription(
 }
 
 
-const DELETE_BATCH_SIZE: u64 = 1000;
+const DELETE_BATCH_SIZE: u64 = 5000;
 
 pub async fn run_delete_pg_db_history(
     db: &PgPool,
