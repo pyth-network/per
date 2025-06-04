@@ -75,6 +75,32 @@ pub struct RunOptions {
     #[arg(long = "secret-key")]
     #[arg(env = "SECRET_KEY")]
     pub secret_key: String,
+
+    #[command(flatten)]
+    pub delete_pg_rows: DeletePgRowsOptions,
+}
+
+#[derive(Args, Clone, Debug)]
+#[command(next_help_heading = "Delete PG Rows Options")]
+#[group(id = "DeletePgRows")]
+pub struct DeletePgRowsOptions {
+    /// Whether to enable the deletion of rows from the database.
+    #[arg(long = "delete-enabled")]
+    #[arg(env = "DELETE_ENABLED")]
+    #[arg(default_value = "true")]
+    pub delete_enabled: bool,
+
+    /// How often to delete rows from the database.
+    #[arg(long = "delete-interval-seconds")]
+    #[arg(env = "DELETE_INTERVAL_SECONDS")]
+    #[arg(default_value = "1")]
+    pub delete_interval_secs: u64,
+
+    /// The threshold staleness for whether a row should be deleted.
+    #[arg(long = "delete-threshold-seconds")]
+    #[arg(env = "DELETE_THRESHOLD_SECONDS")]
+    #[arg(default_value = "172800")] // 2 days in seconds
+    pub delete_threshold_secs: u64,
 }
 
 #[derive(Args, Clone, Debug)]
