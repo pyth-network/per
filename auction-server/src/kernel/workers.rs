@@ -179,7 +179,7 @@ pub async fn delete_pg_db_opportunity_history(
     let threshold = OffsetDateTime::now_utc() - Duration::from_secs(delete_threshold_secs);
     let n_opportunities_deleted = sqlx::query!(
         "WITH rows_to_delete AS (
-            SELECT id FROM opportunity WHERE chain_id = $1 AND creation_time < $2 LIMIT $3
+            SELECT id FROM opportunity WHERE chain_id = $1 AND creation_time < $2 AND removal_time IS NOT NULL LIMIT $3
         ) DELETE FROM opportunity WHERE id IN (SELECT id FROM rows_to_delete)",
         chain_id,
         PrimitiveDateTime::new(threshold.date(), threshold.time()),
