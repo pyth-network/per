@@ -10,10 +10,10 @@ pub struct ClickhouseInserter<T> {
     pub sender: mpsc::Sender<T>,
 }
 
-const CHANNEL_SIZE: usize = 1000;
+const CHANNEL_SIZE: usize = 10_000;
 const DURATION_PERIOD: Duration = Duration::from_secs(1);
-const MAX_ROWS: u64 = 100;
-const MAX_BYTES: u64 = 1_048_576;
+const MAX_ROWS: u64 = 10_000;
+const MAX_BYTES: u64 = 10 * 1_048_576; // 10 MB
 
 impl<T: Row + Serialize + Send + Sync + 'static> ClickhouseInserter<T> {
     async fn run(client: clickhouse::Client, table_name: String, mut rx: mpsc::Receiver<T>) {
