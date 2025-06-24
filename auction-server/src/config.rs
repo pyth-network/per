@@ -19,6 +19,7 @@ use {
         fs,
         time::Duration,
     },
+    uuid::Uuid,
 };
 
 pub mod server;
@@ -150,33 +151,39 @@ pub enum Config {
 pub struct ConfigSvm {
     /// Id of the express relay program.
     #[serde_as(as = "DisplayFromStr")]
-    pub express_relay_program_id:      Pubkey,
+    pub express_relay_program_id:            Pubkey,
     /// RPC endpoint to use for reading from the blockchain.
-    pub rpc_read_url:                  String,
+    pub rpc_read_url:                        String,
     /// RPC endpoint to use for broadcasting transactions
-    pub rpc_tx_submission_urls:        Vec<String>,
+    pub rpc_tx_submission_urls:              Vec<String>,
     /// WS endpoint to use for interacting with the blockchain.
-    pub ws_addr:                       String,
+    pub ws_addr:                             String,
     /// Timeout for RPC requests in seconds.
     #[serde(default = "ConfigSvm::default_rpc_timeout_svm")]
-    pub rpc_timeout:                   u64,
+    pub rpc_timeout:                         u64,
     #[serde(default)]
     /// Percentile of prioritization fees to query from the `rpc_read_url`.
     /// This should be None unless the RPC `getRecentPrioritizationFees`'s supports the percentile parameter, for example Triton RPC.
     /// It is an integer between 0 and 10000 with 10000 representing 100%.
-    pub prioritization_fee_percentile: Option<u64>,
+    pub prioritization_fee_percentile:       Option<u64>,
     /// List of accepted token programs for the swap instruction.
     #[serde_as(as = "Vec<DisplayFromStr>")]
-    pub accepted_token_programs:       Vec<Pubkey>,
+    pub accepted_token_programs:             Vec<Pubkey>,
     /// Ordered list of fee tokens, with first being the most preferred.
     #[serde_as(as = "Vec<DisplayFromStr>")]
-    pub ordered_fee_tokens:            Vec<Pubkey>,
+    pub ordered_fee_tokens:                  Vec<Pubkey>,
     /// Whitelisted token mints
     #[serde(default)]
-    pub token_whitelist:               TokenWhitelistConfig,
+    pub token_whitelist:                     TokenWhitelistConfig,
+    /// Minimum fee list
+    #[serde(default)]
+    pub minimum_fee_list:                    MinimumFeeListConfig,
+    /// Whether to allow permissionless quote requests.
+    #[serde(default)]
+    pub allow_permissionless_quote_requests: bool,
     /// Auction time for the chain (how long to wait before choosing winning bids)
     #[serde(default = "ConfigSvm::default_auction_time", with = "humantime_serde")]
-    pub auction_time:                  Duration,
+    pub auction_time:                        Duration,
 }
 
 impl ConfigSvm {
@@ -198,4 +205,29 @@ pub struct TokenWhitelistConfig {
     #[serde(default)]
     #[serde_as(as = "Vec<DisplayFromStr>")]
     pub whitelist_mints: Vec<Pubkey>,
+}
+
+/// Optional minimum fee list to determine validity of quote request
+#[serde_as]
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
+pub struct MinimumFeeListConfig {
+    #[serde(default)]
+    pub enabled:  bool,
+    #[serde(default)]
+    pub profiles: Vec<MinimumFeeProfile>,
+}
+
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
+pub struct MinimumFeeProfile {
+    pub name:         String,
+    pub profile_id:   Option<Uuid>,
+    pub minimum_fees: Vec<MinimumFee>,
+}
+
+#[serde_as]
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
+pub struct MinimumFee {
+    #[serde_as(as = "DisplayFromStr")]
+    pub mint:    Pubkey,
+    pub fee_ppm: u64,
 }

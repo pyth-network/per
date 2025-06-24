@@ -195,22 +195,15 @@ impl Service {
         };
         let config = self.get_config(&quote_create.chain_id)?;
 
-        // validate token mints being whitelisted at the earliest point to fail fast
-        if !config.token_whitelist.is_token_mint_allowed(&mint_user) {
-            return Err(RestError::TokenMintNotAllowed(
-                "Input".to_string(),
-                mint_user.to_string(),
-            ));
-        }
-        if !config.token_whitelist.is_token_mint_allowed(&mint_searcher) {
-            return Err(RestError::TokenMintNotAllowed(
-                "Output".to_string(),
-                mint_searcher.to_string(),
-            ));
-        }
-
         let referral_fee_info =
             self.unwrap_referral_fee_info(quote_create.referral_fee_info, &quote_create.chain_id)?;
+
+        config.validate_quote(
+            mint_user,
+            mint_searcher,
+            quote_create.profile_id,
+            referral_fee_info.referral_fee_ppm,
+        )?;
 
         // TODO*: we should fix the Opportunity struct (or create a new format) to more clearly distinguish Swap opps from traditional opps
         // currently, we are using the same struct and just setting the unspecified token amount to 0

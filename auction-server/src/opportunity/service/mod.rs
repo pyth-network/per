@@ -7,10 +7,14 @@ use {
         Repository,
     },
     crate::{
+        api::RestError,
         auction::service::{
             self as auction_service,
         },
-        config::TokenWhitelistConfig,
+        config::{
+            MinimumFeeListConfig,
+            TokenWhitelistConfig,
+        },
         kernel::{
             entities::ChainId,
             traced_sender_svm::TracedSenderSvm,
@@ -32,11 +36,13 @@ use {
         pubkey::Pubkey,
     },
     std::{
+        cmp::max,
         collections::HashMap,
         sync::Arc,
         time::Duration,
     },
     tokio_util::task::TaskTracker,
+    uuid::Uuid,
 };
 #[cfg(test)]
 use {
@@ -102,12 +108,14 @@ impl AuctionServiceContainer {
 
 // NOTE: Do not implement debug here. it has a circular reference to auction_service
 pub struct ConfigSvm {
-    pub rpc_client:                RpcClient,
-    pub accepted_token_programs:   Vec<Pubkey>,
-    pub ordered_fee_tokens:        Vec<Pubkey>,
-    pub auction_service_container: AuctionServiceContainer,
-    pub token_whitelist:           TokenWhitelist,
-    pub auction_time:              Duration,
+    pub rpc_client:                          RpcClient,
+    pub accepted_token_programs:             Vec<Pubkey>,
+    pub ordered_fee_tokens:                  Vec<Pubkey>,
+    pub auction_service_container:           AuctionServiceContainer,
+    pub token_whitelist:                     TokenWhitelist,
+    pub minimum_fee_list:                    MinimumFeeList,
+    pub allow_permissionless_quote_requests: bool,
+    pub auction_time:                        Duration,
 }
 
 impl ConfigSvm {
@@ -120,28 +128,162 @@ impl ConfigSvm {
                 (
                     chain_id.clone(),
                     Self {
-                        rpc_client:                TracedSenderSvm::new_client(
+                        rpc_client:                          TracedSenderSvm::new_client(
                             chain_id.clone(),
                             chain_store.config.rpc_read_url.as_str(),
                             chain_store.config.rpc_timeout,
                             RpcClientConfig::with_commitment(CommitmentConfig::processed()),
                         ),
-                        accepted_token_programs:   chain_store
+                        accepted_token_programs:             chain_store
                             .config
                             .accepted_token_programs
                             .clone(),
-                        ordered_fee_tokens:        chain_store.config.ordered_fee_tokens.clone(),
-                        auction_service_container: AuctionServiceContainer::new(),
-                        token_whitelist:           chain_store
+                        ordered_fee_tokens:                  chain_store
+                            .config
+                            .ordered_fee_tokens
+                            .clone(),
+                        auction_service_container:           AuctionServiceContainer::new(),
+                        token_whitelist:                     chain_store
                             .config
                             .token_whitelist
                             .clone()
                             .into(),
-                        auction_time:              chain_store.config.auction_time,
+                        minimum_fee_list:                    chain_store
+                            .config
+                            .minimum_fee_list
+                            .clone()
+                            .into(),
+                        allow_permissionless_quote_requests: chain_store
+                            .config
+                            .allow_permissionless_quote_requests,
+                        auction_time:                        chain_store.config.auction_time,
                     },
                 )
             })
             .collect())
+    }
+
+    pub fn validate_quote(
+        &self,
+        mint_user: Pubkey,
+        mint_searcher: Pubkey,
+        profile_id: Option<Uuid>,
+        referral_fee_ppm: u64,
+    ) -> Result<(), RestError> {
+        if !self.token_whitelist.is_token_mint_allowed(&mint_user) {
+            return Err(RestError::TokenMintNotAllowed(
+                "Input".to_string(),
+                mint_user.to_string(),
+            ));
+        }
+        if !self.token_whitelist.is_token_mint_allowed(&mint_searcher) {
+            return Err(RestError::TokenMintNotAllowed(
+                "Output".to_string(),
+                mint_searcher.to_string(),
+            ));
+        }
+
+        if !self.allow_permissionless_quote_requests & profile_id.is_none() {
+            return Err(RestError::Unauthorized);
+        }
+
+        let minimum_fee_searcher = self
+            .minimum_fee_list
+            .get_minimum_fee(&mint_searcher, profile_id);
+        let minimum_fee_user = self
+            .minimum_fee_list
+            .get_minimum_fee(&mint_user, profile_id);
+
+        if referral_fee_ppm
+            < max(
+                minimum_fee_searcher.unwrap_or(0),
+                minimum_fee_user.unwrap_or(0),
+            )
+        {
+            return Err(RestError::QuoteNotFound);
+        }
+
+        Ok(())
+    }
+}
+
+/// Optional minimum fee list for token mints
+#[derive(Clone, Default)]
+pub struct MinimumFeeList {
+    pub enabled:  bool,
+    pub profiles: Vec<MinimumFeeProfile>,
+}
+
+#[derive(Clone, Default)]
+pub struct MinimumFeeProfile {
+    pub profile_id:   Option<Uuid>,
+    pub minimum_fees: Vec<MinimumFee>,
+}
+
+#[derive(Clone, Default)]
+pub struct MinimumFee {
+    pub mint:    Pubkey,
+    pub fee_ppm: u64,
+}
+
+impl MinimumFeeList {
+    pub fn get_minimum_fee(&self, mint: &Pubkey, profile_id: Option<Uuid>) -> Option<u64> {
+        if !self.enabled {
+            return None;
+        }
+
+        let mut minimum_fee = self
+            .profiles
+            .iter()
+            .find(|profile| profile.profile_id == profile_id)
+            .and_then(|profile| {
+                profile
+                    .minimum_fees
+                    .iter()
+                    .find(|fee| &fee.mint == mint)
+                    .map(|fee| fee.fee_ppm)
+            });
+
+        // The minimum fee list can include an entry with no profile_id, which can be used as a fallback if no match is found for the specific profile_id.
+        // This allows for a default minimum fee to be applied if no specific profile is found.
+        if minimum_fee.is_none() {
+            minimum_fee = self
+                .profiles
+                .iter()
+                .find(|profile| profile.profile_id.is_none())
+                .and_then(|profile| {
+                    profile
+                        .minimum_fees
+                        .iter()
+                        .find(|fee| &fee.mint == mint)
+                        .map(|fee| fee.fee_ppm)
+                });
+        }
+
+        minimum_fee
+    }
+}
+
+impl From<MinimumFeeListConfig> for MinimumFeeList {
+    fn from(value: MinimumFeeListConfig) -> Self {
+        Self {
+            enabled:  value.enabled,
+            profiles: value
+                .profiles
+                .into_iter()
+                .map(|profile| MinimumFeeProfile {
+                    profile_id:   profile.profile_id,
+                    minimum_fees: profile
+                        .minimum_fees
+                        .into_iter()
+                        .map(|fee| MinimumFee {
+                            mint:    fee.mint,
+                            fee_ppm: fee.fee_ppm,
+                        })
+                        .collect(),
+                })
+                .collect(),
+        }
     }
 }
 
@@ -242,12 +384,14 @@ pub mod tests {
             rpc_tester: &RpcClientSvmTester,
         ) -> (Self, Receiver<UpdateEvent>) {
             let config_svm = crate::opportunity::service::ConfigSvm {
-                rpc_client:                rpc_tester.make_test_client(),
-                accepted_token_programs:   vec![],
-                ordered_fee_tokens:        vec![],
-                auction_service_container: AuctionServiceContainer::new(),
-                token_whitelist:           Default::default(),
-                auction_time:              config::ConfigSvm::default_auction_time(),
+                rpc_client:                          rpc_tester.make_test_client(),
+                accepted_token_programs:             vec![],
+                ordered_fee_tokens:                  vec![],
+                auction_service_container:           AuctionServiceContainer::new(),
+                token_whitelist:                     Default::default(),
+                minimum_fee_list:                    Default::default(),
+                allow_permissionless_quote_requests: true,
+                auction_time:                        config::ConfigSvm::default_auction_time(),
             };
 
             let mut chains_svm = HashMap::new();
