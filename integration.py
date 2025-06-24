@@ -41,6 +41,16 @@ chains:
         - {mint_buy}
         - {mint_sell}
         - So11111111111111111111111111111111111111112
+    allow_permissionless_quote_requests: true
+    minimum_fee_list:
+      enabled: true
+      profiles:
+        - name: default
+          minimum_fees:
+            - mint: {mint_buy}
+              fee_ppm: 200
+            - mint: {mint_sell}
+              fee_ppm: 0
 lazer:
   price_feeds:
     - id: 1
