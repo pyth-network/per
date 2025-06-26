@@ -182,7 +182,7 @@ impl ConfigSvm {
                         "profile_id",
                         profile_id.map_or("None".to_string(), |id| id.to_string())
                     ),
-                    ("result", "Invalid: User Mint Not Allowed".to_string()),
+                    ("result", "invalid_user_mint_not_allowed".to_string()),
                 ]
             )
             .increment(1);
@@ -200,7 +200,7 @@ impl ConfigSvm {
                         "profile_id",
                         profile_id.map_or("None".to_string(), |id| id.to_string())
                     ),
-                    ("result", "Invalid: Searcher Mint Not Allowed".to_string()),
+                    ("result", "invalid_searcher_mint_not_allowed".to_string()),
                 ]
             )
             .increment(1);
@@ -219,7 +219,7 @@ impl ConfigSvm {
                         "profile_id",
                         profile_id.map_or("None".to_string(), |id| id.to_string())
                     ),
-                    ("result", "Invalid: Unauthorized".to_string()),
+                    ("result", "invalid_unauthorized".to_string()),
                 ]
             )
             .increment(1);
@@ -247,7 +247,7 @@ impl ConfigSvm {
                         "profile_id",
                         profile_id.map_or("None".to_string(), |id| id.to_string())
                     ),
-                    ("result", "Invalid: Referral Fee Below Minimum".to_string()),
+                    ("result", "invalid_referral_fee_below_minimum".to_string()),
                 ]
             )
             .increment(1);
@@ -262,7 +262,7 @@ impl ConfigSvm {
                     "profile_id",
                     profile_id.map_or("None".to_string(), |id| id.to_string())
                 ),
-                ("result", "Valid".to_string()),
+                ("result", "valid".to_string()),
             ]
         )
         .increment(1);
