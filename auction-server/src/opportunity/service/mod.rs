@@ -210,7 +210,6 @@ impl ConfigSvm {
 /// Optional minimum fee list for token mints
 #[derive(Clone, Default)]
 pub struct MinimumFeeList {
-    pub enabled:  bool,
     pub profiles: Vec<MinimumFeeProfile>,
 }
 
@@ -228,10 +227,6 @@ pub struct MinimumFee {
 
 impl MinimumFeeList {
     pub fn get_minimum_fee(&self, mint: &Pubkey, profile_id: Option<Uuid>) -> Option<u64> {
-        if !self.enabled {
-            return None;
-        }
-
         let mut minimum_fee = self
             .profiles
             .iter()
@@ -267,7 +262,6 @@ impl MinimumFeeList {
 impl From<MinimumFeeListConfig> for MinimumFeeList {
     fn from(value: MinimumFeeListConfig) -> Self {
         Self {
-            enabled:  value.enabled,
             profiles: value
                 .profiles
                 .into_iter()

@@ -212,14 +212,11 @@ pub struct TokenWhitelistConfig {
 #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct MinimumFeeListConfig {
     #[serde(default)]
-    pub enabled:  bool,
-    #[serde(default)]
     pub profiles: Vec<MinimumFeeProfile>,
 }
 
 #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct MinimumFeeProfile {
-    pub name:         String,
     pub profile_id:   Option<Uuid>,
     pub minimum_fees: Vec<MinimumFee>,
 }

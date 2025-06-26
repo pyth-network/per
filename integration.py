@@ -43,9 +43,8 @@ chains:
         - So11111111111111111111111111111111111111112
     allow_permissionless_quote_requests: true
     minimum_fee_list:
-      enabled: true
       profiles:
-        - name: default
+        - profile_id: 4b4f8bcf-415a-4509-be21-bd803cdc8937
           minimum_fees:
             - mint: {mint_buy}
               fee_ppm: 200
