@@ -53,6 +53,8 @@ pub const SUBMIT_QUOTE_DEADLINE_BUFFER_BUCKETS: &[f64; 20] = &[
 ];
 pub const SUBMIT_QUOTE_DEADLINE_TOTAL: &str = "submit_quote_deadline_total";
 
+pub const QUOTE_VALIDATION_TOTAL: &str = "quote_validation_total";
+
 #[derive(Debug, Clone)]
 pub struct MetricsLayerData {
     category:   String,
