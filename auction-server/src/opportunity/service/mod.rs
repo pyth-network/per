@@ -20,12 +20,14 @@ use {
             traced_sender_svm::TracedSenderSvm,
         },
         opportunity::repository::AnalyticsDatabaseInserter,
+        per_metrics::QUOTE_VALIDATION_TOTAL,
         state::{
             ChainStoreSvm,
             Store,
         },
     },
     arc_swap::ArcSwap,
+    axum_prometheus::metrics,
     mockall_double::double,
     solana_client::{
         nonblocking::rpc_client::RpcClient,
@@ -165,18 +167,43 @@ impl ConfigSvm {
 
     pub fn validate_quote(
         &self,
+        chain_id: ChainId,
         mint_user: Pubkey,
         mint_searcher: Pubkey,
         profile_id: Option<Uuid>,
         referral_fee_ppm: u64,
     ) -> Result<(), RestError> {
         if !self.token_whitelist.is_token_mint_allowed(&mint_user) {
+            metrics::counter!(
+                QUOTE_VALIDATION_TOTAL,
+                &[
+                    ("chain_id", chain_id),
+                    (
+                        "profile_id",
+                        profile_id.map_or("None".to_string(), |id| id.to_string())
+                    ),
+                    ("result", "Invalid: User Mint Not Allowed".to_string()),
+                ]
+            )
+            .increment(1);
             return Err(RestError::TokenMintNotAllowed(
                 "Input".to_string(),
                 mint_user.to_string(),
             ));
         }
         if !self.token_whitelist.is_token_mint_allowed(&mint_searcher) {
+            metrics::counter!(
+                QUOTE_VALIDATION_TOTAL,
+                &[
+                    ("chain_id", chain_id),
+                    (
+                        "profile_id",
+                        profile_id.map_or("None".to_string(), |id| id.to_string())
+                    ),
+                    ("result", "Invalid: Searcher Mint Not Allowed".to_string()),
+                ]
+            )
+            .increment(1);
             return Err(RestError::TokenMintNotAllowed(
                 "Output".to_string(),
                 mint_searcher.to_string(),
@@ -184,6 +211,18 @@ impl ConfigSvm {
         }
 
         if !self.allow_permissionless_quote_requests & profile_id.is_none() {
+            metrics::counter!(
+                QUOTE_VALIDATION_TOTAL,
+                &[
+                    ("chain_id", chain_id),
+                    (
+                        "profile_id",
+                        profile_id.map_or("None".to_string(), |id| id.to_string())
+                    ),
+                    ("result", "Invalid: Unauthorized".to_string()),
+                ]
+            )
+            .increment(1);
             return Err(RestError::Unauthorized);
         }
 
@@ -200,8 +239,33 @@ impl ConfigSvm {
                 minimum_fee_user.unwrap_or(0),
             )
         {
+            metrics::counter!(
+                QUOTE_VALIDATION_TOTAL,
+                &[
+                    ("chain_id", chain_id),
+                    (
+                        "profile_id",
+                        profile_id.map_or("None".to_string(), |id| id.to_string())
+                    ),
+                    ("result", "Invalid: Referral Fee Below Minimum".to_string()),
+                ]
+            )
+            .increment(1);
             return Err(RestError::QuoteNotFound);
         }
+
+        metrics::counter!(
+            QUOTE_VALIDATION_TOTAL,
+            &[
+                ("chain_id", chain_id),
+                (
+                    "profile_id",
+                    profile_id.map_or("None".to_string(), |id| id.to_string())
+                ),
+                ("result", "Valid".to_string()),
+            ]
+        )
+        .increment(1);
 
         Ok(())
     }

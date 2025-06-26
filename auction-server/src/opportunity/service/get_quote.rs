@@ -199,6 +199,7 @@ impl Service {
             self.unwrap_referral_fee_info(quote_create.referral_fee_info, &quote_create.chain_id)?;
 
         config.validate_quote(
+            quote_create.chain_id.clone(),
             mint_user,
             mint_searcher,
             quote_create.profile_id,
