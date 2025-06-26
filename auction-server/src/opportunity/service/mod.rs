@@ -173,15 +173,13 @@ impl ConfigSvm {
         profile_id: Option<Uuid>,
         referral_fee_ppm: u64,
     ) -> Result<(), RestError> {
+        let profile_id_label = profile_id.map_or("None".to_string(), |id| id.to_string());
         if !self.token_whitelist.is_token_mint_allowed(&mint_user) {
             metrics::counter!(
                 QUOTE_VALIDATION_TOTAL,
                 &[
                     ("chain_id", chain_id),
-                    (
-                        "profile_id",
-                        profile_id.map_or("None".to_string(), |id| id.to_string())
-                    ),
+                    ("profile_id", profile_id_label),
                     ("result", "invalid_user_mint_not_allowed".to_string()),
                 ]
             )
@@ -196,10 +194,7 @@ impl ConfigSvm {
                 QUOTE_VALIDATION_TOTAL,
                 &[
                     ("chain_id", chain_id),
-                    (
-                        "profile_id",
-                        profile_id.map_or("None".to_string(), |id| id.to_string())
-                    ),
+                    ("profile_id", profile_id_label),
                     ("result", "invalid_searcher_mint_not_allowed".to_string()),
                 ]
             )
@@ -215,10 +210,7 @@ impl ConfigSvm {
                 QUOTE_VALIDATION_TOTAL,
                 &[
                     ("chain_id", chain_id),
-                    (
-                        "profile_id",
-                        profile_id.map_or("None".to_string(), |id| id.to_string())
-                    ),
+                    ("profile_id", profile_id_label),
                     ("result", "invalid_unauthorized".to_string()),
                 ]
             )
@@ -243,10 +235,7 @@ impl ConfigSvm {
                 QUOTE_VALIDATION_TOTAL,
                 &[
                     ("chain_id", chain_id),
-                    (
-                        "profile_id",
-                        profile_id.map_or("None".to_string(), |id| id.to_string())
-                    ),
+                    ("profile_id", profile_id_label),
                     ("result", "invalid_referral_fee_below_minimum".to_string()),
                 ]
             )
@@ -258,10 +247,7 @@ impl ConfigSvm {
             QUOTE_VALIDATION_TOTAL,
             &[
                 ("chain_id", chain_id),
-                (
-                    "profile_id",
-                    profile_id.map_or("None".to_string(), |id| id.to_string())
-                ),
+                ("profile_id", profile_id_label),
                 ("result", "valid".to_string()),
             ]
         )
