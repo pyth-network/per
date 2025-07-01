@@ -657,7 +657,6 @@ impl Client {
     /// # Returns
     ///
     /// * `Result<BidCreate, ClientError>` - A bid creation object or an error.
-    #[allow(deprecated)]
     pub async fn new_bid(
         &self,
         opportunity: api_types::opportunity::OpportunitySvm,
@@ -704,7 +703,7 @@ impl Client {
                 tokens,
                 fee_token,
                 router_account,
-                referral_fee_bps,
+                referral_fee_ppm,
                 token_account_initialization_configs,
                 memo,
                 ..
@@ -756,7 +755,7 @@ impl Client {
                         fee_token_program,
                         router_account,
                         fee_receiver_relayer: params.fee_receiver_relayer,
-                        referral_fee_bps,
+                        referral_fee_ppm,
                         chain_id: opportunity_params.chain_id.clone(),
                         configs: token_account_initialization_configs.clone(),
                     },

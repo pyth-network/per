@@ -8,7 +8,6 @@ use {
         },
         state::{
             ExpressRelayMetadata,
-            FEE_BPS_TO_PPM,
             FEE_SPLIT_PRECISION_PPM,
             SEED_METADATA,
         },
@@ -137,7 +136,7 @@ struct OpportunitySwapData<'a> {
     fee_token:        &'a ApiFeeToken,
     router_account:   &'a Pubkey,
     referral_fee_ppm: &'a u64,
-    platform_fee_bps: &'a u64,
+    platform_fee_ppm: &'a u64,
 }
 pub struct GetSwapCreateAccountsIdempotentInstructionsParams {
     pub searcher:               Pubkey,
@@ -150,7 +149,7 @@ pub struct GetSwapCreateAccountsIdempotentInstructionsParams {
     pub fee_token_program:      Pubkey,
     pub router_account:         Pubkey,
     pub fee_receiver_relayer:   Pubkey,
-    pub referral_fee_bps:       u16,
+    pub referral_fee_ppm:       u64,
     pub chain_id:               String,
     pub configs:                TokenAccountInitializationConfigs,
 }
@@ -303,7 +302,6 @@ impl Svm {
             .collect()
     }
 
-    #[allow(deprecated)]
     fn extract_swap_data(
         opportunity_params: &OpportunityParamsSvm,
     ) -> Result<OpportunitySwapData, ClientError> {
@@ -315,7 +313,7 @@ impl Svm {
                 fee_token,
                 referral_fee_ppm,
                 router_account,
-                platform_fee_bps,
+                platform_fee_ppm,
                 ..
             } => Ok(OpportunitySwapData {
                 user: user_wallet_address,
@@ -323,7 +321,7 @@ impl Svm {
                 fee_token,
                 router_account,
                 referral_fee_ppm,
-                platform_fee_bps,
+                platform_fee_ppm,
             }),
             _ => Err(ClientError::SvmError(
                 "Invalid opportunity program".to_string(),
@@ -424,7 +422,7 @@ impl Svm {
             amount_searcher,
             amount_user,
             referral_fee_ppm: *swap_data.referral_fee_ppm,
-            swap_platform_fee_ppm: *swap_data.platform_fee_bps * FEE_BPS_TO_PPM,
+            swap_platform_fee_ppm: *swap_data.platform_fee_ppm,
             fee_token,
         };
 
@@ -513,7 +511,7 @@ impl Svm {
             (QuoteTokens::SearcherTokenSpecified { .. }, ApiFeeToken::UserToken) => {
                 let denominator = FEE_SPLIT_PRECISION_PPM
                     - *swap_data.referral_fee_ppm
-                    - *swap_data.platform_fee_bps * FEE_BPS_TO_PPM;
+                    - *swap_data.platform_fee_ppm;
                 let numerator = bid_amount * FEE_SPLIT_PRECISION_PPM;
                 numerator.div_ceil(denominator)
             }
