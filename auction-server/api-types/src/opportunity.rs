@@ -228,7 +228,7 @@ pub enum OpportunityParamsV1ProgramSvm {
         #[deprecated = "This field is deprecated and will be removed in a future release."]
         // TODO this should be deleted
         /// The referral fee in basis points.
-        #[schema(example = 10, deprecated)]
+        #[schema(example = 10)]
         referral_fee_bps: u16,
 
         /// The referral fee in parts per million.
