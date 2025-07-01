@@ -12,7 +12,8 @@ use {
             self as auction_service,
         },
         config::{
-            MinimumFeeListConfig,
+            MinimumPlatformFeeListConfig,
+            MinimumReferralFeeListConfig,
             TokenWhitelistConfig,
         },
         kernel::{
@@ -115,7 +116,8 @@ pub struct ConfigSvm {
     pub ordered_fee_tokens:                  Vec<Pubkey>,
     pub auction_service_container:           AuctionServiceContainer,
     pub token_whitelist:                     TokenWhitelist,
-    pub minimum_fee_list:                    MinimumFeeList,
+    pub minimum_referral_fee_list:           MinimumReferralFeeList,
+    pub minimum_platform_fee_list:           Vec<MinimumFee>,
     pub allow_permissionless_quote_requests: bool,
     pub auction_time:                        Duration,
 }
@@ -150,9 +152,14 @@ impl ConfigSvm {
                             .token_whitelist
                             .clone()
                             .into(),
-                        minimum_fee_list:                    chain_store
+                        minimum_referral_fee_list:           chain_store
                             .config
-                            .minimum_fee_list
+                            .minimum_referral_fee_list
+                            .clone()
+                            .into(),
+                        minimum_platform_fee_list:           chain_store
+                            .config
+                            .minimum_platform_fee_list
                             .clone()
                             .into(),
                         allow_permissionless_quote_requests: chain_store
@@ -219,10 +226,10 @@ impl ConfigSvm {
         }
 
         let minimum_fee_searcher = self
-            .minimum_fee_list
+            .minimum_referral_fee_list
             .get_minimum_fee(&mint_searcher, profile_id);
         let minimum_fee_user = self
-            .minimum_fee_list
+            .minimum_referral_fee_list
             .get_minimum_fee(&mint_user, profile_id);
 
         if referral_fee_ppm
@@ -255,11 +262,35 @@ impl ConfigSvm {
 
         Ok(())
     }
+
+    pub fn get_platform_fee_ppm(&self, mint_user: &Pubkey, mint_searcher: &Pubkey) -> Option<u64> {
+        let fee_user = self.minimum_platform_fee_list.iter().find_map(|fee| {
+            if &fee.mint == mint_user {
+                Some(fee.fee_ppm)
+            } else {
+                None
+            }
+        });
+        let fee_searcher = self.minimum_platform_fee_list.iter().find_map(|fee| {
+            if &fee.mint == mint_searcher {
+                Some(fee.fee_ppm)
+            } else {
+                None
+            }
+        });
+
+        match (fee_user, fee_searcher) {
+            (Some(user_fee), Some(searcher_fee)) => Some(max(user_fee, searcher_fee)),
+            (Some(user_fee), None) => Some(user_fee),
+            (None, Some(searcher_fee)) => Some(searcher_fee),
+            (None, None) => None,
+        }
+    }
 }
 
-/// Optional minimum fee list for token mints
+/// Optional minimum referral fee list for token mints
 #[derive(Clone, Default)]
-pub struct MinimumFeeList {
+pub struct MinimumReferralFeeList {
     pub profiles: Vec<MinimumFeeProfile>,
 }
 
@@ -275,7 +306,7 @@ pub struct MinimumFee {
     pub fee_ppm: u64,
 }
 
-impl MinimumFeeList {
+impl MinimumReferralFeeList {
     pub fn get_minimum_fee(&self, mint: &Pubkey, profile_id: Option<Uuid>) -> Option<u64> {
         let mut minimum_fee = self
             .profiles
@@ -289,8 +320,8 @@ impl MinimumFeeList {
                     .map(|fee| fee.fee_ppm)
             });
 
-        // The minimum fee list can include an entry with no profile_id, which can be used as a fallback if no match is found for the specific profile_id.
-        // This allows for a default minimum fee to be applied if no specific profile is found.
+        // The minimum referral fee list can include an entry with no profile_id, which can be used as a fallback if no match is found for the specific profile_id.
+        // This allows for a default minimum referral fee to be applied if no specific profile is found.
         if minimum_fee.is_none() {
             minimum_fee = self
                 .profiles
@@ -309,8 +340,8 @@ impl MinimumFeeList {
     }
 }
 
-impl From<MinimumFeeListConfig> for MinimumFeeList {
-    fn from(value: MinimumFeeListConfig) -> Self {
+impl From<MinimumReferralFeeListConfig> for MinimumReferralFeeList {
+    fn from(value: MinimumReferralFeeListConfig) -> Self {
         Self {
             profiles: value
                 .profiles
@@ -328,6 +359,19 @@ impl From<MinimumFeeListConfig> for MinimumFeeList {
                 })
                 .collect(),
         }
+    }
+}
+
+impl From<MinimumPlatformFeeListConfig> for Vec<MinimumFee> {
+    fn from(value: MinimumPlatformFeeListConfig) -> Self {
+        value
+            .minimum_fees
+            .into_iter()
+            .map(|fee| MinimumFee {
+                mint:    fee.mint,
+                fee_ppm: fee.fee_ppm,
+            })
+            .collect()
     }
 }
 
@@ -433,7 +477,8 @@ pub mod tests {
                 ordered_fee_tokens:                  vec![],
                 auction_service_container:           AuctionServiceContainer::new(),
                 token_whitelist:                     Default::default(),
-                minimum_fee_list:                    Default::default(),
+                minimum_referral_fee_list:           Default::default(),
+                minimum_platform_fee_list:           Default::default(),
                 allow_permissionless_quote_requests: true,
                 auction_time:                        config::ConfigSvm::default_auction_time(),
             };

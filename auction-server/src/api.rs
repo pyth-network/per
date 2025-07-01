@@ -376,7 +376,7 @@ impl std::fmt::Display for SwapInstructionError {
             ),
             SwapInstructionError::ReferralFee { expected, found } => write!(
                 f,
-                "Invalid referral fee bps {} in swap instruction data. Value does not match the referral fee bps in swap opportunity {}",
+                "Invalid referral fee ppm {} in swap instruction data. Value does not match the referral fee ppm in swap opportunity {}",
                 found, expected
             ),
             SwapInstructionError::AssociatedRouterTokenAccount { expected, found } => write!(

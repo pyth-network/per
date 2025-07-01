@@ -175,9 +175,12 @@ pub struct ConfigSvm {
     /// Whitelisted token mints
     #[serde(default)]
     pub token_whitelist:                     TokenWhitelistConfig,
-    /// Minimum fee list
+    /// Minimum referral fee list
     #[serde(default)]
-    pub minimum_fee_list:                    MinimumFeeListConfig,
+    pub minimum_referral_fee_list:           MinimumReferralFeeListConfig,
+    /// Minimum platform fee list
+    #[serde(default)]
+    pub minimum_platform_fee_list:           MinimumPlatformFeeListConfig,
     /// Whether to allow permissionless quote requests.
     #[serde(default)]
     pub allow_permissionless_quote_requests: bool,
@@ -207,12 +210,20 @@ pub struct TokenWhitelistConfig {
     pub whitelist_mints: Vec<Pubkey>,
 }
 
-/// Optional minimum fee list to determine validity of quote request
+/// Minimum referral fee list to determine validity of quote request
 #[serde_as]
 #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
-pub struct MinimumFeeListConfig {
+pub struct MinimumReferralFeeListConfig {
     #[serde(default)]
     pub profiles: Vec<MinimumFeeProfile>,
+}
+
+/// Minimum platform fee list to determine platform fees to apply to quote requests
+#[serde_as]
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
+pub struct MinimumPlatformFeeListConfig {
+    #[serde(default)]
+    pub minimum_fees: Vec<MinimumFee>,
 }
 
 #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]

@@ -303,6 +303,7 @@ impl Svm {
             .collect()
     }
 
+    #[allow(deprecated)]
     fn extract_swap_data(
         opportunity_params: &OpportunityParamsSvm,
     ) -> Result<OpportunitySwapData, ClientError> {

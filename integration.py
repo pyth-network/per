@@ -42,7 +42,7 @@ chains:
         - {mint_sell}
         - So11111111111111111111111111111111111111112
     allow_permissionless_quote_requests: true
-    minimum_fee_list:
+    minimum_referral_fee_list:
       profiles:
         - profile_id: 4b4f8bcf-415a-4509-be21-bd803cdc8937
           minimum_fees:
@@ -50,6 +50,12 @@ chains:
               fee_ppm: 200
             - mint: {mint_sell}
               fee_ppm: 0
+    minimum_platform_fee_list:
+      minimum_fees:
+        - mint: {mint_buy}
+          fee_ppm: 100
+        - mint: {mint_sell}
+          fee_ppm: 1099
 lazer:
   price_feeds:
     - id: 1

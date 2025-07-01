@@ -657,6 +657,7 @@ impl Client {
     /// # Returns
     ///
     /// * `Result<BidCreate, ClientError>` - A bid creation object or an error.
+    #[allow(deprecated)]
     pub async fn new_bid(
         &self,
         opportunity: api_types::opportunity::OpportunitySvm,
