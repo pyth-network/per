@@ -264,27 +264,18 @@ impl ConfigSvm {
     }
 
     pub fn get_platform_fee_ppm(&self, mint_user: &Pubkey, mint_searcher: &Pubkey) -> Option<u64> {
-        let fee_user = self.minimum_platform_fee_list.iter().find_map(|fee| {
-            if &fee.mint == mint_user {
-                Some(fee.fee_ppm)
-            } else {
-                None
-            }
-        });
-        let fee_searcher = self.minimum_platform_fee_list.iter().find_map(|fee| {
-            if &fee.mint == mint_searcher {
-                Some(fee.fee_ppm)
-            } else {
-                None
-            }
-        });
+        let fee_user = self
+            .minimum_platform_fee_list
+            .iter()
+            .find(|fee| &fee.mint == mint_user)
+            .map(|fee| fee.fee_ppm);
+        let fee_searcher = self
+            .minimum_platform_fee_list
+            .iter()
+            .find(|fee| &fee.mint == mint_searcher)
+            .map(|fee| fee.fee_ppm);
 
-        match (fee_user, fee_searcher) {
-            (Some(user_fee), Some(searcher_fee)) => Some(max(user_fee, searcher_fee)),
-            (Some(user_fee), None) => Some(user_fee),
-            (None, Some(searcher_fee)) => Some(searcher_fee),
-            (None, None) => None,
-        }
+        fee_user.into_iter().chain(fee_searcher).max()
     }
 }
 
