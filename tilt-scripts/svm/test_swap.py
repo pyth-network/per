@@ -60,11 +60,16 @@ async def send_and_submit_quote(
     logger.info("Taker pubkey: %s", pk_taker)
     payload = {
         "chain_id": chain_id,
-        "input_token_mint": input_token,
-        "output_token_mint": output_token,
-        "router": "3hv8L8UeBbyM3M25dF3h2C5p8yA4FptD7FFZu4Z1jCMn",
-        "referral_fee_bps": 10,
-        "specified_token_amount": {"amount": random.randint(1, 1000), "side": side},
+        "input_token_mint": output_token,
+        "output_token_mint": input_token,
+        "referral_fee_info": {
+            "referral_fee_ppm": 1000,
+            "router": "3hv8L8UeBbyM3M25dF3h2C5p8yA4FptD7FFZu4Z1jCMn",
+        },
+        "specified_token_amount": {
+            "amount": random.randint(100001, 1000000),
+            "side": side,
+        },
         "user_wallet_address": str(pk_taker),
         "memo": "memo",
         "version": "v1",

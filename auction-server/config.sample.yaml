@@ -30,7 +30,7 @@ chains:
         - So11111111111111111111111111111111111111112
         - EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
     allow_permissionless_quote_requests: true
-    minimum_fee_list:
+    minimum_referral_fee_list:
       profiles:
         - profile_id: 0b059fa2-189f-4498-a646-e7ee1ed79c3c
           minimum_fees:
@@ -38,6 +38,10 @@ chains:
               fee_ppm: 100
             - mint: So11111111111111111111111111111111111111112
               fee_ppm: 200
+    minimum_platform_fee_list:
+      minimum_fees:
+        - mint: So11111111111111111111111111111111111111112
+          fee_ppm: 100
 
 lazer:
   price_feeds:

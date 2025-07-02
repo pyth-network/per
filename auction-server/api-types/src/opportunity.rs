@@ -225,6 +225,7 @@ pub enum OpportunityParamsV1ProgramSvm {
         #[serde_as(as = "DisplayFromStr")]
         router_account: Pubkey,
 
+        #[deprecated = "This field is deprecated and will be removed in a future release."]
         // TODO this should be deleted
         /// The referral fee in basis points.
         #[schema(example = 10)]
@@ -234,6 +235,7 @@ pub enum OpportunityParamsV1ProgramSvm {
         #[schema(example = 1000)]
         referral_fee_ppm: u64,
 
+        #[deprecated = "This field is deprecated and will be removed in a future release."]
         // TODO this should be deleted
         /// The platform fee in basis points.
         #[schema(example = 10)]

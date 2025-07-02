@@ -53,7 +53,10 @@ use {
     solana_sdk::pubkey::Pubkey,
     spl_associated_token_account::get_associated_token_address_with_program_id,
     spl_token::native_mint,
-    std::time::Duration,
+    std::{
+        cmp::max,
+        time::Duration,
+    },
     time::OffsetDateTime,
     tokio::time::sleep,
 };
@@ -214,6 +217,14 @@ impl Service {
             })
             .await?;
 
+        let platform_fee_pair_ppm = config
+            .get_platform_fee_ppm(&mint_user, &mint_searcher)
+            .unwrap_or(0);
+        let platform_fee_ppm = max(
+            platform_fee_pair_ppm,
+            metadata.swap_platform_fee_bps * FEE_BPS_TO_PPM,
+        );
+
         let fee_token = get_fee_token(mint_user, mint_searcher, &config.ordered_fee_tokens);
         let (searcher_amount, user_amount) = match (quote_create.tokens.clone(), fee_token.clone())
         {
@@ -224,15 +235,14 @@ impl Service {
                 // This is not exactly accurate and may overestimate the amount needed
                 // because of floor / ceil rounding errors.
                 let referral_fee_ppm = referral_fee_info.referral_fee_ppm;
-                let swap_platform_fee_ppm = metadata.swap_platform_fee_bps * FEE_BPS_TO_PPM;
-                if referral_fee_ppm + swap_platform_fee_ppm >= FEE_SPLIT_PRECISION_PPM {
+                if referral_fee_ppm + platform_fee_ppm >= FEE_SPLIT_PRECISION_PPM {
                     return Err(RestError::BadParameters(format!(
                         "Referral fee ppm + platform fee ppm must be less than {}",
                         FEE_SPLIT_PRECISION_PPM
                     )));
                 }
                 let denominator: u64 =
-                    FEE_SPLIT_PRECISION_PPM - referral_fee_ppm - swap_platform_fee_ppm;
+                    FEE_SPLIT_PRECISION_PPM - referral_fee_ppm - platform_fee_ppm;
                 let numerator = searcher_token.amount * FEE_SPLIT_PRECISION_PPM;
                 let amount_including_fees = numerator.div_ceil(denominator);
                 (amount_including_fees, 0u64)
@@ -349,7 +359,7 @@ impl Service {
             // token_account_initialization_configs.router_fee_receiver_ta =
             //     TokenAccountInitializationConfig::Unneeded;
         }
-        if metadata.swap_platform_fee_bps == 0 {
+        if platform_fee_ppm == 0 {
             // If the platform fee is 0, we can skip the initialization of the express relay and relayer token accounts
             token_account_initialization_configs.express_relay_fee_receiver_ata =
                 TokenAccountInitializationConfig::Unneeded;
@@ -374,8 +384,11 @@ impl Service {
                 fee_token,
                 referral_fee_bps,
                 referral_fee_ppm: referral_fee_info.referral_fee_ppm,
-                platform_fee_bps: metadata.swap_platform_fee_bps,
-                platform_fee_ppm: metadata.swap_platform_fee_bps * FEE_BPS_TO_PPM,
+                // TODO: we should deprecate and then get rid of the bps fields.
+                // For now we keep them for backwards compatibility, and generally the fees are in bp units.
+                // But if searchers are using the bps fields to calculate the ppm fields, this will lead to SwapInstructionError::PlatformFee if the fees are ever non-unit bps.
+                platform_fee_bps: platform_fee_ppm / FEE_BPS_TO_PPM,
+                platform_fee_ppm,
                 token_program_user,
                 user_mint_user_balance,
                 token_account_initialization_configs,
