@@ -12,7 +12,6 @@ use {
 };
 
 impl Repository {
-    #[tracing::instrument(skip_all, err(level = tracing::Level::TRACE))]
     pub async fn add_bid(
         &self,
         bid_create: entities::BidCreate,
