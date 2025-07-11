@@ -27,18 +27,11 @@ pub struct HandleAuctionInput {
 }
 
 impl Service {
-    #[tracing::instrument(skip_all, fields(auction_id, bid_ids, winner_bid_ids), err(level = tracing::Level::TRACE))]
-    async fn submit_auction<'a>(
+    async fn submit_auction(
         &self,
         auction: entities::Auction,
-        _auction_mutex_guard: MutexGuard<'a, ()>,
+        _auction_mutex_guard: MutexGuard<'_, ()>,
     ) -> anyhow::Result<()> {
-        tracing::Span::current().record("auction_id", auction.id.to_string());
-        tracing::Span::current().record(
-            "bid_ids",
-            tracing::field::display(entities::BidContainerTracing(&auction.bids)),
-        );
-
         let permission_key = auction.permission_key.clone();
         if !auction.is_ready(Service::AUCTION_MINIMUM_LIFETIME) {
             tracing::info!(
@@ -49,10 +42,6 @@ impl Service {
         }
 
         let winner_bids = self.get_winner_bids(&auction).await?;
-        tracing::Span::current().record(
-            "winner_bid_ids",
-            tracing::field::display(entities::BidContainerTracing(&winner_bids)),
-        );
         if winner_bids.is_empty() {
             join_all(auction.bids.into_iter().map(|bid| {
                 self.update_bid_status(UpdateBidStatusInput {
@@ -110,7 +99,6 @@ impl Service {
         Ok(())
     }
 
-    #[tracing::instrument(skip_all, fields(bid_ids, auction_id))]
     async fn submit_auction_for_lock(
         &self,
         permission_key: &PermissionKeySvm,
@@ -124,16 +112,8 @@ impl Service {
             .get_in_memory_pending_bids_by_permission_key(permission_key)
             .await;
 
-        tracing::Span::current().record(
-            "bid_ids",
-            tracing::field::display(entities::BidContainerTracing(&bids)),
-        );
-
         match entities::Auction::try_new(bids, bid_collection_time) {
-            Some(auction) => {
-                tracing::Span::current().record("auction_id", auction.id.to_string());
-                self.submit_auction(auction, acquired_lock).await
-            }
+            Some(auction) => self.submit_auction(auction, acquired_lock).await,
             None => Ok(()),
         }
     }

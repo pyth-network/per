@@ -21,17 +21,10 @@ pub struct ConcludeAuctionWithStatusesInput {
 }
 
 impl Service {
-    #[tracing::instrument(skip_all, fields(auction_id, bid_ids, bid_statuses))]
     pub async fn conclude_auction_with_statuses(
         &self,
         input: ConcludeAuctionWithStatusesInput,
     ) -> anyhow::Result<()> {
-        tracing::Span::current().record(
-            "bid_ids",
-            tracing::field::display(entities::BidContainerTracing(&input.auction.bids)),
-        );
-        tracing::Span::current().record("auction_id", input.auction.id.to_string());
-        tracing::Span::current().record("bid_statuses", format!("{:?}", input.bid_statuses));
         join_all(input.bid_statuses.into_iter().map(|(status, bid)| {
             self.update_bid_status(UpdateBidStatusInput {
                 bid:        bid.clone(),
@@ -70,7 +63,6 @@ impl Service {
     }
 
     /// Concludes an auction by getting the auction transaction status from the chain.
-    #[tracing::instrument(skip_all)]
     async fn conclude_auction(&self, input: ConcludeAuctionInput) -> anyhow::Result<()> {
         let auction = input.auction;
         tracing::info!(chain_id = self.config.chain_id, auction_id = ?auction.id, permission_key = auction.permission_key.to_string(), "Concluding auction");

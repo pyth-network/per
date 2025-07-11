@@ -167,13 +167,7 @@ impl AuctionManager for Service {
         Ok(TriggerStreamSvm::new(interval(TRIGGER_DURATION_SVM)))
     }
 
-    #[tracing::instrument(skip_all, fields(auction_id, bid_ids))]
     async fn get_winner_bids(&self, auction: &entities::Auction) -> Result<Vec<entities::Bid>> {
-        tracing::Span::current().record("auction_id", auction.id.to_string());
-        tracing::Span::current().record(
-            "bid_ids",
-            tracing::field::display(entities::BidContainerTracing(&auction.bids)),
-        );
         let mut bids = auction.bids.clone();
         bids.sort_by(|a, b| b.amount.cmp(&a.amount));
         return Ok(self
@@ -188,7 +182,6 @@ impl AuctionManager for Service {
     /// Submit all the svm bids as separate transactions concurrently
     /// Returns Ok if at least one of the transactions is successful
     /// Returns Err if all transactions are failed
-    #[tracing::instrument(skip_all, fields(tx_hash))]
     async fn submit_bids(
         &self,
         _permission_key: PermissionKeySvm,
@@ -211,18 +204,11 @@ impl AuctionManager for Service {
             .expect("results should not be empty because bids is not empty"))
     }
 
-    #[tracing::instrument(skip_all, fields(bid_ids, tx_hash, auction_id, bid_statuses))]
     async fn get_bid_results(
         &self,
         bids: Vec<entities::Bid>,
         bid_status_auction: entities::BidStatusAuction,
     ) -> Result<Vec<Option<entities::BidStatusSvm>>> {
-        tracing::Span::current().record(
-            "bid_ids",
-            tracing::field::display(entities::BidContainerTracing(&bids)),
-        );
-        tracing::Span::current().record("tx_hash", bid_status_auction.tx_hash.to_string());
-        tracing::Span::current().record("auction_id", bid_status_auction.id.to_string());
         if bids.is_empty() {
             return Ok(vec![]);
         }
@@ -258,7 +244,6 @@ impl AuctionManager for Service {
             vec![None; bids.len()]
         };
 
-        tracing::Span::current().record("bid_statuses", format!("{:?}", statuses));
         // TODO: find a better place to put this
         // Remove the pending transactions from the simulator
         join_all(
