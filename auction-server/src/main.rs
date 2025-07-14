@@ -81,7 +81,12 @@ async fn main() -> Result<()> {
         .with_exporter(otlp_exporter)
         .with_trace_config(
             trace::config()
-                .with_sampler(Sampler::TraceIdRatioBased(0.05))
+                .with_sampler(Sampler::ParentBased(Box::new(Sampler::TraceIdRatioBased(
+                    std::env::var("TRACE_RATIO")
+                        .ok()
+                        .and_then(|v| v.parse::<f64>().ok())
+                        .unwrap_or(0.05),
+                ))))
                 .with_resource(Resource::new(vec![
                     KeyValue::new("service.name", "auction-server"),
                     KeyValue::new(
