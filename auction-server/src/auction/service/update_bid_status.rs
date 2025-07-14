@@ -64,10 +64,14 @@ impl Service {
             })
     }
 
+    #[tracing::instrument(skip_all, fields(bid_id, status), err(level = tracing::Level::TRACE))]
     pub async fn update_bid_status(
         &self,
         mut input: UpdateBidStatusInput,
     ) -> Result<bool, RestError> {
+        tracing::Span::current().record("bid_id", input.bid.id.to_string());
+        tracing::Span::current().record("status", format!("{:?}", input.new_status));
+
         let (is_updated, conclusion_time_new) = self
             .repo
             .update_bid_status(input.bid.clone(), input.new_status.clone())

@@ -1138,6 +1138,7 @@ impl Service {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all, err(level = tracing::Level::TRACE))]
     async fn verify_signatures(
         &self,
         bid: &entities::BidCreate,
@@ -1235,6 +1236,7 @@ impl Service {
         }
     }
 
+    #[tracing::instrument(skip_all, err(level = tracing::Level::TRACE))]
     pub async fn simulate_bid(&self, bid: &entities::BidCreate) -> Result<(), RestError> {
         const RETRY_LIMIT: usize = 5;
         const RETRY_DELAY: Duration = Duration::from_millis(100);

@@ -83,6 +83,7 @@ impl Service {
         Ok(bid.chain_data.transaction)
     }
 
+    #[tracing::instrument(skip_all, err(level = tracing::Level::TRACE))]
     async fn submit_auction_bid_for_lock(
         &self,
         signed_bid: entities::Bid,

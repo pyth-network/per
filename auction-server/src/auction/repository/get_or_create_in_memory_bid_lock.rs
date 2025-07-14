@@ -4,6 +4,7 @@ use {
 };
 
 impl Repository {
+    #[tracing::instrument(skip_all)]
     pub async fn get_or_create_in_memory_bid_lock(
         &self,
         key: entities::BidId,

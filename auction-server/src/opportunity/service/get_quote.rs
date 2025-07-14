@@ -181,6 +181,7 @@ fn get_fee_token(
 }
 
 impl Service {
+    #[tracing::instrument(skip_all, err(level = tracing::Level::TRACE))]
     async fn get_opportunity_create_for_quote(
         &self,
         quote_create: entities::QuoteCreate,
