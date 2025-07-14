@@ -28,6 +28,7 @@ use {
 };
 
 impl Repository {
+    #[tracing::instrument(skip_all, err(level = tracing::Level::TRACE))]
     pub async fn add_bid_analytics(
         &self,
         bid: entities::Bid,
