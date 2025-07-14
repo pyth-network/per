@@ -6,7 +6,10 @@ use {
     opentelemetry::KeyValue,
     opentelemetry_otlp::WithExportConfig,
     opentelemetry_sdk::{
-        trace,
+        trace::{
+            self,
+            Sampler,
+        },
         Resource,
     },
     per_metrics::{
@@ -76,13 +79,17 @@ async fn main() -> Result<()> {
     let tracer = opentelemetry_otlp::new_pipeline()
         .tracing()
         .with_exporter(otlp_exporter)
-        .with_trace_config(trace::config().with_resource(Resource::new(vec![
-            KeyValue::new("service.name", "auction-server"),
-            KeyValue::new(
-                "service.env",
-                std::env::var("APP_ENV").unwrap_or("mainnet".to_string()),
-            ),
-        ])))
+        .with_trace_config(
+            trace::config()
+                .with_sampler(Sampler::TraceIdRatioBased(0.05))
+                .with_resource(Resource::new(vec![
+                    KeyValue::new("service.name", "auction-server"),
+                    KeyValue::new(
+                        "service.env",
+                        std::env::var("APP_ENV").unwrap_or("mainnet".to_string()),
+                    ),
+                ])),
+        )
         .install_batch(opentelemetry_sdk::runtime::Tokio)
         .map_err(|e| anyhow::anyhow!("Error initializing open telemetry: {}", e))?;
     let telemetry = tracing_opentelemetry::layer().with_tracer(tracer);
