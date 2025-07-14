@@ -941,6 +941,7 @@ impl AnalyticsDatabase for AnalyticsDatabaseInserter {
             category = "db_analytics_queries",
             result = "success",
             name = "add_bid",
+            tracing_enabled
         ),
         skip_all
     )]
