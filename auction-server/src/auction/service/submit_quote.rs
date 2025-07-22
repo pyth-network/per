@@ -33,13 +33,12 @@ pub struct SubmitQuoteInput {
 const MIN_DEADLINE_BUFFER_SECS: i64 = 2;
 
 impl Service {
-    async fn get_winner_bid_for_submission(
+    fn get_winner_bid_for_submission(
         &self,
         auction_id: entities::AuctionId,
     ) -> Result<(entities::Auction, entities::Bid), RestError> {
         let auction: entities::Auction = self
             .get_auction_by_id(GetAuctionByIdInput { auction_id })
-            .await
             .ok_or(RestError::BadParameters("Quote not found. The provided reference ID may be invalid, already finalized on-chain, or canceled.".to_string()))?;
 
         let winner_bid = auction
@@ -65,7 +64,7 @@ impl Service {
         let mut bid = bid;
         self.add_relayer_signature(&mut bid);
         let auction = self.get_auction_by_id(GetAuctionByIdInput {auction_id: auction.id,
-        }).await.ok_or_else(|| {
+        }).ok_or_else(|| {
             tracing::error!(auction_id = %auction.id, "Auction not found when getting most recent version");
             RestError::TemporarilyUnavailable
         })?;
@@ -94,7 +93,7 @@ impl Service {
         let _lock = lock.lock().await;
 
         // Make sure the bid is still not cancelled, we also get the latest saved version of the auction
-        let (auction, bid_latest_version) = self.get_winner_bid_for_submission(auction.id).await?;
+        let (auction, bid_latest_version) = self.get_winner_bid_for_submission(auction.id)?;
         if bid_latest_version.status.is_submitted() {
             return Ok(());
         }
@@ -199,7 +198,7 @@ impl Service {
         &self,
         input: SubmitQuoteInput,
     ) -> Result<VersionedTransaction, RestError> {
-        let (auction, winner_bid) = self.get_winner_bid_for_submission(input.auction_id).await?;
+        let (auction, winner_bid) = self.get_winner_bid_for_submission(input.auction_id)?;
 
         let mut bid = winner_bid.clone();
         tracing::Span::current().record("bid_id", bid.id.to_string());

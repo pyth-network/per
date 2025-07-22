@@ -6,11 +6,7 @@ use {
 impl Repository {
     #[tracing::instrument(skip_all)]
     async fn add_in_memory_auction(&self, auction: entities::Auction) {
-        self.in_memory_store
-            .auctions
-            .write()
-            .await
-            .insert(auction.id, auction);
+        self.in_memory_store.auctions.insert(auction.id, auction);
     }
 
     // NOTE: Do not call this function directly. Instead call `add_auction` from `Service`.
