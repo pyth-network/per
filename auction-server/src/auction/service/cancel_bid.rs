@@ -21,8 +21,9 @@ impl Service {
     async fn cancel_bid_for_lock(
         &self,
         input: CancelBidInput,
-        _lock: entities::BidLock,
+        lock: entities::BidLock,
     ) -> Result<(), RestError> {
+        let _lock = lock.lock().await;
         let bid = self
             .repo
             .get_in_memory_auction_bid_by_bid_id(input.bid_id)
