@@ -27,7 +27,6 @@ impl Service {
         let bid = self
             .repo
             .get_in_memory_auction_bid_by_bid_id(input.bid_id)
-            .await
             .ok_or(RestError::BadParameters(
                 "Bid is only cancellable in awaiting_signature state".to_string(),
             ))?;

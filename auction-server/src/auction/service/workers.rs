@@ -141,7 +141,7 @@ impl Service {
                                 self.task_tracker.spawn({
                                     let service = self.clone();
                                     async move {
-                                        let in_memory_auctions = service.repo.get_in_memory_auctions().await;
+                                        let in_memory_auctions = service.repo.get_in_memory_auctions();
                                         let auctions = in_memory_auctions.iter().filter(|auction| {
                                             auction.bids.iter().any(|bid| {
                                                 bid.chain_data.transaction.signatures[0] == signature

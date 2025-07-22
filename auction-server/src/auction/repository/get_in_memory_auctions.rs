@@ -4,13 +4,11 @@ use {
 };
 
 impl Repository {
-    pub async fn get_in_memory_auctions(&self) -> Vec<entities::Auction> {
+    pub fn get_in_memory_auctions(&self) -> Vec<entities::Auction> {
         self.in_memory_store
             .auctions
-            .read()
-            .await
-            .values()
-            .cloned()
+            .iter()
+            .map(|entry| entry.value().clone())
             .collect()
     }
 }

@@ -5,6 +5,7 @@ use {
         entities::ChainId,
     },
     axum_prometheus::metrics,
+    dashmap::DashMap,
     solana_sdk::pubkey::Pubkey,
     std::collections::{
         HashMap,
@@ -66,7 +67,7 @@ pub struct ChainStoreEvm {}
 #[derive(Debug)]
 pub struct InMemoryStore {
     pub pending_bids: RwLock<HashMap<PermissionKeySvm, Vec<entities::Bid>>>,
-    pub auctions:     RwLock<HashMap<entities::AuctionId, entities::Auction>>,
+    pub auctions:     DashMap<entities::AuctionId, entities::Auction>,
 
     pub auction_lock: Mutex<HashMap<PermissionKeySvm, entities::AuctionLock>>,
     pub bid_lock:     Mutex<HashMap<entities::BidId, entities::BidLock>>,
@@ -78,7 +79,7 @@ impl Default for InMemoryStore {
     fn default() -> Self {
         Self {
             pending_bids: RwLock::new(HashMap::new()),
-            auctions:     RwLock::new(HashMap::new()),
+            auctions:     DashMap::new(),
             auction_lock: Mutex::new(HashMap::new()),
             bid_lock:     Mutex::new(HashMap::new()),
             chain_store:  ChainStoreSvm::default(),
@@ -110,7 +111,7 @@ impl Repository {
     pub(super) async fn update_metrics(&self) {
         let label = [("chain_id", self.chain_id.to_string())];
         let store = &self.in_memory_store;
-        metrics::gauge!("in_memory_auctions", &label).set(store.auctions.read().await.len() as f64);
+        metrics::gauge!("in_memory_auctions", &label).set(store.auctions.len() as f64);
         metrics::gauge!("in_memory_pending_bids", &label)
             .set(store.pending_bids.read().await.len() as f64);
         metrics::gauge!("in_memory_auction_locks", &label)

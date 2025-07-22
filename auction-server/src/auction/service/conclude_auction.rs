@@ -41,11 +41,7 @@ impl Service {
         .await;
 
         // Refetch the auction from the in-memory store to check if all bids are finalized
-        if let Some(auction) = self
-            .repo
-            .get_in_memory_auction_by_id(input.auction.id)
-            .await
-        {
+        if let Some(auction) = self.repo.get_in_memory_auction_by_id(input.auction.id) {
             if auction.bids.iter().all(|bid| bid.status.is_concluded()) {
                 self.repo
                     .conclude_auction(auction.id)
@@ -122,7 +118,7 @@ impl Service {
         let mut interval = Self::get_conclusion_interval();
         loop {
             interval.tick().await;
-            if let Some(auction) = self.repo.get_in_memory_auction_by_id(auction_id).await {
+            if let Some(auction) = self.repo.get_in_memory_auction_by_id(auction_id) {
                 if let Err(e) = self
                     .conclude_auction(ConcludeAuctionInput { auction })
                     .await
