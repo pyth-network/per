@@ -5,6 +5,7 @@ use {
 };
 
 impl Repository {
+    #[tracing::instrument(skip_all)]
     pub async fn remove_in_memory_bid_lock(&self, key: &entities::BidId) {
         let mut mutex_guard = self.in_memory_store.bid_lock.lock().await;
         let bid_lock = mutex_guard.get(key);

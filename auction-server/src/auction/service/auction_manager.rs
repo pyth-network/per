@@ -389,6 +389,7 @@ const METRIC_LABEL_FAILED: &str = "failed";
 const METRIC_LABEL_EXPIRED: &str = "expired";
 
 impl Service {
+    #[tracing::instrument(skip_all)]
     pub fn add_relayer_signature(&self, bid: &mut entities::Bid) {
         let relayer = &self.config.chain_config.express_relay.relayer;
         let serialized_message = bid.chain_data.transaction.message.serialize();
