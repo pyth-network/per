@@ -8,6 +8,7 @@ use {
 
 impl Repository {
     // Remove a bid from the in memory pending bids if it exists
+    #[tracing::instrument(skip_all)]
     pub async fn remove_in_memory_pending_bids(&self, bids: &[entities::Bid]) {
         let mut write_guard = self.in_memory_store.pending_bids.write().await;
         for bid in bids {

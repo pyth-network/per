@@ -9,6 +9,7 @@ use {
 
 impl Repository {
     // Find the in memory auction which contains the bid and update the bid status
+    #[tracing::instrument(skip_all)]
     async fn update_in_memory_auction_bid(
         &self,
         bid: &entities::Bid,
