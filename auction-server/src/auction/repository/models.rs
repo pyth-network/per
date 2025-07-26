@@ -858,6 +858,7 @@ pub struct BidAnalyticsSwap {
 
     #[serde(with = "clickhouse::serde::uuid::option")]
     pub auction_id:      Option<Uuid>,
+    pub tx_hash:         Option<String>,
     #[serde(with = "clickhouse::serde::time::datetime64::micros::option")]
     pub submission_time: Option<OffsetDateTime>,
     #[serde(with = "clickhouse::serde::uuid::option")]
@@ -905,6 +906,7 @@ pub struct BidAnalyticsLimo {
 
     #[serde(with = "clickhouse::serde::uuid::option")]
     pub auction_id:      Option<Uuid>,
+    pub tx_hash:         Option<String>,
     #[serde(with = "clickhouse::serde::time::datetime64::micros::option")]
     pub submission_time: Option<OffsetDateTime>,
     #[serde(with = "clickhouse::serde::time::datetime64::micros::option")]
