@@ -45,6 +45,7 @@ jobs:
           cargo install --git https://github.com/coral-xyz/anchor avm
           avm install 0.31.0
           avm use 0.31.0
+          echo "$HOME/.avm/bin" >> $GITHUB_PATH
       - uses: pre-commit/action@v3.0.0
         if: ${{ github.event_name == 'pull_request' }}
         with:
