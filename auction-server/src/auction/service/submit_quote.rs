@@ -227,7 +227,7 @@ impl Service {
             .static_account_keys()
             .iter()
             .position(|p| p.eq(&user_wallet))
-            .expect("User wallet not found in transaction.");
+            .expect("User wallet not found in transaction");
         bid.chain_data.transaction.signatures[user_signature_pos] = input.user_signature;
         self.add_relayer_signature(&mut bid);
 
