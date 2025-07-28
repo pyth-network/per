@@ -190,6 +190,7 @@ impl Service {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn get_bid_transaction_data_swap(
         &self,
         transaction: VersionedTransaction,

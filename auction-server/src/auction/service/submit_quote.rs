@@ -33,6 +33,7 @@ pub struct SubmitQuoteInput {
 const MIN_DEADLINE_BUFFER_SECS: i64 = 2;
 
 impl Service {
+    #[tracing::instrument(skip_all)]
     fn get_winner_bid_for_submission(
         &self,
         auction_id: entities::AuctionId,
