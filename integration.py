@@ -16,6 +16,7 @@ def main():
         f.write(f'export DELETE_ENABLED=true\n')
         f.write(f'export DELETE_INTERVAL_SECONDS={1}\n')
         f.write(f'export DELETE_THRESHOLD_SECONDS={60*60*24*2}\n')
+        f.write(f'export DELETE_BUFFER_AUCTION_SECONDS={60*60}\n')
 
     mint_buy = Keypair.from_json((open('keypairs/mint_buy.json').read())).pubkey()
     mint_sell = Keypair.from_json((open('keypairs/mint_sell.json').read())).pubkey()
