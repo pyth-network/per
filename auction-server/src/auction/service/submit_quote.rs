@@ -93,6 +93,7 @@ impl Service {
         let _lock = lock.lock().await;
 
         // Make sure the bid is still not cancelled, we also get the latest saved version of the auction
+        // TODO: we probably don't need to get the auction and bid again, can probably use the one we have from the call to get_winner_bid_for_submission in submit_quote
         let (auction, bid_latest_version) = self.get_winner_bid_for_submission(auction.id)?;
         if bid_latest_version.status.is_submitted() {
             return Ok(());
