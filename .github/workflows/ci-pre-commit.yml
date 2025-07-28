@@ -47,6 +47,8 @@ jobs:
           avm use 0.31.0
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
       - uses: pre-commit/action@v3.0.0
+        env:
+          PATH: "$HOME/.cargo/bin:${{ env.PATH }}"
         if: ${{ github.event_name == 'pull_request' }}
         with:
           # Run only on files changed in the PR
