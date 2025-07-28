@@ -46,9 +46,10 @@ jobs:
           avm install 0.31.0
           avm use 0.31.0
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          echo "$HOME/.avm/bin" >> $GITHUB_PATH
       - uses: pre-commit/action@v3.0.0
         env:
-          PATH: "$HOME/.cargo/bin:${{ env.PATH }}"
+          PATH: "$HOME/.cargo/bin:$HOME/.avm/bin:${{ env.PATH }}"
         if: ${{ github.event_name == 'pull_request' }}
         with:
           # Run only on files changed in the PR
