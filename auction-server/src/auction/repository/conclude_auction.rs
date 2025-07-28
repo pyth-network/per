@@ -10,7 +10,7 @@ impl Repository {
     pub async fn conclude_auction(&self, auction_id: entities::AuctionId) -> anyhow::Result<()> {
         tracing::Span::current().record("auction_id", auction_id.to_string());
         self.db.conclude_auction(auction_id).await?;
-        self.remove_in_memory_auction(auction_id).await;
+        self.remove_in_memory_auction(auction_id);
         Ok(())
     }
 }

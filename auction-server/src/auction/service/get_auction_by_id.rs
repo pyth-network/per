@@ -8,9 +8,7 @@ pub struct GetAuctionByIdInput {
 }
 
 impl Service {
-    pub async fn get_auction_by_id(&self, input: GetAuctionByIdInput) -> Option<entities::Auction> {
-        self.repo
-            .get_in_memory_auction_by_id(input.auction_id)
-            .await
+    pub fn get_auction_by_id(&self, input: GetAuctionByIdInput) -> Option<entities::Auction> {
+        self.repo.get_in_memory_auction_by_id(input.auction_id)
     }
 }
