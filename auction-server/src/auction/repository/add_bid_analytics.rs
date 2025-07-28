@@ -37,28 +37,6 @@ impl Repository {
         decimals: HashMap<Pubkey, u8>,
     ) -> anyhow::Result<()> {
         let transaction = STANDARD.encode(bincode::serialize(&bid.chain_data.transaction.clone())?);
-        let tx_hash = match &bid.status {
-            entities::BidStatusSvm::Pending => None,
-            entities::BidStatusSvm::AwaitingSignature { auction } => {
-                Some(auction.tx_hash.to_string())
-            }
-            entities::BidStatusSvm::SentToUserForSubmission { auction } => {
-                Some(auction.tx_hash.to_string())
-            }
-            entities::BidStatusSvm::Submitted { auction } => Some(auction.tx_hash.to_string()),
-            entities::BidStatusSvm::Lost { auction } => {
-                auction.as_ref().map(|a| a.tx_hash.to_string())
-            }
-            entities::BidStatusSvm::Won { auction } => Some(auction.tx_hash.to_string()),
-            entities::BidStatusSvm::Failed { auction, reason: _ } => {
-                Some(auction.tx_hash.to_string())
-            }
-            entities::BidStatusSvm::Expired { auction } => Some(auction.tx_hash.to_string()),
-            entities::BidStatusSvm::Cancelled { auction } => Some(auction.tx_hash.to_string()),
-            entities::BidStatusSvm::SubmissionFailed { auction, reason: _ } => {
-                Some(auction.tx_hash.to_string())
-            }
-        };
         let bid_analytics = match data {
             entities::BidTransactionData::SubmitBid(transaction_data) => {
                 let SubmitBidArgs {
@@ -75,7 +53,6 @@ impl Repository {
                     bid_amount: bid.amount,
 
                     auction_id: bid.status.get_auction_id(),
-                    tx_hash,
                     submission_time: bid.submission_time,
                     conclusion_time: bid.conclusion_time,
 
@@ -136,7 +113,6 @@ impl Repository {
                     bid_amount: bid.amount,
 
                     auction_id: bid.status.get_auction_id(),
-                    tx_hash,
                     opportunity_id: bid.opportunity_id,
                     conclusion_time: bid.conclusion_time,
 
