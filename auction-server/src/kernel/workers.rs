@@ -122,6 +122,12 @@ pub async fn run_delete_pg_db_history(
                         }
                     });
                     futures::future::try_join_all(futures).await?;
+
+                    delete_pg_db_auction_history(
+                        db,
+                        delete_threshold_secs + delete_pg_rows_options.delete_buffer_auction_secs,
+                    )
+                    .await?;
                 }
             }
         }
@@ -202,6 +208,38 @@ pub async fn delete_pg_db_opportunity_history(
         &[("chain_id", chain_id.to_string())]
     )
     .record(n_opportunities_deleted as f64);
+
+    Ok(())
+}
+
+#[instrument(
+    target = "metrics",
+    name = "db_delete_pg_auction_history"
+    fields(category = "db_queries", result = "success", name = "delete_pg_auction_history", tracing_enabled),
+    skip_all
+)]
+pub async fn delete_pg_db_auction_history(
+    db: &PgPool,
+    delete_threshold_secs: u64,
+) -> anyhow::Result<()> {
+    let threshold = OffsetDateTime::now_utc() - Duration::from_secs(delete_threshold_secs);
+    let n_auctions_deleted = sqlx::query!(
+        "WITH rows_to_delete AS (
+            SELECT id FROM auction WHERE creation_time < $1 LIMIT $2
+        ) DELETE FROM auction WHERE id IN (SELECT id FROM rows_to_delete)",
+        PrimitiveDateTime::new(threshold.date(), threshold.time()),
+        DELETE_BATCH_SIZE as i64,
+    )
+    .execute(db)
+    .await
+    .map_err(|e| {
+        tracing::Span::current().record("result", "error");
+        tracing::error!("Failed to delete PG DB auction history: {}", e);
+        e
+    })?
+    .rows_affected();
+
+    metrics::histogram!("db_delete_pg_auction_count").record(n_auctions_deleted as f64);
 
     Ok(())
 }
