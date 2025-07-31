@@ -1,0 +1,4 @@
+ALTER TABLE bid ADD CONSTRAINT fk_auction_id
+FOREIGN KEY (auction_id)
+REFERENCES auction(id)
+ON DELETE RESTRICT;
