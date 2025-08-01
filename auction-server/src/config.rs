@@ -102,12 +102,6 @@ pub struct DeletePgRowsOptions {
     #[arg(env = "DELETE_THRESHOLD_SECONDS")]
     #[arg(default_value = "172800")] // 2 days in seconds
     pub delete_threshold_secs: u64,
-
-    /// The buffer time to account for bids that may still exist in the db. We cannot delete auctions with ids that are still referenced by bids, so we wait an additional buffer time before deleting auctions.
-    #[arg(long = "delete-buffer-auction-seconds")]
-    #[arg(env = "DELETE_BUFFER_AUCTION_SECONDS")]
-    #[arg(default_value = "3600")] // 1 hour in seconds
-    pub delete_buffer_auction_secs: u64,
 }
 
 #[derive(Args, Clone, Debug)]
