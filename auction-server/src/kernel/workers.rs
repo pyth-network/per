@@ -125,7 +125,7 @@ pub async fn run_delete_pg_db_history(
 
                     delete_pg_db_auction_history(
                         db,
-                        delete_threshold_secs + delete_pg_rows_options.delete_buffer_auction_secs,
+                        delete_threshold_secs,
                     )
                     .await?;
                 }
