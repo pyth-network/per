@@ -66,6 +66,7 @@ use {
         instruction::AssociatedTokenAccountInstruction,
     },
     spl_token::instruction::TokenInstruction,
+    spl_token_2022::instruction::TokenInstruction as Token2022Instruction,
     std::{
         array,
         collections::VecDeque,
@@ -331,6 +332,20 @@ impl Service {
                     ix_parsed
                 ))),
             }
+        } else if *program_id == spl_token_2022::id() {
+            let ix_parsed = Token2022Instruction::unpack(&ix.data)
+                .map_err(InstructionError::InvalidSplTokenInstruction)?;
+            match ix_parsed {
+                // approve token program close account instructions
+                Token2022Instruction::CloseAccount { .. } => Ok(()),
+                // approve token program sync native (for WSOL) instructions
+                Token2022Instruction::SyncNative { .. } => Ok(()),
+                // other token program instructions are not approved
+                _ => Err(InstructionError::UnsupportedSplTokenInstruction(format!(
+                    "{:?}",
+                    ix_parsed
+                ))),
+            }
         } else if *program_id == spl_associated_token_account::id() {
             let ix_parsed =
                 AssociatedTokenAccountInstruction::try_from_slice(&ix.data).map_err(|e| {
@@ -530,6 +545,7 @@ impl Service {
         Ok(result)
     }
 
+    /// TODO: need to adapt this to allow all transfers not including user account
     async fn check_transfer_instruction(
         &self,
         tx: &VersionedTransaction,
@@ -2462,6 +2478,136 @@ mod tests {
             .unwrap(),
             spl_token::instruction::burn(
                 &spl_token::id(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                &[],
+                0,
+            )
+            .unwrap(),
+        ];
+        for instruction in instructions.into_iter() {
+            let data = instruction.data.clone();
+            let ix_parsed = TokenInstruction::unpack(&data).unwrap();
+            let program_id = instruction.program_id;
+            let transaction = Transaction::new_with_payer(
+                &[instruction.clone(), swap_instruction.clone()],
+                Some(&searcher.pubkey()),
+            );
+            let instruction = transaction
+                .message()
+                .instructions
+                .first()
+                .expect("Expected at least one instruction")
+                .clone();
+            let result = service.check_approved_program_instruction(&program_id, &instruction);
+            assert_eq!(
+                result.unwrap_err(),
+                InstructionError::UnsupportedSplTokenInstruction(format!("{:?}", ix_parsed))
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_check_approved_program_when_unsupported_token_2022_instruction() {
+        let (service, opportunities) = get_service(true);
+        let opportunity = opportunities.user_token_specified.clone();
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunity.clone()),
+            bid_amount,
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let instructions = vec![
+            spl_token_2022::instruction::initialize_account(
+                &spl_token_2022::id(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+            )
+            .unwrap(),
+            spl_token_2022::instruction::initialize_account2(
+                &spl_token_2022::id(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+            )
+            .unwrap(),
+            spl_token_2022::instruction::initialize_account3(
+                &spl_token_2022::id(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+            )
+            .unwrap(),
+            spl_token_2022::instruction::initialize_mint(
+                &spl_token_2022::id(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                None,
+                0,
+            )
+            .unwrap(),
+            spl_token_2022::instruction::initialize_mint2(
+                &spl_token_2022::id(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                None,
+                0,
+            )
+            .unwrap(),
+            spl_token_2022::instruction::transfer_checked(
+                &spl_token_2022::id(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                &[],
+                0,
+                0,
+            )
+            .unwrap(),
+            spl_token_2022::instruction::approve(
+                &spl_token_2022::id(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                &[],
+                0,
+            )
+            .unwrap(),
+            spl_token_2022::instruction::revoke(
+                &spl_token_2022::id(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                &[],
+            )
+            .unwrap(),
+            spl_token_2022::instruction::set_authority(
+                &spl_token_2022::id(),
+                &Pubkey::new_unique(),
+                None,
+                spl_token_2022::instruction::AuthorityType::AccountOwner,
+                &Pubkey::new_unique(),
+                &[],
+            )
+            .unwrap(),
+            spl_token_2022::instruction::mint_to(
+                &spl_token_2022::id(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                &[],
+                0,
+            )
+            .unwrap(),
+            spl_token_2022::instruction::burn(
+                &spl_token_2022::id(),
                 &Pubkey::new_unique(),
                 &Pubkey::new_unique(),
                 &Pubkey::new_unique(),
