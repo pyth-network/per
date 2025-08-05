@@ -111,7 +111,6 @@ pub enum InstructionError {
     UnsupportedSplTokenInstruction(String),
     InvalidAssociatedTokenAccountInstruction(String),
     UnsupportedAssociatedTokenAccountInstruction(AssociatedTokenAccountInstruction),
-    UnsupportedProgram(Pubkey),
     TransferInstructionNotAllowed,
     CloseAccountInstructionNotAllowed,
     InvalidTransferInstructionsCount,
@@ -132,6 +131,7 @@ pub enum InstructionError {
     MissingCreateAtaInstruction(Pubkey),
     InvalidMemoInstructionCount { expected: usize, found: usize },
     InvalidMemoString { expected: String, found: String },
+    UnsupportedInvocationOfUserWallet,
 }
 
 impl std::fmt::Display for InstructionError {
@@ -155,9 +155,6 @@ impl std::fmt::Display for InstructionError {
                 "Unsupported associated token account instruction {:?}",
                 instruction
             ),
-            InstructionError::UnsupportedProgram(program) => {
-                write!(f, "Unsupported program {}", program)
-            }
             InstructionError::TransferInstructionNotAllowed => {
                 write!(f, "Transfer instruction is not allowed")
             }
@@ -276,6 +273,12 @@ impl std::fmt::Display for InstructionError {
                     f,
                     "Invalid memo string in memo instruction. Expected: {:?} found: {:?}",
                     expected, found
+                )
+            }
+            InstructionError::UnsupportedInvocationOfUserWallet => {
+                write!(
+                    f,
+                    "Invocation of user wallet is not supported in this instruction"
                 )
             }
         }

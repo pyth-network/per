@@ -251,7 +251,9 @@ impl Service {
     fn validate_swap_transaction_instructions(
         &self,
         tx: &VersionedTransaction,
+        user_wallet: &Pubkey,
     ) -> Result<(), RestError> {
+        let accounts = tx.message.static_account_keys();
         tx.message
             .instructions()
             .iter()
@@ -260,6 +262,8 @@ impl Service {
                 self.validate_swap_transaction_instruction(
                     ix.program_id(tx.message.static_account_keys()),
                     ix,
+                    user_wallet,
+                    accounts,
                 )
                 .map_err(|e| RestError::InvalidInstruction(Some(index), e))
             })?;
@@ -271,6 +275,8 @@ impl Service {
         &self,
         program_id: &Pubkey,
         ix: &CompiledInstruction,
+        user_wallet: &Pubkey,
+        accounts: &[Pubkey],
     ) -> Result<(), InstructionError> {
         if *program_id == system_program::id() {
             if matches!(
@@ -308,7 +314,18 @@ impl Service {
         {
             Ok(())
         } else {
-            Err(InstructionError::UnsupportedProgram(*program_id))
+            ix.accounts.iter().try_for_each(|i| {
+                if accounts
+                    .get(*i as usize)
+                    .expect("account index out of bounds")
+                    == user_wallet
+                {
+                    return Err(InstructionError::UnsupportedInvocationOfUserWallet);
+                }
+                Ok(())
+            })?;
+
+            Ok(())
         }
     }
 
@@ -1020,13 +1037,6 @@ impl Service {
                     })
                     .await
                     .ok_or(RestError::SwapOpportunityNotFound)?;
-                self.validate_swap_transaction_instructions(
-                    bid_chain_data_create_svm.get_transaction(),
-                )?;
-                let quote_tokens = get_swap_quote_tokens(&opp);
-                let opportunity_swap_data = get_opportunity_swap_data(&opp);
-                self.check_svm_swap_bid_fields(bid_data, opportunity_swap_data, &quote_tokens)
-                    .await?;
 
                 let transaction_data = self
                     .get_bid_transaction_data_swap(bid_data.transaction.clone())
@@ -1041,6 +1051,15 @@ impl Service {
                     token_program_user,
                     ..
                 } = transaction_data.accounts;
+
+                self.validate_swap_transaction_instructions(
+                    bid_chain_data_create_svm.get_transaction(),
+                    &user_wallet,
+                )?;
+                let quote_tokens = get_swap_quote_tokens(&opp);
+                let opportunity_swap_data = get_opportunity_swap_data(&opp);
+                self.check_svm_swap_bid_fields(bid_data, opportunity_swap_data, &quote_tokens)
+                    .await?;
 
                 Self::check_memo_instructions(&bid_data.transaction, &opportunity_swap_data.memo)
                     .await?;
@@ -2266,6 +2285,18 @@ mod tests {
     #[tokio::test]
     async fn test_verify_bid_when_unsupported_system_program_instruction() {
         let (service, opportunities) = get_service(true);
+        let opportunity = opportunities.user_token_specified.clone();
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunity.clone()),
+            bid_amount,
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
         let instructions = vec![
             system_instruction::advance_nonce_account(&Pubkey::new_unique(), &Pubkey::new_unique()),
             system_instruction::create_account(
@@ -2288,11 +2319,10 @@ mod tests {
             ),
         ];
         for instruction in instructions.into_iter() {
-            let searcher = Keypair::new();
             let result = get_verify_bid_result(
                 service.clone(),
-                searcher,
-                vec![instruction],
+                searcher.insecure_clone(),
+                vec![instruction, swap_instruction.clone()],
                 opportunities.user_token_specified.clone(),
             )
             .await;
@@ -2309,6 +2339,18 @@ mod tests {
     #[tokio::test]
     async fn test_verify_bid_when_unsupported_token_instruction() {
         let (service, opportunities) = get_service(true);
+        let opportunity = opportunities.user_token_specified.clone();
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunity.clone()),
+            bid_amount,
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
         let instructions = vec![
             spl_token::instruction::initialize_account(
                 &spl_token::id(),
@@ -2403,11 +2445,10 @@ mod tests {
         for instruction in instructions.into_iter() {
             let data = instruction.data.clone();
             let ix_parsed = TokenInstruction::unpack(&data).unwrap();
-            let searcher = Keypair::new();
             let result = get_verify_bid_result(
                 service.clone(),
-                searcher,
-                vec![instruction],
+                searcher.insecure_clone(),
+                vec![instruction, swap_instruction.clone()],
                 opportunities.user_token_specified.clone(),
             )
             .await;
@@ -2424,6 +2465,18 @@ mod tests {
     #[tokio::test]
     async fn test_verify_bid_when_unsupported_associated_token_account_instruction() {
         let (service, opportunities) = get_service(true);
+        let opportunity = opportunities.user_token_specified.clone();
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunity.clone()),
+            bid_amount,
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
         let instructions = vec![recover_nested(
             &Pubkey::new_unique(),
             &Pubkey::new_unique(),
@@ -2437,11 +2490,10 @@ mod tests {
                     InstructionError::InvalidAssociatedTokenAccountInstruction(e.to_string())
                 })
                 .unwrap();
-            let searcher = Keypair::new();
             let result = get_verify_bid_result(
                 service.clone(),
-                searcher,
-                vec![instruction],
+                searcher.insecure_clone(),
+                vec![instruction, swap_instruction.clone()],
                 opportunities.user_token_specified.clone(),
             )
             .await;
@@ -2456,16 +2508,51 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_verify_bid_when_unsupported_program() {
+    async fn test_verify_bid_when_arbitrary_program_invokes_user() {
         let (service, opportunities) = get_service(true);
-        let program_id = Pubkey::new_unique();
-        let instructions = vec![Instruction::new_with_bincode(program_id, &"", vec![])];
+        let opportunity = opportunities.user_token_specified.clone();
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunity.clone()),
+            bid_amount,
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let SwapParams {
+            user_wallet_address,
+            router_account: _,
+            permission_account: _,
+            minimum_deadline: _,
+        } = get_opportunity_swap_params(opportunity);
+        let instructions = vec![
+            Instruction::new_with_bincode(
+                Pubkey::new_unique(),
+                &"",
+                vec![AccountMeta {
+                    pubkey:      user_wallet_address,
+                    is_signer:   false,
+                    is_writable: true,
+                }],
+            ),
+            Instruction::new_with_bincode(
+                Pubkey::new_unique(),
+                &"",
+                vec![AccountMeta {
+                    pubkey:      user_wallet_address,
+                    is_signer:   true,
+                    is_writable: true,
+                }],
+            ),
+        ];
         for instruction in instructions.into_iter() {
-            let searcher = Keypair::new();
             let result = get_verify_bid_result(
                 service.clone(),
-                searcher,
-                vec![instruction],
+                searcher.insecure_clone(),
+                vec![instruction, swap_instruction.clone()],
                 opportunities.user_token_specified.clone(),
             )
             .await;
@@ -2473,9 +2560,58 @@ mod tests {
                 result.unwrap_err(),
                 RestError::InvalidInstruction(
                     Some(0),
-                    InstructionError::UnsupportedProgram(program_id)
+                    InstructionError::UnsupportedInvocationOfUserWallet
                 )
             );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_arbitrary_program_does_not_invoke_user() {
+        let (service, opportunities) = get_service(true);
+        let opportunity = opportunities.user_token_specified.clone();
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunity.clone()),
+            bid_amount,
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let instructions = vec![Instruction::new_with_bincode(
+            Pubkey::new_unique(),
+            &"",
+            vec![],
+        )];
+        let swap_params = get_opportunity_swap_params(opportunity);
+
+        for instruction in instructions.into_iter() {
+            let instructions = vec![instruction, swap_instruction.clone()];
+            let mut transaction =
+                Transaction::new_with_payer(&instructions, Some(&searcher.pubkey()));
+            transaction.partial_sign(&[searcher.insecure_clone()], Hash::default());
+            let result = get_verify_bid_result(
+                service.clone(),
+                searcher.insecure_clone(),
+                instructions,
+                opportunities.user_token_specified.clone(),
+            )
+            .await
+            .unwrap();
+
+            assert_eq!(
+                result.0,
+                BidChainDataSvm {
+                    transaction:                  transaction.into(),
+                    permission_account:           swap_params.permission_account,
+                    router:                       swap_params.router_account,
+                    bid_payment_instruction_type: BidPaymentInstructionType::Swap,
+                }
+            );
+            assert_eq!(result.1, bid_amount);
         }
     }
 
