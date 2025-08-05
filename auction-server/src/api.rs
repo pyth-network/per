@@ -132,6 +132,7 @@ pub enum InstructionError {
     InvalidMemoInstructionCount { expected: usize, found: usize },
     InvalidMemoString { expected: String, found: String },
     UnsupportedInvocationOfUserWallet,
+    UnapprovedProgramId(Pubkey),
 }
 
 impl std::fmt::Display for InstructionError {
@@ -280,6 +281,9 @@ impl std::fmt::Display for InstructionError {
                     f,
                     "Invocation of user wallet is not supported in this instruction"
                 )
+            }
+            InstructionError::UnapprovedProgramId(program_id) => {
+                write!(f, "Instruction has unapproved program id: {:?}", program_id)
             }
         }
     }

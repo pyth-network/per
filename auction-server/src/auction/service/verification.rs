@@ -271,6 +271,8 @@ impl Service {
         Ok(())
     }
 
+    /// Checks if the instruction provided meets the criteria for validity.
+    /// Instruction must either be an approved program instruction or not contain the user wallet in its accounts.
     fn validate_swap_transaction_instruction(
         &self,
         program_id: &Pubkey,
@@ -278,39 +280,9 @@ impl Service {
         user_wallet: &Pubkey,
         accounts: &[Pubkey],
     ) -> Result<(), InstructionError> {
-        if *program_id == system_program::id() {
-            if matches!(
-                bincode::deserialize::<SystemInstruction>(&ix.data),
-                Ok(SystemInstruction::Transfer { .. })
-            ) {
-                Ok(())
-            } else {
-                Err(InstructionError::UnsupportedSystemProgramInstruction)
-            }
-        } else if *program_id == spl_token::id() {
-            let ix_parsed = TokenInstruction::unpack(&ix.data)
-                .map_err(InstructionError::InvalidSplTokenInstruction)?;
-            match ix_parsed {
-                TokenInstruction::CloseAccount { .. } => Ok(()),
-                TokenInstruction::SyncNative { .. } => Ok(()),
-                _ => Err(InstructionError::UnsupportedSplTokenInstruction(format!(
-                    "{:?}",
-                    ix_parsed
-                ))),
-            }
-        } else if *program_id == spl_associated_token_account::id() {
-            let ix_parsed =
-                AssociatedTokenAccountInstruction::try_from_slice(&ix.data).map_err(|e| {
-                    InstructionError::InvalidAssociatedTokenAccountInstruction(e.to_string())
-                })?;
-            match ix_parsed {
-                AssociatedTokenAccountInstruction::Create => Ok(()),
-                AssociatedTokenAccountInstruction::CreateIdempotent => Ok(()),
-                _ => Err(InstructionError::UnsupportedAssociatedTokenAccountInstruction(ix_parsed)),
-            }
-        } else if *program_id == self.config.chain_config.express_relay.program_id
-            || *program_id == spl_memo_client::ID
-            || *program_id == compute_budget::id()
+        if self
+            .check_approved_program_instruction(program_id, ix)
+            .is_ok()
         {
             Ok(())
         } else {
@@ -326,6 +298,60 @@ impl Service {
             })?;
 
             Ok(())
+        }
+    }
+
+    /// Checks if the instruction is an approved program instruction for swap transactions.
+    fn check_approved_program_instruction(
+        &self,
+        program_id: &Pubkey,
+        ix: &CompiledInstruction,
+    ) -> Result<(), InstructionError> {
+        if *program_id == system_program::id() {
+            // approve only system program transfer instructions
+            if matches!(
+                bincode::deserialize::<SystemInstruction>(&ix.data),
+                Ok(SystemInstruction::Transfer { .. })
+            ) {
+                Ok(())
+            } else {
+                Err(InstructionError::UnsupportedSystemProgramInstruction)
+            }
+        } else if *program_id == spl_token::id() {
+            let ix_parsed = TokenInstruction::unpack(&ix.data)
+                .map_err(InstructionError::InvalidSplTokenInstruction)?;
+            match ix_parsed {
+                // approve token program close account instructions
+                TokenInstruction::CloseAccount { .. } => Ok(()),
+                // approve token program sync native (for WSOL) instructions
+                TokenInstruction::SyncNative { .. } => Ok(()),
+                // other token program instructions are not approved
+                _ => Err(InstructionError::UnsupportedSplTokenInstruction(format!(
+                    "{:?}",
+                    ix_parsed
+                ))),
+            }
+        } else if *program_id == spl_associated_token_account::id() {
+            let ix_parsed =
+                AssociatedTokenAccountInstruction::try_from_slice(&ix.data).map_err(|e| {
+                    InstructionError::InvalidAssociatedTokenAccountInstruction(e.to_string())
+                })?;
+            match ix_parsed {
+                // approve associated token account creation
+                AssociatedTokenAccountInstruction::Create => Ok(()),
+                // approve associated token account idempotent creation
+                AssociatedTokenAccountInstruction::CreateIdempotent => Ok(()),
+                // other associated token account instructions are not approved
+                _ => Err(InstructionError::UnsupportedAssociatedTokenAccountInstruction(ix_parsed)),
+            }
+        } else if *program_id == self.config.chain_config.express_relay.program_id
+            || *program_id == spl_memo_client::ID
+            || *program_id == compute_budget::id()
+        {
+            // all express relay program, memo program, and compute budget program instructions are allowed
+            Ok(())
+        } else {
+            Err(InstructionError::UnapprovedProgramId(*program_id))
         }
     }
 
@@ -2283,7 +2309,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_verify_bid_when_unsupported_system_program_instruction() {
+    async fn test_check_approved_program_when_unsupported_system_program_instruction() {
         let (service, opportunities) = get_service(true);
         let opportunity = opportunities.user_token_specified.clone();
         let bid_amount = 1;
@@ -2319,25 +2345,27 @@ mod tests {
             ),
         ];
         for instruction in instructions.into_iter() {
-            let result = get_verify_bid_result(
-                service.clone(),
-                searcher.insecure_clone(),
-                vec![instruction, swap_instruction.clone()],
-                opportunities.user_token_specified.clone(),
-            )
-            .await;
+            let program_id = instruction.program_id;
+            let transaction = Transaction::new_with_payer(
+                &[instruction.clone(), swap_instruction.clone()],
+                Some(&searcher.pubkey()),
+            );
+            let instruction = transaction
+                .message()
+                .instructions
+                .first()
+                .expect("Expected at least one instruction")
+                .clone();
+            let result = service.check_approved_program_instruction(&program_id, &instruction);
             assert_eq!(
                 result.unwrap_err(),
-                RestError::InvalidInstruction(
-                    Some(0),
-                    InstructionError::UnsupportedSystemProgramInstruction
-                )
+                InstructionError::UnsupportedSystemProgramInstruction
             );
         }
     }
 
     #[tokio::test]
-    async fn test_verify_bid_when_unsupported_token_instruction() {
+    async fn test_check_approved_program_when_unsupported_token_instruction() {
         let (service, opportunities) = get_service(true);
         let opportunity = opportunities.user_token_specified.clone();
         let bid_amount = 1;
@@ -2445,25 +2473,27 @@ mod tests {
         for instruction in instructions.into_iter() {
             let data = instruction.data.clone();
             let ix_parsed = TokenInstruction::unpack(&data).unwrap();
-            let result = get_verify_bid_result(
-                service.clone(),
-                searcher.insecure_clone(),
-                vec![instruction, swap_instruction.clone()],
-                opportunities.user_token_specified.clone(),
-            )
-            .await;
+            let program_id = instruction.program_id;
+            let transaction = Transaction::new_with_payer(
+                &[instruction.clone(), swap_instruction.clone()],
+                Some(&searcher.pubkey()),
+            );
+            let instruction = transaction
+                .message()
+                .instructions
+                .first()
+                .expect("Expected at least one instruction")
+                .clone();
+            let result = service.check_approved_program_instruction(&program_id, &instruction);
             assert_eq!(
                 result.unwrap_err(),
-                RestError::InvalidInstruction(
-                    Some(0),
-                    InstructionError::UnsupportedSplTokenInstruction(format!("{:?}", ix_parsed)),
-                )
+                InstructionError::UnsupportedSplTokenInstruction(format!("{:?}", ix_parsed))
             );
         }
     }
 
     #[tokio::test]
-    async fn test_verify_bid_when_unsupported_associated_token_account_instruction() {
+    async fn test_check_approved_program_when_unsupported_associated_token_account_instruction() {
         let (service, opportunities) = get_service(true);
         let opportunity = opportunities.user_token_specified.clone();
         let bid_amount = 1;
@@ -2483,6 +2513,7 @@ mod tests {
             &Pubkey::new_unique(),
             &spl_token::id(),
         )];
+
         for instruction in instructions.into_iter() {
             let data = instruction.data.clone();
             let ix_parsed = AssociatedTokenAccountInstruction::try_from_slice(&data)
@@ -2490,21 +2521,58 @@ mod tests {
                     InstructionError::InvalidAssociatedTokenAccountInstruction(e.to_string())
                 })
                 .unwrap();
-            let result = get_verify_bid_result(
-                service.clone(),
-                searcher.insecure_clone(),
-                vec![instruction, swap_instruction.clone()],
-                opportunities.user_token_specified.clone(),
-            )
-            .await;
+            let program_id = instruction.program_id;
+            let transaction = Transaction::new_with_payer(
+                &[instruction.clone(), swap_instruction.clone()],
+                Some(&searcher.pubkey()),
+            );
+            let instruction = transaction
+                .message()
+                .instructions
+                .first()
+                .expect("Expected at least one instruction")
+                .clone();
+            let result = service.check_approved_program_instruction(&program_id, &instruction);
             assert_eq!(
                 result.unwrap_err(),
-                RestError::InvalidInstruction(
-                    Some(0),
-                    InstructionError::UnsupportedAssociatedTokenAccountInstruction(ix_parsed),
-                )
+                InstructionError::UnsupportedAssociatedTokenAccountInstruction(ix_parsed)
             );
         }
+    }
+
+    #[tokio::test]
+    async fn test_check_approved_program_when_unapproved_program_id() {
+        let (service, opportunities) = get_service(true);
+        let opportunity = opportunities.user_token_specified.clone();
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunity.clone()),
+            bid_amount,
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let program_id = Pubkey::new_unique();
+        let instruction = Instruction::new_with_bincode(program_id, &"", vec![]);
+
+        let transaction = Transaction::new_with_payer(
+            &[instruction.clone(), swap_instruction.clone()],
+            Some(&searcher.pubkey()),
+        );
+        let instruction = transaction
+            .message()
+            .instructions
+            .first()
+            .expect("Expected at least one instruction")
+            .clone();
+        let result = service.check_approved_program_instruction(&program_id, &instruction);
+        assert_eq!(
+            result.unwrap_err(),
+            InstructionError::UnapprovedProgramId(program_id)
+        );
     }
 
     #[tokio::test]
