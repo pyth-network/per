@@ -249,54 +249,50 @@ impl Service {
         }
     }
 
-    fn validate_swap_transaction_instructions(
+    async fn validate_swap_transaction_instructions(
         &self,
         tx: &VersionedTransaction,
         user_wallet: &Pubkey,
     ) -> Result<(), RestError> {
-        let accounts = tx.message.static_account_keys();
-        tx.message
-            .instructions()
-            .iter()
-            .enumerate()
-            .try_for_each(|(index, ix)| {
-                self.validate_swap_transaction_instruction(
-                    ix.program_id(tx.message.static_account_keys()),
-                    ix,
-                    user_wallet,
-                    accounts,
-                )
-                .map_err(|e| RestError::InvalidInstruction(Some(index), e))
-            })?;
-
+        for (index, ix) in tx.message.instructions().iter().enumerate() {
+            self.validate_swap_transaction_instruction(
+                ix.program_id(tx.message.static_account_keys()),
+                ix,
+                tx,
+                user_wallet,
+                index,
+            )
+            .await?;
+        }
         Ok(())
     }
 
     /// Checks if the instruction provided meets the criteria for validity.
     /// Instruction must either be an approved program instruction or not contain the user wallet in its accounts.
-    fn validate_swap_transaction_instruction(
+    async fn validate_swap_transaction_instruction(
         &self,
         program_id: &Pubkey,
         ix: &CompiledInstruction,
+        tx: &VersionedTransaction,
         user_wallet: &Pubkey,
-        accounts: &[Pubkey],
-    ) -> Result<(), InstructionError> {
+        ix_index: usize,
+    ) -> Result<(), RestError> {
         if self
             .check_approved_program_instruction(program_id, ix)
             .is_ok()
         {
             Ok(())
         } else {
-            ix.accounts.iter().try_for_each(|i| {
-                if accounts
-                    .get(*i as usize)
-                    .expect("account index out of bounds")
-                    == user_wallet
-                {
-                    return Err(InstructionError::UnsupportedInvocationOfUserWallet);
+            // TODO: this loop will be slow and invoke many rpc calls if there are many lookup accounts. either parallelize this extraction or limit number of lookup accounts
+            for i in 0..ix.accounts.len() {
+                let account_key = self.extract_account(tx, ix, i).await?;
+                if account_key == *user_wallet {
+                    return Err(RestError::InvalidInstruction(
+                        Some(ix_index),
+                        InstructionError::UnsupportedInvocationOfUserWallet,
+                    ));
                 }
-                Ok(())
-            })?;
+            }
 
             Ok(())
         }
@@ -1097,7 +1093,8 @@ impl Service {
                 self.validate_swap_transaction_instructions(
                     bid_chain_data_create_svm.get_transaction(),
                     &user_wallet,
-                )?;
+                )
+                .await?;
                 let quote_tokens = get_swap_quote_tokens(&opp);
                 let opportunity_swap_data = get_opportunity_swap_data(&opp);
                 self.check_svm_swap_bid_fields(bid_data, opportunity_swap_data, &quote_tokens)
