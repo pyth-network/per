@@ -277,24 +277,19 @@ impl Service {
         user_wallet: &Pubkey,
         ix_index: usize,
     ) -> Result<(), RestError> {
-        if self
-            .check_approved_program_instruction(program_id, ix)
-            .is_ok()
-        {
-            Ok(())
-        } else {
-            // TODO: this loop will be slow and invoke many rpc calls if there are many lookup accounts. either parallelize this extraction or limit number of lookup accounts
-            for i in 0..ix.accounts.len() {
-                let account_key = self.extract_account(tx, ix, i).await?;
-                if account_key == *user_wallet {
-                    return Err(RestError::InvalidInstruction(
-                        Some(ix_index),
-                        InstructionError::UnsupportedInvocationOfUserWallet,
-                    ));
+        match self.check_approved_program_instruction(program_id, ix) {
+            Ok(()) => Ok(()),
+            Err(e) => {
+                // TODO: this loop will be slow and invoke many rpc calls if there are many lookup accounts. either parallelize this extraction or limit number of lookup accounts
+                for i in 0..ix.accounts.len() {
+                    let account_key = self.extract_account(tx, ix, i).await?;
+                    if account_key == *user_wallet {
+                        return Err(RestError::InvalidInstruction(Some(ix_index), e));
+                    }
                 }
-            }
 
-            Ok(())
+                Ok(())
+            }
         }
     }
 
@@ -2760,6 +2755,7 @@ mod tests {
             ),
         ];
         for instruction in instructions.into_iter() {
+            let program_id = instruction.program_id;
             let result = get_verify_bid_result(
                 service.clone(),
                 searcher.insecure_clone(),
@@ -2771,7 +2767,7 @@ mod tests {
                 result.unwrap_err(),
                 RestError::InvalidInstruction(
                     Some(0),
-                    InstructionError::UnsupportedInvocationOfUserWallet
+                    InstructionError::UnapprovedProgramId(program_id)
                 )
             );
         }

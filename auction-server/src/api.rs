@@ -131,7 +131,6 @@ pub enum InstructionError {
     MissingCreateAtaInstruction(Pubkey),
     InvalidMemoInstructionCount { expected: usize, found: usize },
     InvalidMemoString { expected: String, found: String },
-    UnsupportedInvocationOfUserWallet,
     UnapprovedProgramId(Pubkey),
 }
 
@@ -274,12 +273,6 @@ impl std::fmt::Display for InstructionError {
                     f,
                     "Invalid memo string in memo instruction. Expected: {:?} found: {:?}",
                     expected, found
-                )
-            }
-            InstructionError::UnsupportedInvocationOfUserWallet => {
-                write!(
-                    f,
-                    "Invocation of user wallet is not supported in this instruction"
                 )
             }
             InstructionError::UnapprovedProgramId(program_id) => {
