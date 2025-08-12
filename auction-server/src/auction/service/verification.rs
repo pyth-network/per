@@ -2318,19 +2318,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_approved_program_when_unsupported_system_program_instruction() {
-        let (service, opportunities) = get_service(true);
-        let opportunity = opportunities.user_token_specified.clone();
-        let bid_amount = 1;
+        let (service, _) = get_service(true);
         let searcher = Keypair::new();
-        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
-            searcher: searcher.pubkey(),
-            opportunity_params: get_opportunity_params(opportunity.clone()),
-            bid_amount,
-            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
-            fee_receiver_relayer: Pubkey::new_unique(),
-            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
-        })
-        .unwrap();
         let instructions = vec![
             system_instruction::advance_nonce_account(&Pubkey::new_unique(), &Pubkey::new_unique()),
             system_instruction::create_account(
@@ -2354,10 +2343,8 @@ mod tests {
         ];
         for instruction in instructions.into_iter() {
             let program_id = instruction.program_id;
-            let transaction = Transaction::new_with_payer(
-                &[instruction.clone(), swap_instruction.clone()],
-                Some(&searcher.pubkey()),
-            );
+            let transaction =
+                Transaction::new_with_payer(&[instruction.clone()], Some(&searcher.pubkey()));
             let instruction = transaction
                 .message()
                 .instructions
@@ -2374,19 +2361,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_approved_program_when_unsupported_token_instruction() {
-        let (service, opportunities) = get_service(true);
-        let opportunity = opportunities.user_token_specified.clone();
-        let bid_amount = 1;
+        let (service, _) = get_service(true);
         let searcher = Keypair::new();
-        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
-            searcher: searcher.pubkey(),
-            opportunity_params: get_opportunity_params(opportunity.clone()),
-            bid_amount,
-            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
-            fee_receiver_relayer: Pubkey::new_unique(),
-            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
-        })
-        .unwrap();
         let instructions = vec![
             spl_token::instruction::initialize_account(
                 &spl_token::id(),
@@ -2482,10 +2458,8 @@ mod tests {
             let data = instruction.data.clone();
             let ix_parsed = TokenInstruction::unpack(&data).unwrap();
             let program_id = instruction.program_id;
-            let transaction = Transaction::new_with_payer(
-                &[instruction.clone(), swap_instruction.clone()],
-                Some(&searcher.pubkey()),
-            );
+            let transaction =
+                Transaction::new_with_payer(&[instruction.clone()], Some(&searcher.pubkey()));
             let instruction = transaction
                 .message()
                 .instructions
@@ -2502,19 +2476,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_approved_program_when_unsupported_token_2022_instruction() {
-        let (service, opportunities) = get_service(true);
-        let opportunity = opportunities.user_token_specified.clone();
-        let bid_amount = 1;
+        let (service, _) = get_service(true);
         let searcher = Keypair::new();
-        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
-            searcher: searcher.pubkey(),
-            opportunity_params: get_opportunity_params(opportunity.clone()),
-            bid_amount,
-            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
-            fee_receiver_relayer: Pubkey::new_unique(),
-            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
-        })
-        .unwrap();
         let instructions = vec![
             spl_token_2022::instruction::initialize_account(
                 &spl_token_2022::id(),
@@ -2612,10 +2575,8 @@ mod tests {
             let data = instruction.data.clone();
             let ix_parsed = TokenInstruction::unpack(&data).unwrap();
             let program_id = instruction.program_id;
-            let transaction = Transaction::new_with_payer(
-                &[instruction.clone(), swap_instruction.clone()],
-                Some(&searcher.pubkey()),
-            );
+            let transaction =
+                Transaction::new_with_payer(&[instruction.clone()], Some(&searcher.pubkey()));
             let instruction = transaction
                 .message()
                 .instructions
@@ -2632,19 +2593,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_approved_program_when_unsupported_associated_token_account_instruction() {
-        let (service, opportunities) = get_service(true);
-        let opportunity = opportunities.user_token_specified.clone();
-        let bid_amount = 1;
+        let (service, _) = get_service(true);
         let searcher = Keypair::new();
-        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
-            searcher: searcher.pubkey(),
-            opportunity_params: get_opportunity_params(opportunity.clone()),
-            bid_amount,
-            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
-            fee_receiver_relayer: Pubkey::new_unique(),
-            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
-        })
-        .unwrap();
         let instructions = vec![recover_nested(
             &Pubkey::new_unique(),
             &Pubkey::new_unique(),
@@ -2660,10 +2610,8 @@ mod tests {
                 })
                 .unwrap();
             let program_id = instruction.program_id;
-            let transaction = Transaction::new_with_payer(
-                &[instruction.clone(), swap_instruction.clone()],
-                Some(&searcher.pubkey()),
-            );
+            let transaction =
+                Transaction::new_with_payer(&[instruction.clone()], Some(&searcher.pubkey()));
             let instruction = transaction
                 .message()
                 .instructions
@@ -2680,26 +2628,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_check_approved_program_when_unapproved_program_id() {
-        let (service, opportunities) = get_service(true);
-        let opportunity = opportunities.user_token_specified.clone();
-        let bid_amount = 1;
+        let (service, _) = get_service(true);
         let searcher = Keypair::new();
-        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
-            searcher: searcher.pubkey(),
-            opportunity_params: get_opportunity_params(opportunity.clone()),
-            bid_amount,
-            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
-            fee_receiver_relayer: Pubkey::new_unique(),
-            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
-        })
-        .unwrap();
         let program_id = Pubkey::new_unique();
         let instruction = Instruction::new_with_bincode(program_id, &"", vec![]);
 
-        let transaction = Transaction::new_with_payer(
-            &[instruction.clone(), swap_instruction.clone()],
-            Some(&searcher.pubkey()),
-        );
+        let transaction =
+            Transaction::new_with_payer(&[instruction.clone()], Some(&searcher.pubkey()));
         let instruction = transaction
             .message()
             .instructions
