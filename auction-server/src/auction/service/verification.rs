@@ -583,8 +583,9 @@ impl Service {
 
         // User has to wrap Sol
         if transaction_data.accounts.mint_user == spl_token::native_mint::id() {
-            // Sometimes the user doesn't have enough SOL, but we want the transaction to fail in the Express Relay program with InsufficientUserFunds
-            // Therefore we allow the user to wrap less SOL than needed so it doesn't fail in the transfer instruction
+            // Sometimes the user doesn't have enough SOL, but we want the transaction to fail in the Express Relay program with InsufficientUserFunds.
+            // Sometimes the user will already have a WSOL account, and they don't need to wrap the full user_amount of SOL.
+            // For both these reasons, we allow the user to wrap less SOL than needed so it doesn't fail in the transfer instruction.
             let amount_user_to_wrap =
                 opportunity_swap_data.get_user_amount_to_wrap(transaction_data.data.amount_user);
 
@@ -2750,6 +2751,85 @@ mod tests {
                 )
             );
         }
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_create_ata_relayer_payer() {
+        let (service, opportunities) = get_service(true);
+        let opportunity = opportunities.user_token_specified.clone();
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunity.clone()),
+            bid_amount,
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let relayer = service.config.chain_config.express_relay.relayer.pubkey();
+        let program = match opportunity.program.clone() {
+            OpportunitySvmProgram::Swap(program) => program,
+            _ => panic!("Expected swap program"),
+        };
+        let create_ata_instruction =
+            spl_associated_token_account::instruction::create_associated_token_account(
+                &relayer,
+                &relayer,
+                &opportunity.buy_tokens[0].token,
+                &program.token_program_user,
+            );
+        let result = get_verify_bid_result(
+            service.clone(),
+            searcher.insecure_clone(),
+            vec![create_ata_instruction, swap_instruction.clone()],
+            opportunities.user_token_specified.clone(),
+        )
+        .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::InvalidInstruction(
+                Some(0),
+                InstructionError::InvalidPayerInCreateAtaInstruction {
+                    expected: searcher.pubkey(),
+                    found:    relayer,
+                }
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_sol_transfer_relayer() {
+        let (service, opportunities) = get_service(true);
+        let opportunity = opportunities.user_token_specified.clone();
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunity.clone()),
+            bid_amount,
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let relayer = service.config.chain_config.express_relay.relayer.pubkey();
+        let transfer_instruction = system_instruction::transfer(&relayer, &Pubkey::new_unique(), 1);
+        let result = get_verify_bid_result(
+            service.clone(),
+            searcher.insecure_clone(),
+            vec![transfer_instruction, swap_instruction.clone()],
+            opportunities.user_token_specified.clone(),
+        )
+        .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::InvalidInstruction(
+                Some(0),
+                InstructionError::RelayerTransferInstructionNotAllowed
+            )
+        );
     }
 
     #[tokio::test]
@@ -5034,6 +5114,7 @@ mod tests {
         let bid_amount = 1;
         let searcher = Keypair::new();
         let memo_instruction = svm::Svm::get_memo_instruction("memo".to_string());
+        let memo_instruction_extra = svm::Svm::get_memo_instruction("extra memo".to_string());
         let instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
@@ -5046,7 +5127,7 @@ mod tests {
         get_verify_bid_result(
             service,
             searcher.insecure_clone(),
-            vec![memo_instruction, instruction],
+            vec![memo_instruction, memo_instruction_extra, instruction],
             opportunity.clone(),
         )
         .await
