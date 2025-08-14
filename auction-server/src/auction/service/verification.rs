@@ -285,7 +285,6 @@ impl Service {
         match self.check_approved_program_instruction(program_id, ix) {
             Ok(()) => Ok(()),
             Err(e) => {
-                // TODO: this loop will be slow and invoke many rpc calls if there are many lookup accounts. either parallelize this extraction or limit number of lookup accounts
                 for i in 0..ix.accounts.len() {
                     let account_key = self.extract_account(tx, ix, i).await?;
                     if (account_key == *user_wallet) | (account_key == *relayer_wallet) {
