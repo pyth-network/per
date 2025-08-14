@@ -255,6 +255,7 @@ impl Service {
         &self,
         tx: &VersionedTransaction,
         user_wallet: &Pubkey,
+        relayer_wallet: &Pubkey,
     ) -> Result<(), RestError> {
         for (index, ix) in tx.message.instructions().iter().enumerate() {
             self.validate_swap_transaction_instruction(
@@ -262,6 +263,7 @@ impl Service {
                 ix,
                 tx,
                 user_wallet,
+                relayer_wallet,
                 index,
             )
             .await?;
@@ -277,6 +279,7 @@ impl Service {
         ix: &CompiledInstruction,
         tx: &VersionedTransaction,
         user_wallet: &Pubkey,
+        relayer_wallet: &Pubkey,
         ix_index: usize,
     ) -> Result<(), RestError> {
         match self.check_approved_program_instruction(program_id, ix) {
@@ -285,7 +288,7 @@ impl Service {
                 // TODO: this loop will be slow and invoke many rpc calls if there are many lookup accounts. either parallelize this extraction or limit number of lookup accounts
                 for i in 0..ix.accounts.len() {
                     let account_key = self.extract_account(tx, ix, i).await?;
-                    if account_key == *user_wallet {
+                    if (account_key == *user_wallet) | (account_key == *relayer_wallet) {
                         return Err(RestError::InvalidInstruction(Some(ix_index), e));
                     }
                 }
@@ -1061,6 +1064,7 @@ impl Service {
                 self.validate_swap_transaction_instructions(
                     bid_chain_data_create_svm.get_transaction(),
                     &user_wallet,
+                    &self.config.chain_config.express_relay.relayer.pubkey(),
                 )
                 .await?;
 
@@ -2645,7 +2649,7 @@ mod tests {
                 vec![AccountMeta {
                     pubkey:      user_wallet_address,
                     is_signer:   false,
-                    is_writable: true,
+                    is_writable: false,
                 }],
             ),
             Instruction::new_with_bincode(
@@ -2653,6 +2657,61 @@ mod tests {
                 &"",
                 vec![AccountMeta {
                     pubkey:      user_wallet_address,
+                    is_signer:   true,
+                    is_writable: true,
+                }],
+            ),
+        ];
+        for instruction in instructions.into_iter() {
+            let program_id = instruction.program_id;
+            let result = get_verify_bid_result(
+                service.clone(),
+                searcher.insecure_clone(),
+                vec![instruction, swap_instruction.clone()],
+                opportunities.user_token_specified.clone(),
+            )
+            .await;
+            assert_eq!(
+                result.unwrap_err(),
+                RestError::InvalidInstruction(
+                    Some(0),
+                    InstructionError::UnapprovedProgramId(program_id)
+                )
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_arbitrary_program_invokes_relayer() {
+        let (service, opportunities) = get_service(true);
+        let opportunity = opportunities.user_token_specified.clone();
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunity.clone()),
+            bid_amount,
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let relayer = service.config.chain_config.express_relay.relayer.pubkey();
+        let instructions = vec![
+            Instruction::new_with_bincode(
+                Pubkey::new_unique(),
+                &"",
+                vec![AccountMeta {
+                    pubkey:      relayer,
+                    is_signer:   false,
+                    is_writable: false,
+                }],
+            ),
+            Instruction::new_with_bincode(
+                Pubkey::new_unique(),
+                &"",
+                vec![AccountMeta {
+                    pubkey:      relayer,
                     is_signer:   true,
                     is_writable: true,
                 }],
