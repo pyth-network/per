@@ -130,6 +130,7 @@ pub enum InstructionError {
     MissingCreateAtaInstruction(Pubkey),
     MissingMemoInstruction { expected: String },
     UnapprovedProgramId(Pubkey),
+    RelayerTransferInstructionNotAllowed,
 }
 
 impl std::fmt::Display for InstructionError {
@@ -264,6 +265,9 @@ impl std::fmt::Display for InstructionError {
             }
             InstructionError::UnapprovedProgramId(program_id) => {
                 write!(f, "Instruction has unapproved program id: {:?}", program_id)
+            }
+            InstructionError::RelayerTransferInstructionNotAllowed => {
+                write!(f, "Relayer transfer instruction is not allowed")
             }
         }
     }

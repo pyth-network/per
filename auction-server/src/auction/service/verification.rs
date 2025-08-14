@@ -506,7 +506,6 @@ impl Service {
     async fn extract_transfer_instructions(
         &self,
         tx: &VersionedTransaction,
-        from: Pubkey,
     ) -> Result<Vec<TransferInstructionData>, RestError> {
         let instructions: Vec<(usize, &CompiledInstruction)> =
             Self::extract_program_instructions(tx, &system_program::id())
@@ -537,23 +536,40 @@ impl Service {
                     ))
                 }
             };
-            if transfer_instruction.from == from {
-                result.push(transfer_instruction);
-            }
+            result.push(transfer_instruction);
         }
         Ok(result)
     }
 
-    // Ensures that any SOL transfer instruction from the user is only carried out when user token mint is SOL and user needs to wrap SOL.
-    async fn check_user_transfer_instruction(
+    // Ensures no SOL transfers from relayer. Ensures that any SOL transfer instruction from the user is only carried out when user token mint is SOL and user needs to wrap SOL.
+    async fn check_transfer_instructions(
         &self,
         tx: &VersionedTransaction,
         transaction_data: &entities::BidTransactionDataSwap,
         opportunity_swap_data: &OpportunitySvmProgramSwap,
     ) -> Result<(), RestError> {
-        let user_transfer_instructions = self
-            .extract_transfer_instructions(tx, transaction_data.accounts.user_wallet)
-            .await?;
+        let transfer_instructions: Vec<TransferInstructionData> =
+            self.extract_transfer_instructions(tx).await?;
+
+        let relayer_transfer_instructions = transfer_instructions
+            .iter()
+            .filter(|instruction| {
+                instruction.from == self.config.chain_config.express_relay.relayer.pubkey()
+            })
+            .collect::<Vec<_>>();
+        if !relayer_transfer_instructions.is_empty() {
+            return Err(RestError::InvalidInstruction(
+                relayer_transfer_instructions
+                    .first()
+                    .map(|instruction| instruction.index),
+                InstructionError::RelayerTransferInstructionNotAllowed,
+            ));
+        }
+
+        let user_transfer_instructions = transfer_instructions
+            .iter()
+            .filter(|instruction| instruction.from == transaction_data.accounts.user_wallet)
+            .collect::<Vec<_>>();
         if user_transfer_instructions.len() > 1 {
             return Err(RestError::InvalidInstruction(
                 user_transfer_instructions
@@ -877,7 +893,7 @@ impl Service {
         }
     }
 
-    // Ensures that the necessary create ATA instructions are present in the transaction (and are correctly paid for).
+    // Ensures that the necessary create ATA instructions are present in the transaction (and are appropriately paid for).
     async fn check_create_ata_instructions(
         &self,
         tx: &VersionedTransaction,
@@ -990,7 +1006,7 @@ impl Service {
         transaction_data: &entities::BidTransactionDataSwap,
         opportunity_swap_data: &OpportunitySvmProgramSwap,
     ) -> Result<(), RestError> {
-        self.check_user_transfer_instruction(tx, transaction_data, opportunity_swap_data)
+        self.check_transfer_instructions(tx, transaction_data, opportunity_swap_data)
             .await?;
         if transaction_data.accounts.mint_user == spl_token::native_mint::id() {
             // User has to wrap Sol
@@ -3228,6 +3244,42 @@ mod tests {
             RestError::InvalidInstruction(
                 Some(1),
                 InstructionError::InvalidUserAccountTransferInstruction
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_relayer_transfer_instruction() {
+        let (service, opportunities) = get_service(false);
+        let searcher = Keypair::new();
+        let opportunity = opportunities.user_token_specified.clone();
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher:             searcher.pubkey(),
+            opportunity_params:   get_opportunity_params(opportunity.clone()),
+            bid_amount:           1,
+            deadline:             (OffsetDateTime::now_utc() + Duration::seconds(30))
+                .unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let transfer_instruction = system_instruction::transfer(
+            &service.config.chain_config.express_relay.relayer.pubkey(),
+            &Pubkey::new_unique(),
+            1,
+        );
+        let result = get_verify_bid_result(
+            service,
+            searcher,
+            vec![swap_instruction, transfer_instruction],
+            opportunity,
+        )
+        .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::InvalidInstruction(
+                Some(1),
+                InstructionError::RelayerTransferInstructionNotAllowed
             )
         );
     }
