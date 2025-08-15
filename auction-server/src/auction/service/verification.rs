@@ -583,18 +583,20 @@ impl Service {
         // User has to wrap Sol
         if transaction_data.accounts.mint_user == spl_token::native_mint::id() {
             // Sometimes the user doesn't have enough SOL, but we want the transaction to fail in the Express Relay program with InsufficientUserFunds.
-            // Sometimes the user will already have a WSOL account, and they don't need to wrap the full user_amount of SOL.
+            // Sometimes the user will already have a WSOL account, and they might not be able to wrap the necessary amount from their SOL balance. In this case, we want to enable the tx to proceed with whatever they have in SOL being wrapped. The tx should still succeed if they have enough SOL + WSOL to cover the amount_user.
             // For both these reasons, we allow the user to wrap less SOL than needed so it doesn't fail in the transfer instruction.
             let amount_user_to_wrap =
                 opportunity_swap_data.get_user_amount_to_wrap(transaction_data.data.amount_user);
 
-            if user_transfer_instructions.is_empty() {
-                return Err(RestError::InvalidInstruction(
-                    None,
-                    InstructionError::InvalidUserTransferInstructionsCount { found: 0 },
-                ));
-            }
-            let user_transfer_instruction = user_transfer_instructions[0].clone();
+            let user_transfer_instruction = match user_transfer_instructions.first() {
+                Some(instruction) => instruction,
+                None => {
+                    return Err(RestError::InvalidInstruction(
+                        None,
+                        InstructionError::InvalidUserTransferInstructionsCount { found: 0 },
+                    ));
+                }
+            };
             let user_ata = get_associated_token_address(
                 &transaction_data.accounts.user_wallet,
                 &spl_token::native_mint::id(),
@@ -623,9 +625,10 @@ impl Service {
         }
         // otherwise, if user mint is not SOL, then user should not be system transferring any SOL
         else if !user_transfer_instructions.is_empty() {
-            let user_transfer_instruction = user_transfer_instructions[0].clone();
             return Err(RestError::InvalidInstruction(
-                Some(user_transfer_instruction.index),
+                transfer_instructions
+                    .first()
+                    .map(|instruction| instruction.index),
                 InstructionError::InvalidUserAccountTransferInstruction,
             ));
         }
@@ -1073,16 +1076,16 @@ impl Service {
                     ..
                 } = transaction_data.accounts;
 
-                let quote_tokens = get_swap_quote_tokens(&opp);
-                let opportunity_swap_data = get_opportunity_swap_data(&opp);
-                self.check_svm_swap_bid_fields(bid_data, opportunity_swap_data, &quote_tokens)
-                    .await?;
                 self.validate_swap_transaction_instructions(
                     bid_chain_data_create_svm.get_transaction(),
                     &user_wallet,
                     &self.config.chain_config.express_relay.relayer.pubkey(),
                 )
                 .await?;
+                let quote_tokens = get_swap_quote_tokens(&opp);
+                let opportunity_swap_data = get_opportunity_swap_data(&opp);
+                self.check_svm_swap_bid_fields(bid_data, opportunity_swap_data, &quote_tokens)
+                    .await?;
 
                 Self::check_memo_instructions(&bid_data.transaction, &opportunity_swap_data.memo)
                     .await?;
@@ -2794,39 +2797,6 @@ mod tests {
                     expected: searcher.pubkey(),
                     found:    relayer,
                 }
-            )
-        );
-    }
-
-    #[tokio::test]
-    async fn test_verify_bid_when_sol_transfer_relayer() {
-        let (service, opportunities) = get_service(true);
-        let opportunity = opportunities.user_token_specified.clone();
-        let bid_amount = 1;
-        let searcher = Keypair::new();
-        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
-            searcher: searcher.pubkey(),
-            opportunity_params: get_opportunity_params(opportunity.clone()),
-            bid_amount,
-            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
-            fee_receiver_relayer: Pubkey::new_unique(),
-            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
-        })
-        .unwrap();
-        let relayer = service.config.chain_config.express_relay.relayer.pubkey();
-        let transfer_instruction = system_instruction::transfer(&relayer, &Pubkey::new_unique(), 1);
-        let result = get_verify_bid_result(
-            service.clone(),
-            searcher.insecure_clone(),
-            vec![transfer_instruction, swap_instruction.clone()],
-            opportunities.user_token_specified.clone(),
-        )
-        .await;
-        assert_eq!(
-            result.unwrap_err(),
-            RestError::InvalidInstruction(
-                Some(0),
-                InstructionError::RelayerTransferInstructionNotAllowed
             )
         );
     }

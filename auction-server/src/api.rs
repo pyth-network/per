@@ -159,24 +159,24 @@ impl std::fmt::Display for InstructionError {
             }
             InstructionError::InvalidUserTransferInstructionsCount { found } => {
                 match found {
-                    0 => write!(f, "At least one sol transfer instruction from the user wallet account is required"),
-                    _ => write!(f, "Invalid number ({}) of sol transfer instructions from the user wallet account", found),
+                    0 => write!(f, "At least one SOL transfer instruction from the user wallet account is required"),
+                    _ => write!(f, "Invalid number ({}) of SOL transfer instructions from the user wallet account", found),
                 }
             }
             InstructionError::InvalidUserAccountTransferInstruction => {
-                write!(f, "Invalid sol transfer instruction from the user account.")
+                write!(f, "Invalid SOL transfer instruction from the user account.")
             }
             InstructionError::InvalidToAccountTransferInstruction { expected, found } => {
                 write!(
                     f,
-                    "Invalid to account in sol transfer instruction. Expected: {:?} found: {:?}",
+                    "Invalid to account in SOL transfer instruction. Expected: {:?} found: {:?}",
                     expected, found
                 )
             }
             InstructionError::InvalidAmountTransferInstruction { expected, found } => {
                 write!(
                     f,
-                    "Invalid amount in sol transfer instruction. Expected: {:?} found: {:?}",
+                    "Invalid amount in SOL transfer instruction. Expected: {:?} found: {:?}",
                     expected, found
                 )
             }
