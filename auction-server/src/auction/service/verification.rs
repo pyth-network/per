@@ -657,6 +657,11 @@ impl Service {
             .filter_map(|(_, instruction)| {
                 let ix_parsed = TokenInstruction::unpack(&instruction.data).ok();
                 if matches!(ix_parsed, Some(TokenInstruction::SyncNative)) {
+                    return Some(instruction);
+                }
+
+                let ix_parsed_2022 = Token2022Instruction::unpack(&instruction.data).ok();
+                if matches!(ix_parsed_2022, Some(Token2022Instruction::SyncNative)) {
                     Some(instruction)
                 } else {
                     None
@@ -710,6 +715,22 @@ impl Service {
                     destination,
                     owner,
                 });
+            } else {
+                let ix_parsed_2022 = Token2022Instruction::unpack(&instruction.data).ok();
+                if let Some(Token2022Instruction::CloseAccount) = ix_parsed_2022 {
+                    let accounts = futures::future::try_join_all(
+                        (0..3).map(|i| self.extract_account(tx, instruction, i)),
+                    )
+                    .await?;
+                    let [account, destination, owner] = array::from_fn(|i| accounts[i]);
+
+                    result.push(CloseAccountInstructionData {
+                        index,
+                        account,
+                        destination,
+                        owner,
+                    });
+                }
             }
         }
         Ok(result)
