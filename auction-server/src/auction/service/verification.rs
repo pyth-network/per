@@ -51,6 +51,7 @@ use {
             InstructionError as SolanaInstructionError,
         },
         pubkey::Pubkey,
+        secp256k1_program,
         signature::Signature,
         signer::Signer as _,
         system_instruction::SystemInstruction,
@@ -305,6 +306,7 @@ impl Service {
         } else if *program_id == self.config.chain_config.express_relay.program_id
             || *program_id == spl_memo_client::ID
             || *program_id == compute_budget::id()
+            || *program_id == secp256k1_program::id()
         {
             Ok(())
         } else {
