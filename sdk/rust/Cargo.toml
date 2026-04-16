@@ -21,5 +21,5 @@ solana-rpc-client = { workspace = true }
 borsh = { workspace = true }
 spl-associated-token-account = { workspace = true }
 spl-token = { workspace = true }
-express-relay = { version = "0.8.0", path = "../../contracts/svm/programs/express_relay" }
+express-relay = { version = "0.9.0", path = "../../contracts/svm/programs/express_relay" }
 spl-memo-client = { workspace = true }
