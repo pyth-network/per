@@ -451,9 +451,9 @@ pub struct WithdrawSplFees<'info> {
 
     #[account(
         mut,
-        token::mint = mint_fee,
-        token::authority = express_relay_metadata,
-        token::token_program = token_program_fee,
+        associated_token::mint = mint_fee,
+        associated_token::authority = express_relay_metadata,
+        associated_token::token_program = token_program_fee,
     )]
     pub express_relay_fee_receiver_ata: Box<InterfaceAccount<'info, TokenAccount>>,
 

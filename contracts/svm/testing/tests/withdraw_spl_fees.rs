@@ -22,16 +22,17 @@ use {
             generate_and_fund_key,
             submit_transaction,
         },
-        setup::setup,
+        setup::{
+            setup,
+            SetupResult,
+        },
         token::Token,
     },
 };
 
 #[test]
 fn test_withdraw_spl_fees() {
-    let setup_result = setup(None).expect("setup failed");
-    let mut svm = setup_result.svm;
-    let admin = setup_result.admin;
+    let SetupResult { mut svm, admin, .. } = setup(None).expect("setup failed");
 
     let express_relay_metadata = get_express_relay_metadata_key();
     let fee_receiver_admin = generate_and_fund_key(&mut svm);
@@ -85,9 +86,7 @@ fn test_withdraw_spl_fees() {
 
 #[test]
 fn test_withdraw_spl_fees_fail_wrong_admin() {
-    let setup_result = setup(None).expect("setup failed");
-
-    let mut svm = setup_result.svm;
+    let SetupResult { mut svm, .. } = setup(None).expect("setup failed");
     let wrong_admin = generate_and_fund_key(&mut svm);
 
     let express_relay_metadata = get_express_relay_metadata_key();
