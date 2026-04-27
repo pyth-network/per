@@ -9,3 +9,4 @@ pub mod set_swap_platform_fee;
 pub mod submit_bid;
 pub mod swap;
 pub mod withdraw_fees;
+pub mod withdraw_spl_fees;

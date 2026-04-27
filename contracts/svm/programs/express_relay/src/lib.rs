@@ -29,9 +29,11 @@ use {
         system_program::System,
     },
     anchor_spl::token_interface::{
+        transfer_checked,
         Mint,
         TokenAccount,
         TokenInterface,
+        TransferChecked,
     },
 };
 
@@ -182,6 +184,35 @@ pub mod express_relay {
         )
     }
 
+    pub fn withdraw_spl_fees(ctx: Context<WithdrawSplFees>) -> Result<()> {
+        let amount = ctx.accounts.express_relay_fee_receiver_ata.amount;
+        if amount == 0 {
+            return Ok(());
+        }
+
+        let metadata_bump = ctx.bumps.express_relay_metadata;
+        let signer_seeds: &[&[u8]] = &[SEED_METADATA, &[metadata_bump]];
+        let signer = &[signer_seeds];
+        let cpi_accounts = TransferChecked {
+            from:      ctx
+                .accounts
+                .express_relay_fee_receiver_ata
+                .to_account_info(),
+            to:        ctx.accounts.fee_receiver_admin_ta.to_account_info(),
+            mint:      ctx.accounts.mint_fee.to_account_info(),
+            authority: ctx.accounts.express_relay_metadata.to_account_info(),
+        };
+        transfer_checked(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program_fee.to_account_info(),
+                cpi_accounts,
+                signer,
+            ),
+            amount,
+            ctx.accounts.mint_fee.decimals,
+        )
+    }
+
     pub fn swap_internal(ctx: Context<Swap>, data: SwapV2Args) -> Result<()> {
         ctx.accounts.check_raw_constraints(data.fee_token)?;
         check_deadline(data.deadline)?;
@@ -223,7 +254,6 @@ pub mod express_relay {
             &ctx.accounts.mint_user,
             amount_user_after_fees,
         )?;
-
 
         Ok(())
     }
@@ -410,6 +440,35 @@ pub struct WithdrawFees<'info> {
 
     #[account(mut, seeds = [SEED_METADATA], bump, has_one = admin)]
     pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
+}
+
+#[derive(Accounts)]
+pub struct WithdrawSplFees<'info> {
+    pub admin: Signer<'info>,
+
+    #[account(mut, seeds = [SEED_METADATA], bump, has_one = admin)]
+    pub express_relay_metadata: Account<'info, ExpressRelayMetadata>,
+
+    #[account(
+        mut,
+        associated_token::mint = mint_fee,
+        associated_token::authority = express_relay_metadata,
+        associated_token::token_program = token_program_fee,
+    )]
+    pub express_relay_fee_receiver_ata: Box<InterfaceAccount<'info, TokenAccount>>,
+
+    /// this can just be any token account for this mint
+    #[account(
+        mut,
+        token::mint = mint_fee,
+        token::token_program = token_program_fee,
+    )]
+    pub fee_receiver_admin_ta: Box<InterfaceAccount<'info, TokenAccount>>,
+
+    #[account(mint::token_program = token_program_fee)]
+    pub mint_fee: Box<InterfaceAccount<'info, Mint>>,
+
+    pub token_program_fee: Interface<'info, TokenInterface>,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Eq, PartialEq, Clone, Copy, Debug)]
