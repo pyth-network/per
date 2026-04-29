@@ -111,11 +111,9 @@ pub enum InstructionError {
     UnsupportedSplTokenInstruction(String),
     InvalidAssociatedTokenAccountInstruction(String),
     UnsupportedAssociatedTokenAccountInstruction(AssociatedTokenAccountInstruction),
-    UnsupportedProgram(Pubkey),
-    TransferInstructionNotAllowed,
     CloseAccountInstructionNotAllowed,
-    InvalidTransferInstructionsCount,
-    InvalidFromAccountTransferInstruction { expected: Pubkey, found: Pubkey },
+    InvalidUserTransferInstructionsCount { found: usize },
+    InvalidUserAccountTransferInstruction,
     InvalidToAccountTransferInstruction { expected: Pubkey, found: Pubkey },
     InvalidAmountTransferInstruction { expected: u64, found: u64 },
     InvalidSyncNativeInstructionCount(Pubkey),
@@ -130,8 +128,9 @@ pub enum InstructionError {
     InvalidTokenProgramInCreateAtaInstruction { expected: Pubkey, found: Pubkey },
     InvalidSystemProgramInCreateAtaInstruction(Pubkey),
     MissingCreateAtaInstruction(Pubkey),
-    InvalidMemoInstructionCount { expected: usize, found: usize },
-    InvalidMemoString { expected: String, found: String },
+    MissingMemoInstruction { expected: String },
+    UnapprovedProgramId(Pubkey),
+    RelayerTransferInstructionNotAllowed,
 }
 
 impl std::fmt::Display for InstructionError {
@@ -155,36 +154,29 @@ impl std::fmt::Display for InstructionError {
                 "Unsupported associated token account instruction {:?}",
                 instruction
             ),
-            InstructionError::UnsupportedProgram(program) => {
-                write!(f, "Unsupported program {}", program)
-            }
-            InstructionError::TransferInstructionNotAllowed => {
-                write!(f, "Transfer instruction is not allowed")
-            }
             InstructionError::CloseAccountInstructionNotAllowed => {
                 write!(f, "Close account instruction is not allowed")
             }
-            InstructionError::InvalidTransferInstructionsCount => {
-                write!(f, "Exactly one sol transfer instruction is required")
+            InstructionError::InvalidUserTransferInstructionsCount { found } => {
+                match found {
+                    0 => write!(f, "At least one SOL transfer instruction from the user wallet account is required"),
+                    _ => write!(f, "Invalid number ({}) of SOL transfer instructions from the user wallet account", found),
+                }
             }
-            InstructionError::InvalidFromAccountTransferInstruction { expected, found } => {
-                write!(
-                    f,
-                    "Invalid from account in sol transfer instruction. Expected: {:?} found: {:?}",
-                    expected, found
-                )
+            InstructionError::InvalidUserAccountTransferInstruction => {
+                write!(f, "Invalid SOL transfer instruction from the user account.")
             }
             InstructionError::InvalidToAccountTransferInstruction { expected, found } => {
                 write!(
                     f,
-                    "Invalid to account in sol transfer instruction. Expected: {:?} found: {:?}",
+                    "Invalid to account in SOL transfer instruction. Expected: {:?} found: {:?}",
                     expected, found
                 )
             }
             InstructionError::InvalidAmountTransferInstruction { expected, found } => {
                 write!(
                     f,
-                    "Invalid amount in sol transfer instruction. Expected: {:?} found: {:?}",
+                    "Invalid amount in SOL transfer instruction. Expected: {:?} found: {:?}",
                     expected, found
                 )
             }
@@ -264,19 +256,18 @@ impl std::fmt::Display for InstructionError {
                     ata
                 )
             }
-            InstructionError::InvalidMemoInstructionCount { expected, found } => {
+            InstructionError::MissingMemoInstruction { expected } => {
                 write!(
                     f,
-                    "Invalid memo instruction count. Expected: {:?} found: {:?}",
-                    expected, found
+                    "Missing memo instruction with string: {:?}",
+                    expected,
                 )
             }
-            InstructionError::InvalidMemoString { expected, found } => {
-                write!(
-                    f,
-                    "Invalid memo string in memo instruction. Expected: {:?} found: {:?}",
-                    expected, found
-                )
+            InstructionError::UnapprovedProgramId(program_id) => {
+                write!(f, "Instruction has unapproved program id: {:?}", program_id)
+            }
+            InstructionError::RelayerTransferInstructionNotAllowed => {
+                write!(f, "Relayer transfer instruction is not allowed")
             }
         }
     }

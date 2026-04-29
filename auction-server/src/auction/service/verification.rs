@@ -66,6 +66,7 @@ use {
         instruction::AssociatedTokenAccountInstruction,
     },
     spl_token::instruction::TokenInstruction,
+    spl_token_2022::instruction::TokenInstruction as Token2022Instruction,
     std::{
         array,
         collections::VecDeque,
@@ -248,31 +249,62 @@ impl Service {
         }
     }
 
-    fn validate_swap_transaction_instructions(
+    // Checks to ensure each individual instruction in the transaction is valid.
+    // Does not detect if there are missing necessary instructions.
+    async fn validate_swap_transaction_instructions(
         &self,
         tx: &VersionedTransaction,
+        user_wallet: &Pubkey,
+        relayer_wallet: &Pubkey,
     ) -> Result<(), RestError> {
-        tx.message
-            .instructions()
-            .iter()
-            .enumerate()
-            .try_for_each(|(index, ix)| {
-                self.validate_swap_transaction_instruction(
-                    ix.program_id(tx.message.static_account_keys()),
-                    ix,
-                )
-                .map_err(|e| RestError::InvalidInstruction(Some(index), e))
-            })?;
-
+        for (index, ix) in tx.message.instructions().iter().enumerate() {
+            self.validate_swap_transaction_instruction(
+                ix.program_id(tx.message.static_account_keys()),
+                ix,
+                tx,
+                user_wallet,
+                relayer_wallet,
+                index,
+            )
+            .await?;
+        }
         Ok(())
     }
 
-    fn validate_swap_transaction_instruction(
+    /// Checks if the instruction provided meets the criteria for validity.
+    /// Instruction must either be an approved program instruction or not contain the user wallet in its accounts.
+    async fn validate_swap_transaction_instruction(
+        &self,
+        program_id: &Pubkey,
+        ix: &CompiledInstruction,
+        tx: &VersionedTransaction,
+        user_wallet: &Pubkey,
+        relayer_wallet: &Pubkey,
+        ix_index: usize,
+    ) -> Result<(), RestError> {
+        match self.check_approved_program_instruction(program_id, ix) {
+            Ok(()) => Ok(()),
+            Err(e) => {
+                for i in 0..ix.accounts.len() {
+                    let account_key = self.extract_account(tx, ix, i).await?;
+                    if (account_key == *user_wallet) | (account_key == *relayer_wallet) {
+                        return Err(RestError::InvalidInstruction(Some(ix_index), e));
+                    }
+                }
+
+                Ok(())
+            }
+        }
+    }
+
+    /// Checks if the instruction is an approved program instruction for swap transactions.
+    fn check_approved_program_instruction(
         &self,
         program_id: &Pubkey,
         ix: &CompiledInstruction,
     ) -> Result<(), InstructionError> {
         if *program_id == system_program::id() {
+            // approve only system program transfer instructions
             if matches!(
                 bincode::deserialize::<SystemInstruction>(&ix.data),
                 Ok(SystemInstruction::Transfer { .. })
@@ -285,8 +317,25 @@ impl Service {
             let ix_parsed = TokenInstruction::unpack(&ix.data)
                 .map_err(InstructionError::InvalidSplTokenInstruction)?;
             match ix_parsed {
+                // approve token program close account instructions
                 TokenInstruction::CloseAccount { .. } => Ok(()),
+                // approve token program sync native (for WSOL) instructions
                 TokenInstruction::SyncNative { .. } => Ok(()),
+                // other token program instructions are not approved
+                _ => Err(InstructionError::UnsupportedSplTokenInstruction(format!(
+                    "{:?}",
+                    ix_parsed
+                ))),
+            }
+        } else if *program_id == spl_token_2022::id() {
+            let ix_parsed = Token2022Instruction::unpack(&ix.data)
+                .map_err(InstructionError::InvalidSplTokenInstruction)?;
+            match ix_parsed {
+                // approve token program close account instructions
+                Token2022Instruction::CloseAccount { .. } => Ok(()),
+                // approve token program sync native (for WSOL) instructions
+                Token2022Instruction::SyncNative { .. } => Ok(()),
+                // other token program instructions are not approved
                 _ => Err(InstructionError::UnsupportedSplTokenInstruction(format!(
                     "{:?}",
                     ix_parsed
@@ -298,17 +347,21 @@ impl Service {
                     InstructionError::InvalidAssociatedTokenAccountInstruction(e.to_string())
                 })?;
             match ix_parsed {
+                // approve associated token account creation
                 AssociatedTokenAccountInstruction::Create => Ok(()),
+                // approve associated token account idempotent creation
                 AssociatedTokenAccountInstruction::CreateIdempotent => Ok(()),
+                // other associated token account instructions are not approved
                 _ => Err(InstructionError::UnsupportedAssociatedTokenAccountInstruction(ix_parsed)),
             }
         } else if *program_id == self.config.chain_config.express_relay.program_id
             || *program_id == spl_memo_client::ID
             || *program_id == compute_budget::id()
         {
+            // all express relay program, memo program, and compute budget program instructions are allowed
             Ok(())
         } else {
-            Err(InstructionError::UnsupportedProgram(*program_id))
+            Err(InstructionError::UnapprovedProgramId(*program_id))
         }
     }
 
@@ -487,107 +540,96 @@ impl Service {
         Ok(result)
     }
 
-    async fn check_transfer_instruction(
+    // Ensures no SOL transfers from relayer. Ensures that any SOL transfer instruction from the user is only carried out when user token mint is SOL and user needs to wrap SOL.
+    async fn check_transfer_instructions(
         &self,
         tx: &VersionedTransaction,
         transaction_data: &entities::BidTransactionDataSwap,
         opportunity_swap_data: &OpportunitySvmProgramSwap,
     ) -> Result<(), RestError> {
-        let transfer_instructions = self.extract_transfer_instructions(tx).await?;
-        if transfer_instructions.len() > 1 {
+        let transfer_instructions: Vec<TransferInstructionData> =
+            self.extract_transfer_instructions(tx).await?;
+
+        let relayer_transfer_instructions = transfer_instructions
+            .iter()
+            .filter(|instruction| {
+                instruction.from == self.config.chain_config.express_relay.relayer.pubkey()
+            })
+            .collect::<Vec<_>>();
+        if !relayer_transfer_instructions.is_empty() {
             return Err(RestError::InvalidInstruction(
-                transfer_instructions
-                    .get(1)
+                relayer_transfer_instructions
+                    .first()
                     .map(|instruction| instruction.index),
-                InstructionError::InvalidTransferInstructionsCount,
+                InstructionError::RelayerTransferInstructionNotAllowed,
             ));
         }
 
-        // User have to wrap Sol
+        let user_transfer_instructions = transfer_instructions
+            .iter()
+            .filter(|instruction| instruction.from == transaction_data.accounts.user_wallet)
+            .collect::<Vec<_>>();
+        if user_transfer_instructions.len() > 1 {
+            return Err(RestError::InvalidInstruction(
+                user_transfer_instructions
+                    .get(1)
+                    .map(|instruction| instruction.index),
+                InstructionError::InvalidUserTransferInstructionsCount {
+                    found: user_transfer_instructions.len(),
+                },
+            ));
+        }
+
+        // User has to wrap Sol
         if transaction_data.accounts.mint_user == spl_token::native_mint::id() {
-            // Sometimes the user doesn't have enough SOL, but we want the transaction to fail in the Express Relay program with InsufficientUserFunds
-            // Therefore we allow the user to wrap less SOL than needed so it doesn't fail in the transfer instruction
+            // Sometimes the user doesn't have enough SOL, but we want the transaction to fail in the Express Relay program with InsufficientUserFunds.
+            // Sometimes the user will already have a WSOL account, and they might not be able to wrap the necessary amount from their SOL balance. In this case, we want to enable the tx to proceed with whatever they have in SOL being wrapped. The tx should still succeed if they have enough SOL + WSOL to cover the amount_user.
+            // For both these reasons, we allow the user to wrap less SOL than needed so it doesn't fail in the transfer instruction.
             let amount_user_to_wrap =
                 opportunity_swap_data.get_user_amount_to_wrap(transaction_data.data.amount_user);
 
-            if transfer_instructions.len() != 1 {
-                return Err(RestError::InvalidInstruction(
-                    None,
-                    InstructionError::InvalidTransferInstructionsCount,
-                ));
-            }
-            let transfer_instruction = transfer_instructions[0].clone();
+            let user_transfer_instruction = match user_transfer_instructions.first() {
+                Some(instruction) => instruction,
+                None => {
+                    return Err(RestError::InvalidInstruction(
+                        None,
+                        InstructionError::InvalidUserTransferInstructionsCount { found: 0 },
+                    ));
+                }
+            };
             let user_ata = get_associated_token_address(
                 &transaction_data.accounts.user_wallet,
                 &spl_token::native_mint::id(),
             );
-            if transfer_instruction.from != transaction_data.accounts.user_wallet {
+            if user_transfer_instruction.to != user_ata {
                 return Err(RestError::InvalidInstruction(
-                    Some(transfer_instruction.index),
-                    InstructionError::InvalidFromAccountTransferInstruction {
-                        expected: transaction_data.accounts.user_wallet,
-                        found:    transfer_instruction.from,
-                    },
-                ));
-            }
-            if transfer_instruction.to != user_ata {
-                return Err(RestError::InvalidInstruction(
-                    Some(transfer_instruction.index),
+                    Some(user_transfer_instruction.index),
                     InstructionError::InvalidToAccountTransferInstruction {
                         expected: user_ata,
-                        found:    transfer_instruction.to,
+                        found:    user_transfer_instruction.to,
                     },
                 ));
             }
             // todo: remove swap_data.amount_user != transfer_instruction.lamports once searchers have updated their sdk
-            if transaction_data.data.amount_user != transfer_instruction.lamports
-                && amount_user_to_wrap != transfer_instruction.lamports
+            if transaction_data.data.amount_user != user_transfer_instruction.lamports
+                && amount_user_to_wrap != user_transfer_instruction.lamports
             {
                 return Err(RestError::InvalidInstruction(
-                    Some(transfer_instruction.index),
+                    Some(user_transfer_instruction.index),
                     InstructionError::InvalidAmountTransferInstruction {
                         expected: amount_user_to_wrap,
-                        found:    transfer_instruction.lamports,
+                        found:    user_transfer_instruction.lamports,
                     },
                 ));
             }
         }
-        // Searcher may want to wrap Sol
-        // We dont care about the amount here
-        else if transaction_data.accounts.mint_searcher == spl_token::native_mint::id()
-            && transfer_instructions.len() == 1
-        {
-            let transfer_instruction = transfer_instructions[0].clone();
-            let searcher_ata = get_associated_token_address(
-                &transaction_data.accounts.searcher,
-                &spl_token::native_mint::id(),
-            );
-            if transfer_instruction.from != transaction_data.accounts.searcher {
-                return Err(RestError::InvalidInstruction(
-                    Some(transfer_instruction.index),
-                    InstructionError::InvalidFromAccountTransferInstruction {
-                        expected: transaction_data.accounts.searcher,
-                        found:    transfer_instruction.from,
-                    },
-                ));
-            }
-            if transfer_instruction.to != searcher_ata {
-                return Err(RestError::InvalidInstruction(
-                    Some(transfer_instruction.index),
-                    InstructionError::InvalidToAccountTransferInstruction {
-                        expected: searcher_ata,
-                        found:    transfer_instruction.to,
-                    },
-                ));
-            }
-        }
-        // No transfer instruction is allowed
-        else if !transfer_instructions.is_empty() {
+        // otherwise, if user mint is not SOL, then user should not be system transferring any SOL
+        else if !user_transfer_instructions.is_empty() {
             return Err(RestError::InvalidInstruction(
                 transfer_instructions
                     .first()
                     .map(|instruction| instruction.index),
-                InstructionError::TransferInstructionNotAllowed,
+                InstructionError::InvalidUserAccountTransferInstruction,
             ));
         }
 
@@ -615,6 +657,11 @@ impl Service {
             .filter_map(|(_, instruction)| {
                 let ix_parsed = TokenInstruction::unpack(&instruction.data).ok();
                 if matches!(ix_parsed, Some(TokenInstruction::SyncNative)) {
+                    return Some(instruction);
+                }
+
+                let ix_parsed_2022 = Token2022Instruction::unpack(&instruction.data).ok();
+                if matches!(ix_parsed_2022, Some(Token2022Instruction::SyncNative)) {
                     Some(instruction)
                 } else {
                     None
@@ -623,6 +670,7 @@ impl Service {
             .collect()
     }
 
+    // Ensures that there is exactly 1 SyncNative instruction for the user's WSOL ata in the transaction.
     async fn check_sync_native_instruction_exists(
         &self,
         tx: &VersionedTransaction,
@@ -667,6 +715,22 @@ impl Service {
                     destination,
                     owner,
                 });
+            } else {
+                let ix_parsed_2022 = Token2022Instruction::unpack(&instruction.data).ok();
+                if let Some(Token2022Instruction::CloseAccount) = ix_parsed_2022 {
+                    let accounts = futures::future::try_join_all(
+                        (0..3).map(|i| self.extract_account(tx, instruction, i)),
+                    )
+                    .await?;
+                    let [account, destination, owner] = array::from_fn(|i| accounts[i]);
+
+                    result.push(CloseAccountInstructionData {
+                        index,
+                        account,
+                        destination,
+                        owner,
+                    });
+                }
             }
         }
         Ok(result)
@@ -719,6 +783,7 @@ impl Service {
         Ok(result)
     }
 
+    // Ensures that the user WSOL account and searcher WSOL account are closed correctly if required. Ensures no other token account close instructions.
     async fn check_close_account_instruction(
         &self,
         tx: &VersionedTransaction,
@@ -826,38 +891,33 @@ impl Service {
         Ok(())
     }
 
+    // Ensures that the necessary memo instruction (if applicable) is present in the transaction.
     async fn check_memo_instructions(
         tx: &VersionedTransaction,
         memo: &Option<String>,
     ) -> Result<(), RestError> {
         let memo_instructions = Self::extract_program_instructions(tx, &spl_memo_client::ID);
         match (memo, memo_instructions.len()) {
-            (None, 0) => Ok(()),
-            (Some(memo), 1) => {
-                let (index, instruction) = memo_instructions[0]; // safe to index because we checked the length
-                if instruction.data != memo.as_bytes() {
-                    return Err(RestError::InvalidInstruction(
-                        Some(index),
-                        InstructionError::InvalidMemoString {
-                            expected: memo.clone(),
-                            found:    String::from_utf8(instruction.data.clone())
-                                .unwrap_or_default(),
-                        },
-                    ));
-                }
+            (None, _) => Ok(()),
+            (Some(_), 0) => Ok(()), // todo: this is for backward compatibility, we should remove this line once searchers have updated their sdk
+            (Some(memo), _) => {
+                memo_instructions
+                    .iter()
+                    .find(|(_, instruction)| instruction.data == memo.as_bytes())
+                    .ok_or_else(|| {
+                        RestError::InvalidInstruction(
+                            None,
+                            InstructionError::MissingMemoInstruction {
+                                expected: memo.clone(),
+                            },
+                        )
+                    })?;
                 Ok(())
             }
-            (Some(_), 0) => Ok(()), // todo: this is for backward compatibility, we should remove this line once searchers have updated their sdk
-            (_, _) => Err(RestError::InvalidInstruction(
-                None,
-                InstructionError::InvalidMemoInstructionCount {
-                    expected: memo.as_ref().map_or(0, |_| 1),
-                    found:    memo_instructions.len(),
-                },
-            )),
         }
     }
 
+    // Ensures that the necessary create ATA instructions are present in the transaction (and are appropriately paid for).
     async fn check_create_ata_instructions(
         &self,
         tx: &VersionedTransaction,
@@ -946,7 +1006,8 @@ impl Service {
 
         // we rely on the simulation to check the other token accounts are created
         // but we enforce here that the searcher pays for their creation
-        // this includes searcher token accounts and fee token accounts
+        // this includes searcher token accounts and fee token accounts and other arbitrary token accounts.
+        // Having this check apply to arbitrary token accounts helps to ensure that the searcher (not the user or the relayer) pays for the creation costs.
         for account in create_ata_instructions {
             if account.payer != swap_accounts.searcher {
                 return Err(RestError::InvalidInstruction(
@@ -962,17 +1023,18 @@ impl Service {
         Ok(())
     }
 
+    // Ensures that user SOL transfer/wrap/unwrap/close instructions are correct.
     async fn check_wrap_unwrap_native_token_instructions(
         &self,
         tx: &VersionedTransaction,
         transaction_data: &entities::BidTransactionDataSwap,
         opportunity_swap_data: &OpportunitySvmProgramSwap,
     ) -> Result<(), RestError> {
-        self.check_transfer_instruction(tx, transaction_data, opportunity_swap_data)
+        self.check_transfer_instructions(tx, transaction_data, opportunity_swap_data)
             .await?;
         if transaction_data.accounts.mint_user == spl_token::native_mint::id() {
             // User has to wrap Sol
-            // So we need to check if there is a sync native instruction
+            // So we need to check if there is a sync native instruction for the user wsol ata
             self.check_sync_native_instruction_exists(tx, &transaction_data.accounts.user_wallet)
                 .await?;
         }
@@ -1020,13 +1082,6 @@ impl Service {
                     })
                     .await
                     .ok_or(RestError::SwapOpportunityNotFound)?;
-                self.validate_swap_transaction_instructions(
-                    bid_chain_data_create_svm.get_transaction(),
-                )?;
-                let quote_tokens = get_swap_quote_tokens(&opp);
-                let opportunity_swap_data = get_opportunity_swap_data(&opp);
-                self.check_svm_swap_bid_fields(bid_data, opportunity_swap_data, &quote_tokens)
-                    .await?;
 
                 let transaction_data = self
                     .get_bid_transaction_data_swap(bid_data.transaction.clone())
@@ -1041,6 +1096,17 @@ impl Service {
                     token_program_user,
                     ..
                 } = transaction_data.accounts;
+
+                self.validate_swap_transaction_instructions(
+                    bid_chain_data_create_svm.get_transaction(),
+                    &user_wallet,
+                    &self.config.chain_config.express_relay.relayer.pubkey(),
+                )
+                .await?;
+                let quote_tokens = get_swap_quote_tokens(&opp);
+                let opportunity_swap_data = get_opportunity_swap_data(&opp);
+                self.check_svm_swap_bid_fields(bid_data, opportunity_swap_data, &quote_tokens)
+                    .await?;
 
                 Self::check_memo_instructions(&bid_data.transaction, &opportunity_swap_data.memo)
                     .await?;
@@ -2264,8 +2330,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_verify_bid_when_unsupported_system_program_instruction() {
-        let (service, opportunities) = get_service(true);
+    async fn test_check_approved_program_when_unsupported_system_program_instruction() {
+        let (service, _) = get_service(true);
+        let searcher = Keypair::new();
         let instructions = vec![
             system_instruction::advance_nonce_account(&Pubkey::new_unique(), &Pubkey::new_unique()),
             system_instruction::create_account(
@@ -2288,27 +2355,27 @@ mod tests {
             ),
         ];
         for instruction in instructions.into_iter() {
-            let searcher = Keypair::new();
-            let result = get_verify_bid_result(
-                service.clone(),
-                searcher,
-                vec![instruction],
-                opportunities.user_token_specified.clone(),
-            )
-            .await;
+            let program_id = instruction.program_id;
+            let transaction =
+                Transaction::new_with_payer(&[instruction.clone()], Some(&searcher.pubkey()));
+            let instruction = transaction
+                .message()
+                .instructions
+                .first()
+                .expect("Expected at least one instruction")
+                .clone();
+            let result = service.check_approved_program_instruction(&program_id, &instruction);
             assert_eq!(
                 result.unwrap_err(),
-                RestError::InvalidInstruction(
-                    Some(0),
-                    InstructionError::UnsupportedSystemProgramInstruction
-                )
+                InstructionError::UnsupportedSystemProgramInstruction
             );
         }
     }
 
     #[tokio::test]
-    async fn test_verify_bid_when_unsupported_token_instruction() {
-        let (service, opportunities) = get_service(true);
+    async fn test_check_approved_program_when_unsupported_token_instruction() {
+        let (service, _) = get_service(true);
+        let searcher = Keypair::new();
         let instructions = vec![
             spl_token::instruction::initialize_account(
                 &spl_token::id(),
@@ -2403,33 +2470,151 @@ mod tests {
         for instruction in instructions.into_iter() {
             let data = instruction.data.clone();
             let ix_parsed = TokenInstruction::unpack(&data).unwrap();
-            let searcher = Keypair::new();
-            let result = get_verify_bid_result(
-                service.clone(),
-                searcher,
-                vec![instruction],
-                opportunities.user_token_specified.clone(),
-            )
-            .await;
+            let program_id = instruction.program_id;
+            let transaction =
+                Transaction::new_with_payer(&[instruction.clone()], Some(&searcher.pubkey()));
+            let instruction = transaction
+                .message()
+                .instructions
+                .first()
+                .expect("Expected at least one instruction")
+                .clone();
+            let result = service.check_approved_program_instruction(&program_id, &instruction);
             assert_eq!(
                 result.unwrap_err(),
-                RestError::InvalidInstruction(
-                    Some(0),
-                    InstructionError::UnsupportedSplTokenInstruction(format!("{:?}", ix_parsed)),
-                )
+                InstructionError::UnsupportedSplTokenInstruction(format!("{:?}", ix_parsed))
             );
         }
     }
 
     #[tokio::test]
-    async fn test_verify_bid_when_unsupported_associated_token_account_instruction() {
-        let (service, opportunities) = get_service(true);
+    async fn test_check_approved_program_when_unsupported_token_2022_instruction() {
+        let (service, _) = get_service(true);
+        let searcher = Keypair::new();
+        let instructions = vec![
+            spl_token_2022::instruction::initialize_account(
+                &spl_token_2022::id(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+            )
+            .unwrap(),
+            spl_token_2022::instruction::initialize_account2(
+                &spl_token_2022::id(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+            )
+            .unwrap(),
+            spl_token_2022::instruction::initialize_account3(
+                &spl_token_2022::id(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+            )
+            .unwrap(),
+            spl_token_2022::instruction::initialize_mint(
+                &spl_token_2022::id(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                None,
+                0,
+            )
+            .unwrap(),
+            spl_token_2022::instruction::initialize_mint2(
+                &spl_token_2022::id(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                None,
+                0,
+            )
+            .unwrap(),
+            spl_token_2022::instruction::transfer_checked(
+                &spl_token_2022::id(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                &[],
+                0,
+                0,
+            )
+            .unwrap(),
+            spl_token_2022::instruction::approve(
+                &spl_token_2022::id(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                &[],
+                0,
+            )
+            .unwrap(),
+            spl_token_2022::instruction::revoke(
+                &spl_token_2022::id(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                &[],
+            )
+            .unwrap(),
+            spl_token_2022::instruction::set_authority(
+                &spl_token_2022::id(),
+                &Pubkey::new_unique(),
+                None,
+                spl_token_2022::instruction::AuthorityType::AccountOwner,
+                &Pubkey::new_unique(),
+                &[],
+            )
+            .unwrap(),
+            spl_token_2022::instruction::mint_to(
+                &spl_token_2022::id(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                &[],
+                0,
+            )
+            .unwrap(),
+            spl_token_2022::instruction::burn(
+                &spl_token_2022::id(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                &Pubkey::new_unique(),
+                &[],
+                0,
+            )
+            .unwrap(),
+        ];
+        for instruction in instructions.into_iter() {
+            let data = instruction.data.clone();
+            let ix_parsed = TokenInstruction::unpack(&data).unwrap();
+            let program_id = instruction.program_id;
+            let transaction =
+                Transaction::new_with_payer(&[instruction.clone()], Some(&searcher.pubkey()));
+            let instruction = transaction
+                .message()
+                .instructions
+                .first()
+                .expect("Expected at least one instruction")
+                .clone();
+            let result = service.check_approved_program_instruction(&program_id, &instruction);
+            assert_eq!(
+                result.unwrap_err(),
+                InstructionError::UnsupportedSplTokenInstruction(format!("{:?}", ix_parsed))
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_check_approved_program_when_unsupported_associated_token_account_instruction() {
+        let (service, _) = get_service(true);
+        let searcher = Keypair::new();
         let instructions = vec![recover_nested(
             &Pubkey::new_unique(),
             &Pubkey::new_unique(),
             &Pubkey::new_unique(),
             &spl_token::id(),
         )];
+
         for instruction in instructions.into_iter() {
             let data = instruction.data.clone();
             let ix_parsed = AssociatedTokenAccountInstruction::try_from_slice(&data)
@@ -2437,11 +2622,92 @@ mod tests {
                     InstructionError::InvalidAssociatedTokenAccountInstruction(e.to_string())
                 })
                 .unwrap();
-            let searcher = Keypair::new();
+            let program_id = instruction.program_id;
+            let transaction =
+                Transaction::new_with_payer(&[instruction.clone()], Some(&searcher.pubkey()));
+            let instruction = transaction
+                .message()
+                .instructions
+                .first()
+                .expect("Expected at least one instruction")
+                .clone();
+            let result = service.check_approved_program_instruction(&program_id, &instruction);
+            assert_eq!(
+                result.unwrap_err(),
+                InstructionError::UnsupportedAssociatedTokenAccountInstruction(ix_parsed)
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_check_approved_program_when_unapproved_program_id() {
+        let (service, _) = get_service(true);
+        let searcher = Keypair::new();
+        let program_id = Pubkey::new_unique();
+        let instruction = Instruction::new_with_bincode(program_id, &"", vec![]);
+
+        let transaction =
+            Transaction::new_with_payer(&[instruction.clone()], Some(&searcher.pubkey()));
+        let instruction = transaction
+            .message()
+            .instructions
+            .first()
+            .expect("Expected at least one instruction")
+            .clone();
+        let result = service.check_approved_program_instruction(&program_id, &instruction);
+        assert_eq!(
+            result.unwrap_err(),
+            InstructionError::UnapprovedProgramId(program_id)
+        );
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_arbitrary_program_invokes_user() {
+        let (service, opportunities) = get_service(true);
+        let opportunity = opportunities.user_token_specified.clone();
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunity.clone()),
+            bid_amount,
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let SwapParams {
+            user_wallet_address,
+            router_account: _,
+            permission_account: _,
+            minimum_deadline: _,
+        } = get_opportunity_swap_params(opportunity);
+        let instructions = vec![
+            Instruction::new_with_bincode(
+                Pubkey::new_unique(),
+                &"",
+                vec![AccountMeta {
+                    pubkey:      user_wallet_address,
+                    is_signer:   false,
+                    is_writable: false,
+                }],
+            ),
+            Instruction::new_with_bincode(
+                Pubkey::new_unique(),
+                &"",
+                vec![AccountMeta {
+                    pubkey:      user_wallet_address,
+                    is_signer:   true,
+                    is_writable: true,
+                }],
+            ),
+        ];
+        for instruction in instructions.into_iter() {
+            let program_id = instruction.program_id;
             let result = get_verify_bid_result(
                 service.clone(),
-                searcher,
-                vec![instruction],
+                searcher.insecure_clone(),
+                vec![instruction, swap_instruction.clone()],
                 opportunities.user_token_specified.clone(),
             )
             .await;
@@ -2449,23 +2715,54 @@ mod tests {
                 result.unwrap_err(),
                 RestError::InvalidInstruction(
                     Some(0),
-                    InstructionError::UnsupportedAssociatedTokenAccountInstruction(ix_parsed),
+                    InstructionError::UnapprovedProgramId(program_id)
                 )
             );
         }
     }
 
     #[tokio::test]
-    async fn test_verify_bid_when_unsupported_program() {
+    async fn test_verify_bid_when_arbitrary_program_invokes_relayer() {
         let (service, opportunities) = get_service(true);
-        let program_id = Pubkey::new_unique();
-        let instructions = vec![Instruction::new_with_bincode(program_id, &"", vec![])];
+        let opportunity = opportunities.user_token_specified.clone();
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunity.clone()),
+            bid_amount,
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let relayer = service.config.chain_config.express_relay.relayer.pubkey();
+        let instructions = vec![
+            Instruction::new_with_bincode(
+                Pubkey::new_unique(),
+                &"",
+                vec![AccountMeta {
+                    pubkey:      relayer,
+                    is_signer:   false,
+                    is_writable: false,
+                }],
+            ),
+            Instruction::new_with_bincode(
+                Pubkey::new_unique(),
+                &"",
+                vec![AccountMeta {
+                    pubkey:      relayer,
+                    is_signer:   true,
+                    is_writable: true,
+                }],
+            ),
+        ];
         for instruction in instructions.into_iter() {
-            let searcher = Keypair::new();
+            let program_id = instruction.program_id;
             let result = get_verify_bid_result(
                 service.clone(),
-                searcher,
-                vec![instruction],
+                searcher.insecure_clone(),
+                vec![instruction, swap_instruction.clone()],
                 opportunities.user_token_specified.clone(),
             )
             .await;
@@ -2473,9 +2770,104 @@ mod tests {
                 result.unwrap_err(),
                 RestError::InvalidInstruction(
                     Some(0),
-                    InstructionError::UnsupportedProgram(program_id)
+                    InstructionError::UnapprovedProgramId(program_id)
                 )
             );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_create_ata_relayer_payer() {
+        let (service, opportunities) = get_service(true);
+        let opportunity = opportunities.user_token_specified.clone();
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunity.clone()),
+            bid_amount,
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let relayer = service.config.chain_config.express_relay.relayer.pubkey();
+        let program = match opportunity.program.clone() {
+            OpportunitySvmProgram::Swap(program) => program,
+            _ => panic!("Expected swap program"),
+        };
+        let create_ata_instruction =
+            spl_associated_token_account::instruction::create_associated_token_account(
+                &relayer,
+                &relayer,
+                &opportunity.buy_tokens[0].token,
+                &program.token_program_user,
+            );
+        let result = get_verify_bid_result(
+            service.clone(),
+            searcher.insecure_clone(),
+            vec![create_ata_instruction, swap_instruction.clone()],
+            opportunities.user_token_specified.clone(),
+        )
+        .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::InvalidInstruction(
+                Some(0),
+                InstructionError::InvalidPayerInCreateAtaInstruction {
+                    expected: searcher.pubkey(),
+                    found:    relayer,
+                }
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_arbitrary_program_does_not_invoke_user() {
+        let (service, opportunities) = get_service(true);
+        let opportunity = opportunities.user_token_specified.clone();
+        let bid_amount = 1;
+        let searcher = Keypair::new();
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher: searcher.pubkey(),
+            opportunity_params: get_opportunity_params(opportunity.clone()),
+            bid_amount,
+            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let instructions = vec![Instruction::new_with_bincode(
+            Pubkey::new_unique(),
+            &"",
+            vec![],
+        )];
+        let swap_params = get_opportunity_swap_params(opportunity);
+
+        for instruction in instructions.into_iter() {
+            let instructions = vec![instruction, swap_instruction.clone()];
+            let mut transaction =
+                Transaction::new_with_payer(&instructions, Some(&searcher.pubkey()));
+            transaction.partial_sign(&[searcher.insecure_clone()], Hash::default());
+            let result = get_verify_bid_result(
+                service.clone(),
+                searcher.insecure_clone(),
+                instructions,
+                opportunities.user_token_specified.clone(),
+            )
+            .await
+            .unwrap();
+
+            assert_eq!(
+                result.0,
+                BidChainDataSvm {
+                    transaction:                  transaction.into(),
+                    permission_account:           swap_params.permission_account,
+                    router:                       swap_params.router_account,
+                    bid_payment_instruction_type: BidPaymentInstructionType::Swap,
+                }
+            );
+            assert_eq!(result.1, bid_amount);
         }
     }
 
@@ -2817,7 +3209,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_verify_bid_when_no_transfer_instruction() {
+    async fn test_verify_bid_when_no_user_transfer_instruction() {
         let (service, opportunities) = get_service(false);
         let searcher = Keypair::new();
         let opportunity = opportunities.user_token_wsol.clone();
@@ -2835,12 +3227,62 @@ mod tests {
             get_verify_bid_result(service, searcher, vec![swap_instruction], opportunity).await;
         assert_eq!(
             result.unwrap_err(),
-            RestError::InvalidInstruction(None, InstructionError::InvalidTransferInstructionsCount)
+            RestError::InvalidInstruction(
+                None,
+                InstructionError::InvalidUserTransferInstructionsCount { found: 0 }
+            )
         );
     }
 
     #[tokio::test]
-    async fn test_verify_bid_when_no_transfer_instruction_is_allowed() {
+    async fn test_verify_bid_when_multiple_user_transfer_instructions() {
+        let (service, opportunities) = get_service(false);
+        let searcher = Keypair::new();
+        let opportunity = opportunities.user_token_wsol.clone();
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher:             searcher.pubkey(),
+            opportunity_params:   get_opportunity_params(opportunity.clone()),
+            bid_amount:           1,
+            deadline:             (OffsetDateTime::now_utc() + Duration::seconds(30))
+                .unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let program = match opportunity.program.clone() {
+            OpportunitySvmProgram::Swap(program) => program,
+            _ => panic!("Expected swap program"),
+        };
+        let transfer_instruction = system_instruction::transfer(
+            &program.user_wallet_address,
+            &get_associated_token_address(
+                &program.user_wallet_address,
+                &spl_token::native_mint::id(),
+            ),
+            opportunity.buy_tokens[0].amount,
+        );
+        let result = get_verify_bid_result(
+            service,
+            searcher,
+            vec![
+                swap_instruction,
+                transfer_instruction.clone(),
+                transfer_instruction,
+            ],
+            opportunity,
+        )
+        .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::InvalidInstruction(
+                Some(2),
+                InstructionError::InvalidUserTransferInstructionsCount { found: 2 }
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_no_user_transfer_instruction_is_allowed() {
         let (service, opportunities) = get_service(false);
         let searcher = Keypair::new();
         let opportunity = opportunities.user_token_specified.clone();
@@ -2854,8 +3296,12 @@ mod tests {
             relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
         })
         .unwrap();
+        let program = match opportunity.program.clone() {
+            OpportunitySvmProgram::Swap(program) => program,
+            _ => panic!("Expected swap program"),
+        };
         let transfer_instruction =
-            system_instruction::transfer(&searcher.pubkey(), &Pubkey::new_unique(), 1);
+            system_instruction::transfer(&program.user_wallet_address, &Pubkey::new_unique(), 1);
         let result = get_verify_bid_result(
             service,
             searcher,
@@ -2865,7 +3311,46 @@ mod tests {
         .await;
         assert_eq!(
             result.unwrap_err(),
-            RestError::InvalidInstruction(Some(1), InstructionError::TransferInstructionNotAllowed)
+            RestError::InvalidInstruction(
+                Some(1),
+                InstructionError::InvalidUserAccountTransferInstruction
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn test_verify_bid_when_relayer_transfer_instruction() {
+        let (service, opportunities) = get_service(false);
+        let searcher = Keypair::new();
+        let opportunity = opportunities.user_token_specified.clone();
+        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
+            searcher:             searcher.pubkey(),
+            opportunity_params:   get_opportunity_params(opportunity.clone()),
+            bid_amount:           1,
+            deadline:             (OffsetDateTime::now_utc() + Duration::seconds(30))
+                .unix_timestamp(),
+            fee_receiver_relayer: Pubkey::new_unique(),
+            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
+        })
+        .unwrap();
+        let transfer_instruction = system_instruction::transfer(
+            &service.config.chain_config.express_relay.relayer.pubkey(),
+            &Pubkey::new_unique(),
+            1,
+        );
+        let result = get_verify_bid_result(
+            service,
+            searcher,
+            vec![swap_instruction, transfer_instruction],
+            opportunity,
+        )
+        .await;
+        assert_eq!(
+            result.unwrap_err(),
+            RestError::InvalidInstruction(
+                Some(1),
+                InstructionError::RelayerTransferInstructionNotAllowed
+            )
         );
     }
 
@@ -2906,81 +3391,6 @@ mod tests {
             RestError::InvalidInstruction(
                 Some(1),
                 InstructionError::CloseAccountInstructionNotAllowed
-            )
-        );
-    }
-
-    #[tokio::test]
-    async fn test_verify_bid_when_multiple_transfer_instructions() {
-        let (service, opportunities) = get_service(false);
-        let searcher = Keypair::new();
-        let opportunity = opportunities.user_token_wsol.clone();
-        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
-            searcher:             searcher.pubkey(),
-            opportunity_params:   get_opportunity_params(opportunity.clone()),
-            bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::seconds(30))
-                .unix_timestamp(),
-            fee_receiver_relayer: Pubkey::new_unique(),
-            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
-        })
-        .unwrap();
-        let transfer_instruction =
-            system_instruction::transfer(&searcher.pubkey(), &Pubkey::new_unique(), 1);
-        let result = get_verify_bid_result(
-            service,
-            searcher,
-            vec![
-                swap_instruction,
-                transfer_instruction.clone(),
-                transfer_instruction,
-            ],
-            opportunity,
-        )
-        .await;
-        assert_eq!(
-            result.unwrap_err(),
-            RestError::InvalidInstruction(
-                Some(2),
-                InstructionError::InvalidTransferInstructionsCount
-            )
-        );
-    }
-
-    #[tokio::test]
-    async fn test_verify_bid_when_invalid_from_account_transfer_instruction() {
-        let (service, opportunities) = get_service(false);
-        let searcher = Keypair::new();
-        let opportunity = opportunities.user_token_wsol.clone();
-        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
-            searcher:             searcher.pubkey(),
-            opportunity_params:   get_opportunity_params(opportunity.clone()),
-            bid_amount:           1,
-            deadline:             (OffsetDateTime::now_utc() + Duration::seconds(30))
-                .unix_timestamp(),
-            fee_receiver_relayer: Pubkey::new_unique(),
-            relayer_signer:       service.config.chain_config.express_relay.relayer.pubkey(),
-        })
-        .unwrap();
-        let program = match opportunity.program.clone() {
-            OpportunitySvmProgram::Swap(program) => program,
-            _ => panic!("Expected swap program"),
-        };
-        let expected = program.user_wallet_address;
-        let found = Pubkey::new_unique();
-        let transfer_instruction = system_instruction::transfer(&found, &Pubkey::new_unique(), 1);
-        let result = get_verify_bid_result(
-            service,
-            searcher,
-            vec![swap_instruction, transfer_instruction],
-            opportunity,
-        )
-        .await;
-        assert_eq!(
-            result.unwrap_err(),
-            RestError::InvalidInstruction(
-                Some(1),
-                InstructionError::InvalidFromAccountTransferInstruction { expected, found }
             )
         );
     }
@@ -4144,128 +4554,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_verify_bid_when_invalid_searcher_account_from_transfer() {
-        let (service, opportunities) = get_service(true);
-        let opportunity = opportunities.searcher_token_wsol.clone();
-        let bid_amount = 1;
-        let searcher = Keypair::new();
-        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
-            searcher: searcher.pubkey(),
-            opportunity_params: get_opportunity_params(opportunity.clone()),
-            bid_amount,
-            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
-            fee_receiver_relayer: Pubkey::new_unique(),
-            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
-        })
-        .unwrap();
-        let program = match opportunity.program.clone() {
-            OpportunitySvmProgram::Swap(program) => program,
-            _ => panic!("Expected swap program"),
-        };
-        let ata = get_associated_token_address(
-            &program.user_wallet_address,
-            &spl_token::native_mint::id(),
-        );
-        let close_account_instruction = spl_token::instruction::close_account(
-            &spl_token::id(),
-            &ata,
-            &program.user_wallet_address,
-            &program.user_wallet_address,
-            &[],
-        )
-        .unwrap();
-        let searcher_ata =
-            get_associated_token_address(&searcher.pubkey(), &spl_token::native_mint::id());
-        let expected = searcher.pubkey();
-        let found = Pubkey::new_unique();
-        let transfer_instruction_searcher =
-            system_instruction::transfer(&found, &searcher_ata, opportunity.buy_tokens[0].amount);
-        let sync_native_instruction_searcher =
-            spl_token::instruction::sync_native(&spl_token::id(), &searcher_ata).unwrap();
-        let result = get_verify_bid_result(
-            service,
-            searcher,
-            vec![
-                transfer_instruction_searcher,
-                sync_native_instruction_searcher,
-                swap_instruction,
-                close_account_instruction,
-            ],
-            opportunity,
-        )
-        .await;
-        assert_eq!(
-            result.unwrap_err(),
-            RestError::InvalidInstruction(
-                Some(0),
-                InstructionError::InvalidFromAccountTransferInstruction { expected, found }
-            )
-        );
-    }
-
-    #[tokio::test]
-    async fn test_verify_bid_when_invalid_searcher_account_to_transfer() {
-        let (service, opportunities) = get_service(true);
-        let opportunity = opportunities.searcher_token_wsol.clone();
-        let bid_amount = 1;
-        let searcher = Keypair::new();
-        let swap_instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
-            searcher: searcher.pubkey(),
-            opportunity_params: get_opportunity_params(opportunity.clone()),
-            bid_amount,
-            deadline: (OffsetDateTime::now_utc() + Duration::seconds(30)).unix_timestamp(),
-            fee_receiver_relayer: Pubkey::new_unique(),
-            relayer_signer: service.config.chain_config.express_relay.relayer.pubkey(),
-        })
-        .unwrap();
-        let program = match opportunity.program.clone() {
-            OpportunitySvmProgram::Swap(program) => program,
-            _ => panic!("Expected swap program"),
-        };
-        let ata = get_associated_token_address(
-            &program.user_wallet_address,
-            &spl_token::native_mint::id(),
-        );
-        let close_account_instruction = spl_token::instruction::close_account(
-            &spl_token::id(),
-            &ata,
-            &program.user_wallet_address,
-            &program.user_wallet_address,
-            &[],
-        )
-        .unwrap();
-        let expected =
-            get_associated_token_address(&searcher.pubkey(), &spl_token::native_mint::id());
-        let found = Pubkey::new_unique();
-        let transfer_instruction_searcher = system_instruction::transfer(
-            &searcher.pubkey(),
-            &found,
-            opportunity.buy_tokens[0].amount,
-        );
-        let sync_native_instruction_searcher =
-            spl_token::instruction::sync_native(&spl_token::id(), &found).unwrap();
-        let result = get_verify_bid_result(
-            service,
-            searcher,
-            vec![
-                transfer_instruction_searcher,
-                sync_native_instruction_searcher,
-                swap_instruction,
-                close_account_instruction,
-            ],
-            opportunity,
-        )
-        .await;
-        assert_eq!(
-            result.unwrap_err(),
-            RestError::InvalidInstruction(
-                Some(0),
-                InstructionError::InvalidToAccountTransferInstruction { expected, found }
-            )
-        );
-    }
-
-    #[tokio::test]
     async fn test_verify_bid_when_user_payer_missing_user_mint_ata_creation() {
         let (service, opportunities) = get_service(false);
         let opportunity = opportunities.with_user_payer.clone();
@@ -4816,6 +5104,7 @@ mod tests {
         let bid_amount = 1;
         let searcher = Keypair::new();
         let memo_instruction = svm::Svm::get_memo_instruction("memo".to_string());
+        let memo_instruction_extra = svm::Svm::get_memo_instruction("extra memo".to_string());
         let instruction = svm::Svm::get_swap_instruction(GetSwapInstructionParams {
             searcher: searcher.pubkey(),
             opportunity_params: get_opportunity_params(opportunity.clone()),
@@ -4828,7 +5117,7 @@ mod tests {
         get_verify_bid_result(
             service,
             searcher.insecure_clone(),
-            vec![memo_instruction, instruction],
+            vec![memo_instruction, memo_instruction_extra, instruction],
             opportunity.clone(),
         )
         .await
@@ -4862,10 +5151,9 @@ mod tests {
         assert_eq!(
             result.unwrap_err(),
             RestError::InvalidInstruction(
-                Some(0),
-                InstructionError::InvalidMemoString {
+                None,
+                InstructionError::MissingMemoInstruction {
                     expected: "memo".to_string(),
-                    found:    "invalid memo".to_string(),
                 }
             )
         );
